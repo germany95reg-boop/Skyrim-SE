@@ -1,4 +1,4 @@
-name: Skyrim SE Mobile Vulkan APK Test
+name: Skyrim SE Mobile Vulkan 3D APK v0.4
 on:
   push:
     branches: [main]
@@ -21,20 +21,29 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
-      - name: Prepare Android source
+      - name: Unpack v0.4 source
         run: |
-          mkdir -p SkyrimSEMobileLauncher_v0.3
-          base64 --decode .skyrimse-source.tar.xz.b64 | tar -xJf - -C SkyrimSEMobileLauncher_v0.3
-      - name: Install Android SDK packages
+          mkdir -p SkyrimSEMobileLauncher_v0.4
+          base64 --decode .skyrimse-v04-source.tar.xz.b64 | tar -xJf - -C SkyrimSEMobileLauncher_v0.4
+      - name: Install Android SDK and shader compiler
         run: |
-          yes | sdkmanager --licenses >/dev/null 2>&1 || true
           sdkmanager --install "platforms;android-35" "build-tools;35.0.0" "ndk;27.2.12479018" "cmake;3.22.1"
+          sudo apt-get update -qq
+          sudo apt-get install -y glslang-tools
+      - name: Compile Vulkan GLSL to SPIR-V
+        run: |
+          glslangValidator -V --target-env vulkan1.0 -S vert \
+            SkyrimSEMobileLauncher_v0.4/app/src/main/shaders/cube.vert \
+            -o SkyrimSEMobileLauncher_v0.4/app/src/main/assets/cube.vert.spv
+          glslangValidator -V --target-env vulkan1.0 -S frag \
+            SkyrimSEMobileLauncher_v0.4/app/src/main/shaders/cube.frag \
+            -o SkyrimSEMobileLauncher_v0.4/app/src/main/assets/cube.frag.spv
       - name: Build signed debug APK
-        working-directory: SkyrimSEMobileLauncher_v0.3
+        working-directory: SkyrimSEMobileLauncher_v0.4
         run: gradle --no-daemon --stacktrace :app:assembleDebug
-      - name: Upload APK
+      - name: Upload Vulkan 3D test APK
         uses: actions/upload-artifact@v4
         with:
-          name: Skyrim-SE-Vulkan-Test-v0.3-APK
-          path: SkyrimSEMobileLauncher_v0.3/app/build/outputs/apk/debug/app-debug.apk
+          name: Skyrim-SE-Vulkan-3D-v0.4-APK
+          path: SkyrimSEMobileLauncher_v0.4/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
