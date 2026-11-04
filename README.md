@@ -1,2 +1,13 @@
-# Skyrim-SE
-Port - Skyrim-SE
+# Skyrim SE Mobile Launcher
+
+Android-лаунчер Skyrim Special Edition с адаптивным интерфейсом и экспериментальным тестом Vulkan (ARM64).
+
+## Сборка тестового APK
+
+Откройте вкладку [Actions](https://github.com/germany95reg-boop/Skyrim-SE/actions), выберите **Build Skyrim SE Vulkan Test APK** и запустите сборку (если она не запустилась автоматически после push в `main`).
+
+После **успешной** сборки скачайте артефакт `Skyrim-SE-Vulkan-Test-v0.3-APK`; внутри должен быть `app-debug.apk`.
+
+Исходники версии v0.3 находятся в `.skyrimse-source.tar.xz.b64`. Workflow распаковывает их перед сборкой. Это временная структура для тестирования; позднее исходники будут вынесены в обычные каталоги проекта.
+
+**Статус:** нативный рендер Skyrim SE и SKSE ещё не подключены. Vulkan-тест не является запуском игры. Сборка APK и работа теста на реальном телефоне пока не подтверждены.
