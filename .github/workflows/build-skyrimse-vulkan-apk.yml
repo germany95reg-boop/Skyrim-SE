@@ -1,0 +1,38 @@
+name: Skyrim SE Mobile Vulkan APK Test
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: Prepare Android source
+        run: |
+          mkdir -p SkyrimSEMobileLauncher_v0.3
+          base64 --decode .skyrimse-source.tar.xz.b64 | tar -xJf - -C SkyrimSEMobileLauncher_v0.3
+      - name: Install Android SDK packages
+        run: |
+          yes | sdkmanager --licenses >/dev/null 2>&1 || true
+          sdkmanager --install "platforms;android-35" "build-tools;35.0.0" "ndk;27.2.12479018" "cmake;3.22.1"
+      - name: Build signed debug APK
+        working-directory: SkyrimSEMobileLauncher_v0.3
+        run: gradle --no-daemon --stacktrace :app:assembleDebug
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Skyrim-SE-Vulkan-Test-v0.3-APK
+          path: SkyrimSEMobileLauncher_v0.3/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
