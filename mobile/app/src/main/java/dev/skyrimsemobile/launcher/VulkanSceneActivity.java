@@ -49,6 +49,8 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
     private static native void nativeSetUseNormalMap(boolean enabled);
     private static native void nativeSetLightMode(int mode);
     private static native void nativeSetNormalStrength(float strength);
+    private static native void nativeSetSpecularStrength(float strength);
+    private static native void nativeSetSpecularSize(int size);
     private static final int PICK_OBJ = 606;
     private String meshLabel = "Куб (встроенный)";
     private String nifDimensions = "";
@@ -65,7 +67,9 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
     private Button textureButton;
     private Button normalButton;
     private Button lightButton,reliefButton;
+    private Button specularButton,specularSizeButton;
     private int lightMode=0,reliefPreset=1;
+    private int specularPreset=0,specularSizePreset=1;
     private boolean hasSurface = false;
     private boolean hasTexture = false,hasNormalMap=false;
     private boolean solidMode = false,useTexture = false,useNormalMap=false;
@@ -133,7 +137,7 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
         root.addView(viewport, new FrameLayout.LayoutParams(-1, -1));
 
         TextView title = new TextView(this);
-        title.setText("SKYRIM SE MOBILE\nVulkan 3D · v2.3");
+        title.setText("SKYRIM SE MOBILE\nVulkan 3D · v2.4");
         sceneTitle=title;
         title.setTypeface(Typeface.SERIF, Typeface.BOLD);
         title.setTextSize(20);
@@ -256,6 +260,28 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
         });
         lightingControls.addView(reliefButton,new LinearLayout.LayoutParams(0,dp(40),1));
         panel.addView(lightingControls);
+        // Material controls are independent of mesh geometry and only active when
+        // a normal DDS supplies a per-pixel alpha mask for the preview highlight.
+        LinearLayout materialControls=new LinearLayout(this);
+        specularButton=controlButton(PreviewMaterial.specularLabel(specularPreset));
+        specularButton.setEnabled(false);
+        specularButton.setOnClickListener(v->{
+            if(!hasNormalMap)return;
+            specularPreset=PreviewMaterial.nextSpecular(specularPreset);
+            nativeSetSpecularStrength(PreviewMaterial.specularStrength(specularPreset));
+            updateSurfaceButton();
+        });
+        materialControls.addView(specularButton,new LinearLayout.LayoutParams(0,dp(40),1));
+        specularSizeButton=controlButton(PreviewMaterial.sizeLabel(specularSizePreset));
+        specularSizeButton.setEnabled(false);
+        specularSizeButton.setOnClickListener(v->{
+            if(!hasNormalMap)return;
+            specularSizePreset=PreviewMaterial.nextSize(specularSizePreset);
+            nativeSetSpecularSize(specularSizePreset);
+            updateSurfaceButton();
+        });
+        materialControls.addView(specularSizeButton,new LinearLayout.LayoutParams(0,dp(40),1));
+        panel.addView(materialControls);
         panel.addView(actions);
         root.addView(panel, new FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM));
         setContentView(root);
@@ -360,6 +386,14 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
             reliefButton.setEnabled(hasNormalMap);
             reliefButton.setText(PreviewLighting.reliefLabel(reliefPreset));
         }
+        if(specularButton!=null){
+            specularButton.setEnabled(hasNormalMap);
+            specularButton.setText(PreviewMaterial.specularLabel(specularPreset));
+        }
+        if(specularSizeButton!=null){
+            specularSizeButton.setEnabled(hasNormalMap);
+            specularSizeButton.setText(PreviewMaterial.sizeLabel(specularSizePreset));
+        }
     }
     private void activateModel(ObjWireParser.Model model,String name,Uri persist,float[] triangles) {
         activateModel(model,name,persist,triangles,null,null,0,0,null,0,0);
@@ -383,6 +417,10 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
         reliefPreset=1;
         nativeSetLightMode(lightMode);
         nativeSetNormalStrength(PreviewLighting.reliefStrength(reliefPreset));
+        specularPreset=0;
+        specularSizePreset=1;
+        nativeSetSpecularStrength(PreviewMaterial.specularStrength(specularPreset));
+        nativeSetSpecularSize(specularSizePreset);
         solidMode=false;
         nativeSetSolidMode(false); // Always open with the proven wireframe first.
         updateSurfaceButton();
@@ -519,6 +557,8 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
         nativeSetUseNormalMap(useNormalMap);
         nativeSetLightMode(lightMode);
         nativeSetNormalStrength(PreviewLighting.reliefStrength(reliefPreset));
+        nativeSetSpecularStrength(PreviewMaterial.specularStrength(specularPreset));
+        nativeSetSpecularSize(specularSizePreset);
         refreshFraming();
         final AssetManager assets = getAssets();
         worker = new Thread(() -> {
