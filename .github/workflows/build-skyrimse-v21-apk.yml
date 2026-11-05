@@ -147,6 +147,8 @@ jobs:
             app/src/main/java/dev/skyrimsemobile/launcher/NifGeometryDecoder.java \
             app/src/main/java/dev/skyrimsemobile/launcher/ObjWireParser.java \
             app/src/main/java/dev/skyrimsemobile/launcher/NifGeometryTransfer.java \
+            app/src/main/java/dev/skyrimsemobile/launcher/DdsHeaderInspector.java \
+            app/src/main/java/dev/skyrimsemobile/launcher/DdsBcDecoder.java \
             tests/NifGeometryDecoderTest.java
           java -cp /tmp/skyrim-v21-geometry-tests dev.skyrimsemobile.launcher.NifGeometryDecoderTest
           python3 tests/resource_v21_contract_test.py
