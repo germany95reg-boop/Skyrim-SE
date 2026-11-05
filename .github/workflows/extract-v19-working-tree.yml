@@ -1,0 +1,41 @@
+name: Expose v1.9 working tree for v2.0 development
+on:
+  push:
+    branches: ['development/v2.0']
+    paths:
+      - '.github/workflows/extract-v19-working-tree.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  unpack:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - name: Verify snapshot and extract editable sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s .skyrimse-v19-source.tar.xz
+          mkdir -p mobile
+          tar -tJf .skyrimse-v19-source.tar.xz > /tmp/skyrim-source-list.txt
+          head -n 30 /tmp/skyrim-source-list.txt
+          tar -xJf .skyrimse-v19-source.tar.xz -C mobile
+          test -s mobile/app/build.gradle
+          test -s mobile/app/src/main/AndroidManifest.xml
+          echo "Source files:" $(find mobile -type f | wc -l)
+          if find mobile -type f \( -iname '*.jks' -o -iname '*.keystore' -o -iname '*secret*' \) | grep -q .; then
+            echo 'Aborting: unexpected signing material in source snapshot'
+            exit 1
+          fi
+      - name: Commit unpacked tree to development branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- mobile
+          git diff --cached --quiet || git commit -m 'chore: expose v1.9 Android source for editable v2.0 work'
+          git push origin HEAD:development/v2.0
