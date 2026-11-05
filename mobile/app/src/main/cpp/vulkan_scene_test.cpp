@@ -55,6 +55,8 @@ std::atomic<bool> useTexture{false};
 std::atomic<bool> useNormalMap{false};
 std::atomic<int> previewLightMode{0};
 std::atomic<float> previewReliefStrength{1.0f};
+std::atomic<float> previewSpecularStrength{0.0f}; // OFF preserves proven v2.3 image
+std::atomic<int> previewSpecularSize{1};
 std::atomic<bool> solidMode{false};
 uint32_t geometryTriangleCount = 0;
 std::string geometryLabel = "Куб (встроенный)";
@@ -619,7 +621,7 @@ struct Renderer {
             dsInfo.bindingCount=1;dsInfo.pBindings=&samplerBinding;
             ck(vkCreateDescriptorSetLayout(device,&dsInfo,nullptr,&textureSetLayout),"texture set layout");
             VkPushConstantRange texRange=range;
-            texRange.size=44; // 7 camera floats + 3 controls int,int,int + relief float
+            texRange.size=52; // camera(28), atlas(4), normal(4), light(4), relief(4), gloss(8)
             texRange.stageFlags=VK_SHADER_STAGE_VERTEX_BIT|VK_SHADER_STAGE_FRAGMENT_BIT;
             VkPipelineLayoutCreateInfo texLayoutInfo=layoutInfo;
             texLayoutInfo.pPushConstantRanges=&texRange;
@@ -828,11 +830,15 @@ struct Renderer {
                 int normalEnabled;
                 int lightMode;
                 float reliefStrength;
+                float specularStrength;
+                int specularSize;
             } texParams{p,hasNormalAtlas?1:0,
                 (hasNormalAtlas&&useNormalMap.load(std::memory_order_relaxed))?1:0,
                 previewLightMode.load(std::memory_order_relaxed),
-                previewReliefStrength.load(std::memory_order_relaxed)};
-            static_assert(sizeof(TexturedParameters)==44,"GLSL push constants must be 44 bytes");
+                previewReliefStrength.load(std::memory_order_relaxed),
+                previewSpecularStrength.load(std::memory_order_relaxed),
+                previewSpecularSize.load(std::memory_order_relaxed)};
+            static_assert(sizeof(TexturedParameters)==52,"GLSL push constants must be 52 bytes");
             vkCmdPushConstants(cmd,chosenLayout,
                 VK_SHADER_STAGE_VERTEX_BIT|VK_SHADER_STAGE_FRAGMENT_BIT,
                 0,sizeof(texParams),&texParams);
@@ -1185,4 +1191,21 @@ Java_dev_skyrimsemobile_launcher_VulkanSceneActivity_nativeSetNormalStrength(
     const float value=std::isfinite(strength)
         ?std::max(0.5f,std::min(1.5f,static_cast<float>(strength))):1.0f;
     previewReliefStrength.store(value,std::memory_order_relaxed);
+}
+
+
+// v2.4: atomic specular preview controls. No texture reload or Vulkan rebuild.
+// 0.0f is the default and matches the user's proven v2.3 render exactly.
+extern "C" JNIEXPORT void JNICALL
+Java_dev_skyrimsemobile_launcher_VulkanSceneActivity_nativeSetSpecularStrength(
+    JNIEnv*,jclass,jfloat strength){
+    float safe=std::isfinite(strength)
+        ?std::max(0.0f,std::min(1.0f,static_cast<float>(strength))):0.0f;
+    previewSpecularStrength.store(safe,std::memory_order_relaxed);
+}
+extern "C" JNIEXPORT void JNICALL
+Java_dev_skyrimsemobile_launcher_VulkanSceneActivity_nativeSetSpecularSize(
+    JNIEnv*,jclass,jint size){
+    previewSpecularSize.store((size>=0 && size<=2)?static_cast<int>(size):1,
+                              std::memory_order_relaxed);
 }

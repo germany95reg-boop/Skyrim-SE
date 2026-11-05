@@ -11,6 +11,8 @@ layout(push_constant) uniform NormalOptions {
     layout(offset=32) int normalEnabled;
     layout(offset=36) int lightMode;
     layout(offset=40) float reliefStrength;
+    layout(offset=44) float specularStrength;
+    layout(offset=48) int specularSize;
 } options;
 
 void main(){
@@ -27,8 +29,10 @@ void main(){
     float strength=length(crossN);
     vec3 n=strength>1e-7?crossN/strength:vec3(0.0,0.0,1.0);
 
+    // Per-pixel normal alpha is used as a gloss/specular *preview* mask.
+    // It is not a full simulation of Skyrim's BSLightingShaderProperty.
+    vec2 normalUV=vec2(tiled.x,mix(0.5+halfPixel,1.0-halfPixel,tiled.y));
     if(options.atlasMode!=0&&options.normalEnabled!=0){
-        vec2 normalUV=vec2(tiled.x,mix(0.5+halfPixel,1.0-halfPixel,tiled.y));
         vec2 xy=texture(diffuseSampler,normalUV).rg*2.0-1.0;
         // Bounded normal-map emphasis; 100% matches the proven v2.2 preview.
         xy=clamp(xy*clamp(options.reliefStrength,0.5,1.5),
@@ -52,5 +56,21 @@ void main(){
     else if(options.lightMode==2)lightDirection=vec3(-0.76,0.45,0.48);
     else if(options.lightMode==3)lightDirection=vec3(0.15,0.94,0.30);
     float diffuse=abs(dot(n,normalize(lightDirection)));
-    fragColor=vec4(base.rgb*(0.45+0.55*diffuse),base.a);
+    vec3 shaded=base.rgb*(0.45+0.55*diffuse);
+    if(options.atlasMode!=0&&options.specularStrength>0.001){
+        // Two-sided preview geometry: orient the shaded normal toward a
+        // camera-facing view vector. Approximate lighting, not game PBR.
+        vec3 viewDir=normalize(vec3(0.0,0.0,-1.0)-viewPosition*0.08);
+        vec3 faceN=dot(n,viewDir)<0.0 ? -n : n;
+        vec3 specLight=normalize(vec3(lightDirection.xy,-abs(lightDirection.z)));
+        vec3 halfVector=normalize(specLight+viewDir);
+        float exponent=options.specularSize==0 ? 12.0 :
+                       options.specularSize==2 ? 64.0 : 32.0;
+        float highlight=pow(max(dot(faceN,halfVector),0.0),exponent);
+        float glossMask=texture(diffuseSampler,normalUV).a;
+        float glossWeight=mix(0.25,1.0,glossMask);
+        float intensity=clamp(options.specularStrength,0.0,1.0);
+        shaded=clamp(shaded+vec3(highlight*glossWeight*intensity*0.55),0.0,1.0);
+    }
+    fragColor=vec4(shaded,base.a);
 }
