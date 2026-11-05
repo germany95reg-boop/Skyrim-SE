@@ -1,7 +1,5 @@
-name: Skyrim SE Mobile Vulkan 3D APK v2.2 — Normal Map
+name: Skyrim SE Mobile Vulkan 3D APK v2.2 (archived)
 on:
-  push:
-    branches: [main, development/v2.2-normal-maps]
   workflow_dispatch:
 
 jobs:
