@@ -1,7 +1,5 @@
-name: Skyrim SE Mobile Vulkan 3D APK v2.1.1 — UV fix
+name: Skyrim SE Mobile Vulkan 3D APK v2.1.1 (archived)
 on:
-  push:
-    branches: [main, fix/v2.1.1-sse-uv]
   workflow_dispatch:
 
 jobs:
