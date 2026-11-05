@@ -105,9 +105,30 @@ jobs:
             app/src/main/java/dev/skyrimsemobile/launcher/NifGeometryTransfer.java \
             tests/NifNormalTransferTest.java
           java -cp /tmp/skyrim-v22-normal-tests dev.skyrimsemobile.launcher.NifNormalTransferTest
-      - name: Install Android SDK and shader compiler
+      - name: Install Android SDK and shader compiler with CMake retries
+        shell: bash
         run: |
-          sdkmanager --install "platforms;android-35" "build-tools;35.0.0" "ndk;27.2.12479018" "cmake;3.22.1"
+          set -euo pipefail
+          # The GitHub runner occasionally receives an incomplete CMake ZIP.
+          # Install the other SDK components first; retry just CMake if needed.
+          sdkmanager --install "platforms;android-35" "build-tools;35.0.0" "ndk;27.2.12479018"
+          if [ ! -x "$ANDROID_HOME/cmake/3.22.1/bin/cmake" ]; then
+            success=0
+            for attempt in 1 2 3; do
+              echo "CMake 3.22.1 SDK attempt $attempt/3"
+              if timeout 160s sdkmanager --install "cmake;3.22.1"; then
+                success=1
+                break
+              fi
+              rm -rf "$ANDROID_HOME/cmake/3.22.1"
+              sleep 5
+            done
+            if [ "$success" -ne 1 ]; then
+              echo "CMake SDK download failed after three attempts"
+              exit 1
+            fi
+          fi
+          test -x "$ANDROID_HOME/cmake/3.22.1/bin/cmake"
           sudo apt-get update -qq
           sudo apt-get install -y glslang-tools
       - name: Compile Vulkan GLSL to SPIR-V
