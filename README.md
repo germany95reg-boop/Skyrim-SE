@@ -1,40 +1,33 @@
 # Skyrim SE Mobile Launcher
 
-Нативный Android ARM64-проект Skyrim SE. Движок Skyrim Special Edition **пока не портирован и не запускается**. Лаунчер содержит отдельный работающий графический стенд Vulkan и инструменты чтения игровых ресурсов.
+Android ARM64 project with a separate Vulkan graphics test. **The Skyrim Special Edition game engine is not connected**. The launcher does not execute SkyrimSE.exe or SKSE64.
 
-## Подтверждено на Samsung Android 17 (Adreno 840)
+## On-device progress
 
-- Vulkan loader / ARM64 и вывод кадра: пройдено.
-- OBJ-пирамида через Vulkan: пользователь подтвердил видимую геометрию и управление камерой (v0.6).
-- Реальный заголовок `ccBGSSSE001-Fish.bsa`: BSA **105**, **110** папок, **744** файла, флаги **0x83** — успешно распознан в v0.7, без изменения файла.
+- **v0.6:** Owner confirmed native Vulkan display of a touch-controlled OBJ pyramid on Samsung Android 17 / Adreno 840.
+- **v0.7:** Owner confirmed BSA v105 header reading and Data directory enumeration.
+- **v0.8:** Owner confirmed the **complete directory listing** for `ccBGSSSE001-Fish.bsa`: **110 folders, 744 files, 231 NIF entries, flags 0x83**, searchable index 744/744. No game files were modified.
 
-## Новое в v0.8 — список файлов внутри BSA
+## v0.9 — Inspect one NIF entry in a BSA v105 archive
 
-**[GitHub Actions: v0.8, SUCCESS](https://github.com/germany95reg-boop/Skyrim-SE/actions/runs/42041683823)**. Артефакт `Skyrim-SE-Vulkan-3D-v0.8-APK` включает установочный `app-debug.apk`.
+**CI status: SUCCESS.** [GitHub Actions v0.9](https://github.com/germany95reg-boop/Skyrim-SE/actions/runs/42044148245). Download artifact `Skyrim-SE-Vulkan-3D-v0.9-APK`; it contains `app-debug.apk`.
 
-В меню **Настройки → Ресурсы Skyrim SE · BSA/NIF → Каталог BSA v105 · имена файлов и NIF**:
+The new BSA screen can now read exactly **one** selected NIF record from a BSA v105 archive and check its Gamebryo/NetImmerse header:
 
-- Открыть архив через системный выбор документа Android (разрешение только на чтение).
-- Читать заголовок, 24-байтные записи папок, 16-байтные записи файлов, имена и смещения в архиве.
-- Просматривать пути и размеры записей, метки сжатия, количество файлов `.nif`.
-- Искать по имени и фильтровать **Только модели .nif**, копировать отчёт.
-- Ограничения безопасности: максимум 20 000 папок / 250 000 файлов / 64 МиБ метаданных. Поиск индексирует первые 60 000 файлов, показывает предупреждение о неполном индексе при превышении.
+1. Open **Настройки → Ресурсы Skyrim SE → Каталог BSA v105**.
+2. Select `ccBGSSSE001-Fish.bsa` via Android's document picker.
+3. In search, type `lureargonian01.nif`. It should match `meshes/creationclub/bgssse001/clutter/lureargonian01.nif`, 5092 bytes, reported as uncompressed in v0.8.
+4. Tap **Прочитать первый найденный NIF (только заголовок)**.
+5. Copy the report and check whether it says `Распознано: true` and shows a NIF format version.
 
-**Важно:** инструмент **не распаковывает BSA, не декодирует модели NIF и не читает содержимое игровых ресурсов**. Это обзор каталога архива. Поддерживается BSA версии 105 при наличии имён файлов и папок. На реальном `ccBGSSSE001-Fish.bsa` новая функция ещё не испытана.
+The app reads only the chosen archive record through Android's read-only document URI. It supports uncompressed records, optional embedded file-name prefixes, and **LZ4 Frame** compressed records using a pure-Java decoder. It enforces **8 MiB maximum packed** and **16 MiB maximum decoded**, checks for truncation and mismatched decompressed sizes, and **never writes files** to the game directory or local disk.
 
-## Тест v0.8 на телефоне
+**Tests:** the v0.9 GitHub Actions run succeeded, including an executable synthetic fixture for LZ4 frame + optional filename prefix, bounded length checks, Java/Gradle compilation and Vulkan shader build. The actual NIF payload from the user's BSA archive has **not yet been tested in v0.9**.
 
-1. Установить APK v0.8; если подписи двух отладочных сборок различаются, перед переустановкой сохранить необходимые данные приложения.
-2. Открыть **Настройки → Ресурсы Skyrim SE → Каталог BSA v105 · имена файлов и NIF**.
-3. Выбрать `ccBGSSSE001-Fish.bsa` и проверить числа 110/744/0x83.
-4. Включить `Только модели .nif` или написать `.nif` в строке поиска.
-5. Скопировать отчёт и проверить, что старый OBJ-тест продолжает работать.
+### Not yet implemented
 
-## Технические сведения
+- NIF block/mesh parser, textures, rendering actual NIF models.
+- Skyrim game engine, executable translation/recompilation, game-world scripting and SKSE64 integration.
+- APK installation and runtime validation of v0.9 on the owner's Samsung.
 
-- Java 17 / Android 35 / NDK 27 / Gradle 8.9 / CMake и GLSL → SPIR-V.
-- Новый чистый Java парсер `BsaCatalogReader` с unit-тестами: включая синтетический архив 110 папок / 744 файла / флаги 0x83, ошибки формата и предельные размеры.
-- Исходники v0.8: `.skyrimse-v08-source.tar.xz.b64`, распаковка происходит в GitHub Actions.
-- Ни Windows, ни Winlator, ни Box64 в графическом тесте не используются. Поддержка `SkyrimSE.exe`, SKSE64 и игровой рендер отсутствует.
-
-Ранее проверенные версии v0.3–v0.7 не удалены; исходники v0.8 продолжает сопровождать проект **Skyrim-SE**.
+Development continues exclusively in this `Skyrim-SE` repository; previous Vulkan/OBJ checks remain available.
