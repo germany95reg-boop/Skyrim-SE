@@ -1,7 +1,5 @@
-name: Skyrim SE Mobile Vulkan 3D APK v2.0
+name: Skyrim SE Mobile Vulkan 3D APK v2.0 (archived)
 on:
-  push:
-    branches: [main, development/v2.0]
   workflow_dispatch:
 
 jobs:
