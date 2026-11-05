@@ -217,7 +217,7 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
             nativeSetUseNormalMap(useNormalMap);
             updateSurfaceButton();
         });
-        actions.addView(normalButton,new LinearLayout.LayoutParams(0,dp(48),1));
+
         actions.addView(back, new LinearLayout.LayoutParams(0, dp(48),2));
         LinearLayout views = new LinearLayout(this);
         Button front = controlButton("Спереди");
@@ -230,6 +230,8 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
         top.setOnClickListener(v -> setCameraPreset("Сверху",0f,1.3f));
         views.addView(top,new LinearLayout.LayoutParams(0,dp(42),1));
         panel.addView(views);
+        // A full-width control keeps the longer Russian label readable on phones.
+        panel.addView(normalButton,new LinearLayout.LayoutParams(-1,dp(40)));
         panel.addView(actions);
         root.addView(panel, new FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM));
         setContentView(root);
