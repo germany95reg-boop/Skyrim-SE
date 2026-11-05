@@ -1,6 +1,20 @@
-# Skyrim SE Mobile Launcher — v2.1.1
+# Skyrim SE Mobile Launcher — v2.1.2
 
 **Skyrim SE Mobile** is an experimental Android ARM64/Vulkan NIF and DDS asset inspector. It is **not** a playable Skyrim Special Edition port: game engine, NPC and quest systems are not implemented.
+
+## New in v2.1.2
+
+- Correct Android adaptive launcher icon scale. The **same original illustration** is now inset into the 72dp mask-safe viewport; SKYRIM SE lettering stays visible on Samsung rounded-square and circular launchers.
+- New adaptive background + padded foreground XML, including both normal and round icon variants. All legacy icon PNG sizes remain untouched; no branding replacement.
+- Correct displayed versions in the 3D header, resource inspector and home-page help text.
+- **versionCode 23**, **versionName 2.1.2**, with unchanged package ID and fixed private development test signing certificate to upgrade in place.
+- No change to BSA, NIF, DDS or Vulkan rendering logic; user's v2.1.1 model + textured surface tests were successful.
+
+### Inside-app check
+
+From **Настройки → Ресурсы Skyrim SE → Каталог BSA v105**, open `ccBGSSSE001-Fish.bsa`, filter `lureargonian01.nif`, select **Пути текстур NIF → Найти DDS в папке Data → Показать NIF с DDS в Vulkan**. In the scene tap **Поверхность**, check **DDS: Вкл** and ensure the title reads `Vulkan 3D · v2.1.2`.
+
+The icon itself is outside the app on the Samsung launcher: compare its size and SKYRIM lettering against the provided screenshot. No device result for this icon fix yet.
 
 ## Fixed in v2.1.1
 

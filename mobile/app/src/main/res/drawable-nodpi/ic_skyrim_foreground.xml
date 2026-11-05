@@ -1,4 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
-<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
-    <solid android:color="#00000000" />
-</shape>
+<!-- Android adaptive icons are drawn in a 108dp virtual canvas, with a
+     roughly 72dp masked viewport in the center. Keep the original Skyrim
+     illustration INSIDE that viewport so the lower SKYRIM SE text survives
+     Samsung One UI rounded-square and circle icon masks. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:left="18dp" android:top="18dp"
+          android:right="18dp" android:bottom="18dp">
+        <bitmap android:src="@drawable/ic_skyrim_background"
+                android:gravity="fill" android:filter="true" />
+    </item>
+</layer-list>
