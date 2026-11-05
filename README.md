@@ -1,39 +1,38 @@
-# Skyrim SE Mobile Launcher
+# Skyrim SE Mobile Launcher — v1.6
 
-Experimental **Android ARM64 / Vulkan** prototype for reading Skyrim Special Edition resources and viewing NIF meshes. **This is not a port of SkyrimSE.exe**: SKSE64, actual game execution, Havok, gameplay, animation and the Skyrim rendering engine are not included.
+Нативный Android ARM64/Vulkan-прототип для просмотра ресурсов Skyrim Special Edition. **Не запускает SkyrimSE.exe, SKSE64 и игровой движок Skyrim SE.**
 
-## Confirmed on Samsung / Adreno 840
+## Что подтверждено на Samsung / Adreno 840
 
-- v0.6: native Vulkan OBJ pyramid and touch gestures.
-- v0.7–v1.0: real game Data and BSA 105 catalogues, NIF block structures (read-only).
-- v1.1–v1.3: real `lureargonian01.nif` wireframe, 112 vertices, 140 triangles, 248 unique edges; centered auto-fit verified.
-- **v1.4: user supplied a screenshot of the real NIF rendered with filled purple surfaces** at reported 120 FPS, 751 frames, 1440×2915; the object is fully visible and the surface mode runs. These figures are graphics-demo metrics, not Skyrim game performance.
+- v0.6: Vulkan-рендер и управление OBJ-пирамидой.
+- v0.7–v1.0: чтение реальных BSA 105, NIF и таблиц NIF-блоков без изменения файлов игры.
+- v1.1–v1.3: каркас `lureargonian01.nif` (112 вершин, 140 треугольников, 248 рёбер), авто-центрирование и камера.
+- v1.4: настоящая закрашенная поверхность NIF показана на экране, на снимке FPS 120.
+- v1.5: пользователь проверил пути из `BSShaderTextureSet`: `textures/creationclub/bgssse001/rods/LureArgonian.dds` и `textures/creationclub/bgssse001/rods/LureArgonian_n.dds`.
 
-## v1.5 — enumerate NIF material texture paths
+## v1.6 — поиск DDS в каталогах BSA файлов папки Data
 
-**[GitHub Actions #42068104478 — SUCCESS](https://github.com/germany95reg-boop/Skyrim-SE/actions/runs/42068104478)**.
+**Сборка [GitHub Actions v1.6 — SUCCESS](https://github.com/germany95reg-boop/Skyrim-SE/actions/runs/42071379473).**
 
-Artifact name: `Skyrim-SE-Vulkan-3D-v1.5-APK`, containing `app-debug.apk`.
-APK: 3,468,994 bytes; SHA-256 `5cb4450738e6c4ebad32bd48075cfbfd825c4daf0df028c6b2f44503d0edf929`.
+Артефакт: `Skyrim-SE-Vulkan-3D-v1.6-APK` (внутри `app-debug.apk`). APK 3 469 014 байт; SHA-256: `bd2eb90c98978c10d04c0caff7d4ee80e1c2a066566e4069d881025931f6131c`.
 
-### Changes
+После чтения одной NIF-записи новая кнопка **«Найти DDS в папке Data · v1.6»** вызывает системный выбор каталога Android. Поиск перебирает **только BSA-файлы непосредственно внутри Data**, читает их каталоги BSA v105 и сопоставляет **точные относительные пути DDS** с объявленными путями в NIF без учёта регистра и с нормализацией разделителей. В отчёте указываются архив, путь, смещение, размер и сжатие. Не скачивает, не извлекает и не декодирует DDS.
 
-- Added the **«Пути текстур NIF · v1.5»** action in the BSA v105 catalogue screen.
-- Reads *one* selected NIF entry in RAM, validates NIF 20.2.0.7 block table and enumerates all `BSShaderTextureSet` blocks. The output shows named slots: diffuse, normal/gloss, glow/skin, parallax/height, environment, masks and additional slots.
-- Counts `BSLightingShaderProperty` and `BSTriShape` blocks to provide context. The relationship between specific shader and texture-set blocks is **not yet validated**.
-- Bounds-checks 64 sets, 32 slots/set, 1024 UTF-8 bytes/path. Paths are strings for display, **never treated as writable filesystem paths**.
-- Existing solid / wireframe Vulkan renderer, depth test, camera auto-fit, OBJ test, BSA 105 index, and single NIF LZ4 reader remain intact.
+### Тест на телефоне
 
-**Not implemented:** DDS decoding, looking up those DDS in other BSA archives, UV coordinate sampling, applying textures on triangles, actual Skyrim material rendering. The NIF is still displayed with the same simple neutral purple solid shading.
+1. Установить v1.6, сохранив важные данные предыдущей тестовой версии перед возможным удалением при несовместимых отладочных подписях.
+2. **Настройки → Ресурсы Skyrim SE → Каталог BSA v105** → открыть `ccBGSSSE001-Fish.bsa` и найти `lureargonian01.nif`.
+3. Нажать **«Пути текстур NIF · v1.6»**, убедиться, что видны два DDS.
+4. Нажать **«Найти DDS в папке Data · v1.6»**, выбрать каталог игры `Data` (с BSA).
+5. Дождаться завершения, скопировать отчёт и проверить статус каждого DDS. **«Не найдено» означает только отсутствие совпадения в проверенной части индексов**, а не гарантированное отсутствие файла.
 
-### On-device test
+### Безопасность и ограничения
 
-1. Install v1.5 (if Android refuses an update due to debug signature, back up relevant app data before uninstalling an older build).
-2. Go to **Настройки → Ресурсы Skyrim SE → Каталог BSA v105**.
-3. Open `ccBGSSSE001-Fish.bsa`, search for `lureargonian01.nif`.
-4. Tap **«Пути текстур NIF · v1.5»**, then **«Скопировать список и отчёт»**.
-5. Send the resulting text to determine which `Skyrim - Textures*.bsa` / Creation Club archive contains the referenced DDS files.
+- Чтение через системные URI Android без глобального доступа к памяти и без операций записи.
+- До 4096 элементов в корневом Data, 48 BSA за один поиск, 32 DDS-целей; BSA индекс до 60 000 имён / 64 МиБ метаданных на архив.
+- Неполные каталоги и недоступные архивы явно отмечаются. Вложенные папки и loose DDS на этом этапе не ищутся.
+- Сохраняются работающие Vulkan-режимы **«Каркас» и «Поверхность»**, камера, «Вписать», импорт OBJ и инспекция NIF.
 
-Tests in CI: 25 synthetic material-table checks, 60 geometry checks, 14 NIF block checks, 13 camera tests, BSA/LZ4 checks, Android/NDK build and all three SPIR-V shaders. APK was examined: `NifMaterialInspector` exists in the DEX, three ARM64 renderer libraries and three SPIR-V shaders are present. **The new material inspector has not yet been exercised on the user's actual NIF on device.**
+**CI подтверждает** Java-тесты DdsArchiveFinder, BSA, NIF, материалов, геометрии и камеры; Android/NDK-сборку и шейдеры. APK проверен на наличие `DdsArchiveFinder`, `BsaCatalogActivity`, трёх ARM64-библиотек и трёх SPIR-V шейдеров. **Поиск DDS на реальных файлах телефона в v1.6 ещё не проверен.**
 
-Source snapshot in this repository: `.skyrimse-v15-source.tar.xz`. The game directory is read-only.
+Исходный снимок GitHub Actions: `.skyrimse-v16-source.tar.xz`.
