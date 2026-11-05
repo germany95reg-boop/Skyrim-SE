@@ -1,20 +1,17 @@
-# Skyrim SE Mobile Launcher — v2.2
+# Skyrim SE Mobile Launcher — v2.3
 
-Android ARM64/Vulkan preview for user-supplied Skyrim Special Edition BSA/NIF/DDS resources. This is not a playable Skyrim game or complete Skyrim engine.
+Android ARM64/Vulkan viewer for user-supplied Skyrim Special Edition NIF/DDS/BSA resources. This is **not** a playable Skyrim engine.
 
-## New in v2.2
+## v2.3
 
-- Read-only loading of diffuse DDS and optional normal-map DDS from BSShaderTextureSet slots 0 and 1.
-- Vulkan fragment shader derives a tangent frame from model UVs, samples a normal map and reconstructs its Z component. BC3 and BC5 use RG normal channels; gloss/specular alpha is not simulated.
-- A full-width 'Нормали: Вкл / Выкл' control lets you compare normal-map lighting. Previous 'Каркас', 'Поверхность', 'DDS' and camera/FPS controls remain.
-- Reuses the proven Vulkan sampled-image upload path by packing the diffuse and normal RGBA8 first mips into a two-part texture atlas. Preview limit for normal maps: up to 2048×1024.
-- Unsupported or absent normal maps fall back to diffuse-only rendering; user game files are never modified.
-- package dev.skyrimsemobile.launcher, versionCode 24, versionName 2.2.0. Same fixed private TEST signing certificate as v2.1.2, so APK upgrades in place.
+- Four real-time view-space light presets: Сбоку (the proven v2.2 lighting), Спереди, Слева, Сверху.
+- A separate normal-map emphasis control: 50%, 100% (v2.2 default), 150%. Changes update a Vulkan push constant without reloading textures or reconstructing the swapchain.
+- The existing CPU-decoded diffuse and normal DDS atlas, 3D geometry, wireframe and camera/FPS controls remain intact.
+- Pure JVM preset tests, Vulkan shader contract tests and all existing BSA/NIF/DDS safety checks are in CI.
+- `applicationId dev.skyrimsemobile.launcher`, `versionCode 25`, `versionName 2.3.0`, same fixed test signing certificate as v2.2 (in-place upgrade).
 
-## Known limitations
+## Scope
 
-Single static BSTriShape, single BSShaderTextureSet, CPU-decoded DDS first mip. No full Skyrim engine, skeletal animation, multiple materials, parent transforms, true game lighting or full PBR. Real phone/GPU results for the v2.2 normal-map feature remain unverified until a device test.
+One static BSTriShape, single texture set, first DDS mip, normal-map lighting preview. No Skyrim game engine, quests, animation, multiple materials or full PBR shading. Verify new lighting presets on the actual phone.
 
-See [DEVICE_TEST_V22_RU.md](DEVICE_TEST_V22_RU.md) for in-app-only instructions and troubleshooting.
-
-Previous versions and tested source history are preserved in Git.
+**Instructions inside app:** [DEVICE_TEST_V23_RU.md](DEVICE_TEST_V23_RU.md).

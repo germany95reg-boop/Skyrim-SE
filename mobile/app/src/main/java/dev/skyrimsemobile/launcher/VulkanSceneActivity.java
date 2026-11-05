@@ -47,6 +47,8 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
     private static native void nativeSetUseTexture(boolean enabled);
     private static native boolean nativeSetNormalTexture(int[] argb,int width,int height);
     private static native void nativeSetUseNormalMap(boolean enabled);
+    private static native void nativeSetLightMode(int mode);
+    private static native void nativeSetNormalStrength(float strength);
     private static final int PICK_OBJ = 606;
     private String meshLabel = "Куб (встроенный)";
     private String nifDimensions = "";
@@ -62,6 +64,8 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
     private Button surfaceButton;
     private Button textureButton;
     private Button normalButton;
+    private Button lightButton,reliefButton;
+    private int lightMode=0,reliefPreset=1;
     private boolean hasSurface = false;
     private boolean hasTexture = false,hasNormalMap=false;
     private boolean solidMode = false,useTexture = false,useNormalMap=false;
@@ -129,7 +133,7 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
         root.addView(viewport, new FrameLayout.LayoutParams(-1, -1));
 
         TextView title = new TextView(this);
-        title.setText("SKYRIM SE MOBILE\nVulkan 3D · v2.2");
+        title.setText("SKYRIM SE MOBILE\nVulkan 3D · v2.3");
         sceneTitle=title;
         title.setTypeface(Typeface.SERIF, Typeface.BOLD);
         title.setTextSize(20);
@@ -230,8 +234,28 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
         top.setOnClickListener(v -> setCameraPreset("Сверху",0f,1.3f));
         views.addView(top,new LinearLayout.LayoutParams(0,dp(42),1));
         panel.addView(views);
-        // A full-width control keeps the longer Russian label readable on phones.
+        // Keep normal-map control readable and camera visible on tall phones.
         panel.addView(normalButton,new LinearLayout.LayoutParams(-1,dp(40)));
+        LinearLayout lightingControls=new LinearLayout(this);
+        lightButton=controlButton(PreviewLighting.lightLabel(lightMode));
+        lightButton.setEnabled(false);
+        lightButton.setOnClickListener(v->{
+            if(!hasTexture)return;
+            lightMode=PreviewLighting.nextLight(lightMode);
+            nativeSetLightMode(lightMode);
+            updateSurfaceButton();
+        });
+        lightingControls.addView(lightButton,new LinearLayout.LayoutParams(0,dp(40),1));
+        reliefButton=controlButton(PreviewLighting.reliefLabel(reliefPreset));
+        reliefButton.setEnabled(false);
+        reliefButton.setOnClickListener(v->{
+            if(!hasNormalMap)return;
+            reliefPreset=PreviewLighting.nextRelief(reliefPreset);
+            nativeSetNormalStrength(PreviewLighting.reliefStrength(reliefPreset));
+            updateSurfaceButton();
+        });
+        lightingControls.addView(reliefButton,new LinearLayout.LayoutParams(0,dp(40),1));
+        panel.addView(lightingControls);
         panel.addView(actions);
         root.addView(panel, new FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM));
         setContentView(root);
@@ -328,6 +352,14 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
             normalButton.setEnabled(hasNormalMap);
             normalButton.setText(useNormalMap?"Нормали: Вкл":"Нормали: Выкл");
         }
+        if(lightButton!=null){
+            lightButton.setEnabled(hasTexture);
+            lightButton.setText(PreviewLighting.lightLabel(lightMode));
+        }
+        if(reliefButton!=null){
+            reliefButton.setEnabled(hasNormalMap);
+            reliefButton.setText(PreviewLighting.reliefLabel(reliefPreset));
+        }
     }
     private void activateModel(ObjWireParser.Model model,String name,Uri persist,float[] triangles) {
         activateModel(model,name,persist,triangles,null,null,0,0,null,0,0);
@@ -347,6 +379,10 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
             nativeSetNormalTexture(normalPixels,normalW,normalH);
         useNormalMap=hasNormalMap;
         nativeSetUseNormalMap(useNormalMap);
+        lightMode=0;
+        reliefPreset=1;
+        nativeSetLightMode(lightMode);
+        nativeSetNormalStrength(PreviewLighting.reliefStrength(reliefPreset));
         solidMode=false;
         nativeSetSolidMode(false); // Always open with the proven wireframe first.
         updateSurfaceButton();
@@ -481,6 +517,8 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
         nativeSetSolidMode(solidMode);
         nativeSetUseTexture(useTexture);
         nativeSetUseNormalMap(useNormalMap);
+        nativeSetLightMode(lightMode);
+        nativeSetNormalStrength(PreviewLighting.reliefStrength(reliefPreset));
         refreshFraming();
         final AssetManager assets = getAssets();
         worker = new Thread(() -> {

@@ -53,6 +53,8 @@ uint32_t selectedTextureWidth=0,selectedTextureHeight=0;
 bool selectedNormalAtlas=false; // first half diffuse, second half normal
 std::atomic<bool> useTexture{false};
 std::atomic<bool> useNormalMap{false};
+std::atomic<int> previewLightMode{0};
+std::atomic<float> previewReliefStrength{1.0f};
 std::atomic<bool> solidMode{false};
 uint32_t geometryTriangleCount = 0;
 std::string geometryLabel = "Куб (встроенный)";
@@ -617,7 +619,7 @@ struct Renderer {
             dsInfo.bindingCount=1;dsInfo.pBindings=&samplerBinding;
             ck(vkCreateDescriptorSetLayout(device,&dsInfo,nullptr,&textureSetLayout),"texture set layout");
             VkPushConstantRange texRange=range;
-            texRange.size=36; // 7 float camera fields + atlasMode + normalEnabled
+            texRange.size=44; // 7 camera floats + 3 controls int,int,int + relief float
             texRange.stageFlags=VK_SHADER_STAGE_VERTEX_BIT|VK_SHADER_STAGE_FRAGMENT_BIT;
             VkPipelineLayoutCreateInfo texLayoutInfo=layoutInfo;
             texLayoutInfo.pPushConstantRanges=&texRange;
@@ -824,9 +826,13 @@ struct Renderer {
                 Parameters camera;
                 int atlasMode;
                 int normalEnabled;
+                int lightMode;
+                float reliefStrength;
             } texParams{p,hasNormalAtlas?1:0,
-                (hasNormalAtlas&&useNormalMap.load(std::memory_order_relaxed))?1:0};
-            static_assert(sizeof(TexturedParameters)==36,"GLSL push constants must be 36 bytes");
+                (hasNormalAtlas&&useNormalMap.load(std::memory_order_relaxed))?1:0,
+                previewLightMode.load(std::memory_order_relaxed),
+                previewReliefStrength.load(std::memory_order_relaxed)};
+            static_assert(sizeof(TexturedParameters)==44,"GLSL push constants must be 44 bytes");
             vkCmdPushConstants(cmd,chosenLayout,
                 VK_SHADER_STAGE_VERTEX_BIT|VK_SHADER_STAGE_FRAGMENT_BIT,
                 0,sizeof(texParams),&texParams);
@@ -1162,4 +1168,21 @@ extern "C" JNIEXPORT void JNICALL
 Java_dev_skyrimsemobile_launcher_VulkanSceneActivity_nativeSetUseNormalMap(
     JNIEnv*,jclass,jboolean enabled){
     useNormalMap.store(enabled==JNI_TRUE,std::memory_order_relaxed);
+}
+
+
+// v2.3 controls update atomically while rendering. No swapchain restart,
+// no asset reload, and values are constrained independently of the UI.
+extern "C" JNIEXPORT void JNICALL
+Java_dev_skyrimsemobile_launcher_VulkanSceneActivity_nativeSetLightMode(
+    JNIEnv*,jclass,jint mode){
+    previewLightMode.store((mode>=0 && mode<=3)?static_cast<int>(mode):0,
+                           std::memory_order_relaxed);
+}
+extern "C" JNIEXPORT void JNICALL
+Java_dev_skyrimsemobile_launcher_VulkanSceneActivity_nativeSetNormalStrength(
+    JNIEnv*,jclass,jfloat strength){
+    const float value=std::isfinite(strength)
+        ?std::max(0.5f,std::min(1.5f,static_cast<float>(strength))):1.0f;
+    previewReliefStrength.store(value,std::memory_order_relaxed);
 }

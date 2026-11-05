@@ -9,6 +9,8 @@ layout(location=0) out vec4 fragColor;
 layout(push_constant) uniform NormalOptions {
     layout(offset=28) int atlasMode;
     layout(offset=32) int normalEnabled;
+    layout(offset=36) int lightMode;
+    layout(offset=40) float reliefStrength;
 } options;
 
 void main(){
@@ -28,7 +30,9 @@ void main(){
     if(options.atlasMode!=0&&options.normalEnabled!=0){
         vec2 normalUV=vec2(tiled.x,mix(0.5+halfPixel,1.0-halfPixel,tiled.y));
         vec2 xy=texture(diffuseSampler,normalUV).rg*2.0-1.0;
-        xy=clamp(xy,vec2(-1.0),vec2(1.0));
+        // Bounded normal-map emphasis; 100% matches the proven v2.2 preview.
+        xy=clamp(xy*clamp(options.reliefStrength,0.5,1.5),
+                 vec2(-1.0),vec2(1.0));
         float z=sqrt(max(0.0,1.0-dot(xy,xy)));
         float det=dudx.x*dudy.y-dudx.y*dudy.x;
         if(abs(det)>1e-8&&strength>1e-7){
@@ -42,6 +46,11 @@ void main(){
             }
         }
     }
-    float diffuse=abs(dot(n,normalize(vec3(0.32,0.64,0.68))));
+    // View-space light presets. Mode zero preserves exactly the v2.2 lighting.
+    vec3 lightDirection=vec3(0.32,0.64,0.68);
+    if(options.lightMode==1)lightDirection=vec3(0.06,0.20,0.98);
+    else if(options.lightMode==2)lightDirection=vec3(-0.76,0.45,0.48);
+    else if(options.lightMode==3)lightDirection=vec3(0.15,0.94,0.30);
+    float diffuse=abs(dot(n,normalize(lightDirection)));
     fragColor=vec4(base.rgb*(0.45+0.55*diffuse),base.a);
 }
