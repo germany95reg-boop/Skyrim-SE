@@ -47,6 +47,10 @@ std::atomic<int> maxFps{60};
 std::mutex geometryMutex;
 std::vector<float> selectedGeometry;
 std::vector<float> selectedTriangles;
+std::vector<float> selectedUv;
+std::vector<uint8_t> selectedPixels;
+uint32_t selectedTextureWidth=0,selectedTextureHeight=0;
+std::atomic<bool> useTexture{false};
 std::atomic<bool> solidMode{false};
 uint32_t geometryTriangleCount = 0;
 std::string geometryLabel = "Куб (встроенный)";
@@ -115,12 +119,26 @@ struct Renderer {
     VkPipelineLayout layout = VK_NULL_HANDLE;
     VkPipeline pipeline = VK_NULL_HANDLE;
     VkPipeline solidPipeline = VK_NULL_HANDLE;
+    VkPipeline texturePipeline=VK_NULL_HANDLE;
+    VkPipelineLayout textureLayout=VK_NULL_HANDLE;
+    VkDescriptorSetLayout textureSetLayout=VK_NULL_HANDLE;
+    VkDescriptorPool textureDescriptorPool=VK_NULL_HANDLE;
+    VkDescriptorSet textureDescriptor=VK_NULL_HANDLE;
+    VkImage sampledImage=VK_NULL_HANDLE;
+    VkDeviceMemory sampledMemory=VK_NULL_HANDLE;
+    VkImageView sampledView=VK_NULL_HANDLE;
+    VkSampler sampledSampler=VK_NULL_HANDLE;
+    VkBuffer texturedBuffer=VK_NULL_HANDLE;
+    VkDeviceMemory texturedMemory=VK_NULL_HANDLE;
+    VkBuffer stagingBuffer=VK_NULL_HANDLE;
+    VkDeviceMemory stagingMemory=VK_NULL_HANDLE;
     VkImage depthImage = VK_NULL_HANDLE;
     VkDeviceMemory depthMemory = VK_NULL_HANDLE;
     VkImageView depthView = VK_NULL_HANDLE;
     VkFormat depthFormat = VK_FORMAT_UNDEFINED;
     VkShaderModule vertexModule = VK_NULL_HANDLE, fragmentModule = VK_NULL_HANDLE;
     VkShaderModule solidFragmentModule = VK_NULL_HANDLE;
+    VkShaderModule textureVertexModule=VK_NULL_HANDLE,textureFragmentModule=VK_NULL_HANDLE;
     VkCommandPool pool = VK_NULL_HANDLE;
     VkCommandBuffer cmd = VK_NULL_HANDLE;
     VkSemaphore acquireSem = VK_NULL_HANDLE, presentSem = VK_NULL_HANDLE;
@@ -145,12 +163,26 @@ struct Renderer {
             if (vertexMemory) vkFreeMemory(device, vertexMemory, nullptr);
             if (triangleBuffer) vkDestroyBuffer(device, triangleBuffer, nullptr);
             if (triangleMemory) vkFreeMemory(device, triangleMemory, nullptr);
+            if (texturePipeline) vkDestroyPipeline(device, texturePipeline, nullptr);
+            if (textureLayout) vkDestroyPipelineLayout(device,textureLayout,nullptr);
+            if (textureDescriptorPool) vkDestroyDescriptorPool(device,textureDescriptorPool,nullptr);
+            if (sampledSampler) vkDestroySampler(device,sampledSampler,nullptr);
+            if (sampledView) vkDestroyImageView(device,sampledView,nullptr);
+            if (sampledImage) vkDestroyImage(device,sampledImage,nullptr);
+            if (sampledMemory) vkFreeMemory(device,sampledMemory,nullptr);
+            if (stagingBuffer) vkDestroyBuffer(device,stagingBuffer,nullptr);
+            if (stagingMemory) vkFreeMemory(device,stagingMemory,nullptr);
+            if (texturedBuffer) vkDestroyBuffer(device,texturedBuffer,nullptr);
+            if (texturedMemory) vkFreeMemory(device,texturedMemory,nullptr);
+            if (textureSetLayout) vkDestroyDescriptorSetLayout(device,textureSetLayout,nullptr);
             if (solidPipeline) vkDestroyPipeline(device, solidPipeline, nullptr);
             if (pipeline) vkDestroyPipeline(device, pipeline, nullptr);
             if (layout) vkDestroyPipelineLayout(device, layout, nullptr);
             if (vertexModule) vkDestroyShaderModule(device, vertexModule, nullptr);
             if (fragmentModule) vkDestroyShaderModule(device, fragmentModule, nullptr);
             if (solidFragmentModule) vkDestroyShaderModule(device, solidFragmentModule, nullptr);
+            if (textureVertexModule) vkDestroyShaderModule(device,textureVertexModule,nullptr);
+            if (textureFragmentModule) vkDestroyShaderModule(device,textureFragmentModule,nullptr);
             for (auto f : buffers) vkDestroyFramebuffer(device, f, nullptr);
             if (depthView) vkDestroyImageView(device, depthView, nullptr);
             if (depthImage) vkDestroyImage(device, depthImage, nullptr);
@@ -235,12 +267,24 @@ struct Renderer {
         vkGetDeviceQueue(device, family, 0, &queue);
         // Vertex geometry is copied from the Android document reader under a lock.
         std::vector<float> vertexData;
-        std::vector<float> triangleData;
+        std::vector<float> triangleData,uvData;
+        std::vector<uint8_t> rgbaData;
+        uint32_t texWidth=0,texHeight=0;
         {
             std::lock_guard<std::mutex> lock(geometryMutex);
             vertexData = selectedGeometry.empty() ? defaultCube() : selectedGeometry;
             triangleData = selectedTriangles;
+            uvData=selectedUv;rgbaData=selectedPixels;
+            texWidth=selectedTextureWidth;texHeight=selectedTextureHeight;
             geometryEdgeCount = static_cast<uint32_t>(vertexData.size()/6);
+        }
+        bool textureReady=!triangleData.empty()&&uvData.size()==(triangleData.size()/3)*2&&
+            texWidth>0&&texHeight>0&&texWidth<=2048&&texHeight<=2048&&
+            rgbaData.size()==static_cast<size_t>(texWidth)*texHeight*4;
+        if(textureReady){
+            VkFormatProperties supported{};
+            vkGetPhysicalDeviceFormatProperties(physical,VK_FORMAT_R8G8B8A8_UNORM,&supported);
+            textureReady=(supported.optimalTilingFeatures&VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT)!=0;
         }
         if(vertexData.empty() || vertexData.size()%3!=0) throw std::runtime_error("Invalid OBJ vertex buffer");
         vertexCount = static_cast<uint32_t>(vertexData.size()/3);
@@ -280,6 +324,15 @@ struct Renderer {
             if(triangleData.size()%9!=0)throw std::runtime_error("Invalid triangle payload");
             triangleVertexCount=static_cast<uint32_t>(triangleData.size()/3);
             uploadBuffer(triangleData,triangleBuffer,triangleMemory);
+            if(textureReady){
+                std::vector<float> interleaved;
+                interleaved.reserve(static_cast<size_t>(triangleVertexCount)*5);
+                for(size_t i=0;i<triangleVertexCount;i++){
+                    interleaved.insert(interleaved.end(),{triangleData[i*3],triangleData[i*3+1],
+                        triangleData[i*3+2],uvData[i*2],uvData[i*2+1]});
+                }
+                uploadBuffer(interleaved,texturedBuffer,texturedMemory);
+            }
         }
         VkSurfaceCapabilitiesKHR caps{};
         ck(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physical, surface, &caps), "Surface capabilities");
@@ -465,6 +518,14 @@ struct Renderer {
             shaderInfo.pCode=solidFragmentBytes.data();
             ck(vkCreateShaderModule(device,&shaderInfo,nullptr,&solidFragmentModule),"solid fragment shader module");
         }
+        if(textureReady){
+            auto texVert=loadSpirv(assets,"textured.vert.spv");
+            auto texFrag=loadSpirv(assets,"textured.frag.spv");
+            shaderInfo.codeSize=texVert.size()*sizeof(uint32_t);shaderInfo.pCode=texVert.data();
+            ck(vkCreateShaderModule(device,&shaderInfo,nullptr,&textureVertexModule),"textured vertex module");
+            shaderInfo.codeSize=texFrag.size()*sizeof(uint32_t);shaderInfo.pCode=texFrag.data();
+            ck(vkCreateShaderModule(device,&shaderInfo,nullptr,&textureFragmentModule),"textured fragment module");
+        }
         VkPushConstantRange range{};
         range.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
         range.offset = 0;
@@ -539,6 +600,34 @@ struct Renderer {
             ck(vkCreateGraphicsPipelines(device,VK_NULL_HANDLE,1,&pipelineInfo,nullptr,&solidPipeline),
                "vkCreateGraphicsPipelines(solid)");
         }
+        if(textureReady){
+            VkDescriptorSetLayoutBinding samplerBinding{};
+            samplerBinding.binding=0;
+            samplerBinding.descriptorType=VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+            samplerBinding.descriptorCount=1;
+            samplerBinding.stageFlags=VK_SHADER_STAGE_FRAGMENT_BIT;
+            VkDescriptorSetLayoutCreateInfo dsInfo{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};
+            dsInfo.bindingCount=1;dsInfo.pBindings=&samplerBinding;
+            ck(vkCreateDescriptorSetLayout(device,&dsInfo,nullptr,&textureSetLayout),"texture set layout");
+            VkPipelineLayoutCreateInfo texLayoutInfo=layoutInfo;
+            texLayoutInfo.setLayoutCount=1;texLayoutInfo.pSetLayouts=&textureSetLayout;
+            ck(vkCreatePipelineLayout(device,&texLayoutInfo,nullptr,&textureLayout),"texture pipeline layout");
+            VkVertexInputBindingDescription uvBinding{};
+            uvBinding.binding=0;uvBinding.stride=5*sizeof(float);uvBinding.inputRate=VK_VERTEX_INPUT_RATE_VERTEX;
+            VkVertexInputAttributeDescription uvAttributes[2]{};
+            uvAttributes[0]=attribute;
+            uvAttributes[1].location=1;uvAttributes[1].binding=0;
+            uvAttributes[1].format=VK_FORMAT_R32G32_SFLOAT;uvAttributes[1].offset=3*sizeof(float);
+            VkPipelineVertexInputStateCreateInfo uvInput=vertexInput;
+            uvInput.pVertexBindingDescriptions=&uvBinding;
+            uvInput.vertexAttributeDescriptionCount=2;uvInput.pVertexAttributeDescriptions=uvAttributes;
+            stages[0].module=textureVertexModule;
+            stages[1].module=textureFragmentModule;
+            pipelineInfo.pVertexInputState=&uvInput;
+            pipelineInfo.layout=textureLayout;
+            ck(vkCreateGraphicsPipelines(device,VK_NULL_HANDLE,1,&pipelineInfo,nullptr,&texturePipeline),
+               "vkCreateGraphicsPipelines(textured)");
+        }
         VkCommandPoolCreateInfo poolInfo{VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO};
         poolInfo.queueFamilyIndex = family;
         poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
@@ -548,6 +637,130 @@ struct Renderer {
         alloc.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
         alloc.commandBufferCount = 1;
         ck(vkAllocateCommandBuffers(device, &alloc, &cmd), "vkAllocateCommandBuffers");
+        if(textureReady){
+            // Upload only a bounded CPU-decoded first mip into optimal tiled GPU memory.
+            VkBufferCreateInfo stagingInfo{VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};
+            stagingInfo.size=rgbaData.size();
+            stagingInfo.usage=VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+            stagingInfo.sharingMode=VK_SHARING_MODE_EXCLUSIVE;
+            ck(vkCreateBuffer(device,&stagingInfo,nullptr,&stagingBuffer),"texture staging buffer");
+            VkMemoryRequirements req{};
+            vkGetBufferMemoryRequirements(device,stagingBuffer,&req);
+            auto memoryType=[&](uint32_t bits,VkMemoryPropertyFlags properties)->uint32_t{
+                for(uint32_t i=0;i<memoryProperties.memoryTypeCount;i++){
+                    if((bits&(1u<<i)) &&
+                       (memoryProperties.memoryTypes[i].propertyFlags&properties)==properties)return i;
+                }
+                return UINT32_MAX;
+            };
+            uint32_t stagingIndex=memoryType(req.memoryTypeBits,
+                VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT|VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+            if(stagingIndex==UINT32_MAX)throw std::runtime_error("No host coherent texture staging memory");
+            VkMemoryAllocateInfo stagingAlloc{VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
+            stagingAlloc.allocationSize=req.size;stagingAlloc.memoryTypeIndex=stagingIndex;
+            ck(vkAllocateMemory(device,&stagingAlloc,nullptr,&stagingMemory),"texture staging allocation");
+            ck(vkBindBufferMemory(device,stagingBuffer,stagingMemory,0),"texture staging bind");
+            void* mapped=nullptr;
+            ck(vkMapMemory(device,stagingMemory,0,rgbaData.size(),0,&mapped),"texture staging map");
+            std::memcpy(mapped,rgbaData.data(),rgbaData.size());
+            vkUnmapMemory(device,stagingMemory);
+            VkImageCreateInfo textureInfo{VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
+            textureInfo.imageType=VK_IMAGE_TYPE_2D;textureInfo.format=VK_FORMAT_R8G8B8A8_UNORM;
+            textureInfo.extent={texWidth,texHeight,1};
+            textureInfo.mipLevels=1;textureInfo.arrayLayers=1;
+            textureInfo.samples=VK_SAMPLE_COUNT_1_BIT;
+            textureInfo.tiling=VK_IMAGE_TILING_OPTIMAL;
+            textureInfo.usage=VK_IMAGE_USAGE_TRANSFER_DST_BIT|VK_IMAGE_USAGE_SAMPLED_BIT;
+            textureInfo.sharingMode=VK_SHARING_MODE_EXCLUSIVE;
+            textureInfo.initialLayout=VK_IMAGE_LAYOUT_UNDEFINED;
+            ck(vkCreateImage(device,&textureInfo,nullptr,&sampledImage),"sampled image");
+            vkGetImageMemoryRequirements(device,sampledImage,&req);
+            uint32_t imgIndex=memoryType(req.memoryTypeBits,VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+            if(imgIndex==UINT32_MAX)throw std::runtime_error("No device-local texture memory");
+            VkMemoryAllocateInfo imgAlloc{VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
+            imgAlloc.allocationSize=req.size;imgAlloc.memoryTypeIndex=imgIndex;
+            ck(vkAllocateMemory(device,&imgAlloc,nullptr,&sampledMemory),"texture image allocation");
+            ck(vkBindImageMemory(device,sampledImage,sampledMemory,0),"texture image bind");
+            VkCommandBuffer uploadCmd=VK_NULL_HANDLE;
+            ck(vkAllocateCommandBuffers(device,&alloc,&uploadCmd),"texture upload command");
+            VkCommandBufferBeginInfo uploadBegin{VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
+            uploadBegin.flags=VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+            ck(vkBeginCommandBuffer(uploadCmd,&uploadBegin),"texture upload begin");
+            VkImageMemoryBarrier bar{VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
+            bar.oldLayout=VK_IMAGE_LAYOUT_UNDEFINED;
+            bar.newLayout=VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+            bar.srcQueueFamilyIndex=VK_QUEUE_FAMILY_IGNORED;
+            bar.dstQueueFamilyIndex=VK_QUEUE_FAMILY_IGNORED;
+            bar.image=sampledImage;
+            bar.subresourceRange.aspectMask=VK_IMAGE_ASPECT_COLOR_BIT;
+            bar.subresourceRange.levelCount=1;bar.subresourceRange.layerCount=1;
+            bar.dstAccessMask=VK_ACCESS_TRANSFER_WRITE_BIT;
+            vkCmdPipelineBarrier(uploadCmd,VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                VK_PIPELINE_STAGE_TRANSFER_BIT,0,0,nullptr,0,nullptr,1,&bar);
+            VkBufferImageCopy region{};
+            region.imageSubresource.aspectMask=VK_IMAGE_ASPECT_COLOR_BIT;
+            region.imageSubresource.layerCount=1;
+            region.imageExtent={texWidth,texHeight,1};
+            vkCmdCopyBufferToImage(uploadCmd,stagingBuffer,sampledImage,
+                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,1,&region);
+            bar.oldLayout=VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+            bar.newLayout=VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+            bar.srcAccessMask=VK_ACCESS_TRANSFER_WRITE_BIT;
+            bar.dstAccessMask=VK_ACCESS_SHADER_READ_BIT;
+            vkCmdPipelineBarrier(uploadCmd,VK_PIPELINE_STAGE_TRANSFER_BIT,
+                VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,0,0,nullptr,0,nullptr,1,&bar);
+            ck(vkEndCommandBuffer(uploadCmd),"texture upload end");
+            VkSubmitInfo uploadSubmit{VK_STRUCTURE_TYPE_SUBMIT_INFO};
+            uploadSubmit.commandBufferCount=1;uploadSubmit.pCommandBuffers=&uploadCmd;
+            ck(vkQueueSubmit(queue,1,&uploadSubmit,VK_NULL_HANDLE),"texture upload submit");
+            ck(vkQueueWaitIdle(queue),"texture upload wait");
+            vkFreeCommandBuffers(device,pool,1,&uploadCmd);
+            vkDestroyBuffer(device,stagingBuffer,nullptr);stagingBuffer=VK_NULL_HANDLE;
+            vkFreeMemory(device,stagingMemory,nullptr);stagingMemory=VK_NULL_HANDLE;
+            VkImageViewCreateInfo sampleView{VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
+            sampleView.image=sampledImage;
+            sampleView.viewType=VK_IMAGE_VIEW_TYPE_2D;
+            sampleView.format=VK_FORMAT_R8G8B8A8_UNORM;
+            sampleView.subresourceRange.aspectMask=VK_IMAGE_ASPECT_COLOR_BIT;
+            sampleView.subresourceRange.levelCount=1;sampleView.subresourceRange.layerCount=1;
+            ck(vkCreateImageView(device,&sampleView,nullptr,&sampledView),"sampled image view");
+            VkFormatProperties fmtProperties{};
+            vkGetPhysicalDeviceFormatProperties(physical,VK_FORMAT_R8G8B8A8_UNORM,&fmtProperties);
+            bool linear=(fmtProperties.optimalTilingFeatures&
+                VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT)!=0;
+            VkSamplerCreateInfo samplerInfo{VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO};
+            samplerInfo.magFilter=linear?VK_FILTER_LINEAR:VK_FILTER_NEAREST;
+            samplerInfo.minFilter=linear?VK_FILTER_LINEAR:VK_FILTER_NEAREST;
+            samplerInfo.addressModeU=VK_SAMPLER_ADDRESS_MODE_REPEAT;
+            samplerInfo.addressModeV=VK_SAMPLER_ADDRESS_MODE_REPEAT;
+            samplerInfo.addressModeW=VK_SAMPLER_ADDRESS_MODE_REPEAT;
+            samplerInfo.mipmapMode=VK_SAMPLER_MIPMAP_MODE_NEAREST;
+            samplerInfo.maxLod=0.0f;
+            ck(vkCreateSampler(device,&samplerInfo,nullptr,&sampledSampler),"texture sampler");
+            VkDescriptorPoolSize poolSize{};
+            poolSize.type=VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+            poolSize.descriptorCount=1;
+            VkDescriptorPoolCreateInfo descriptorPoolInfo{VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
+            descriptorPoolInfo.maxSets=1;descriptorPoolInfo.poolSizeCount=1;
+            descriptorPoolInfo.pPoolSizes=&poolSize;
+            ck(vkCreateDescriptorPool(device,&descriptorPoolInfo,nullptr,&textureDescriptorPool),
+               "texture descriptor pool");
+            VkDescriptorSetAllocateInfo descriptorAlloc{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO};
+            descriptorAlloc.descriptorPool=textureDescriptorPool;
+            descriptorAlloc.descriptorSetCount=1;
+            descriptorAlloc.pSetLayouts=&textureSetLayout;
+            ck(vkAllocateDescriptorSets(device,&descriptorAlloc,&textureDescriptor),
+               "texture descriptor set");
+            VkDescriptorImageInfo imageDescriptor{};
+            imageDescriptor.sampler=sampledSampler;
+            imageDescriptor.imageView=sampledView;
+            imageDescriptor.imageLayout=VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+            VkWriteDescriptorSet write{VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
+            write.dstSet=textureDescriptor;write.dstBinding=0;
+            write.descriptorCount=1;write.descriptorType=VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+            write.pImageInfo=&imageDescriptor;
+            vkUpdateDescriptorSets(device,1,&write,0,nullptr);
+        }
         VkSemaphoreCreateInfo semaphore{VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO};
         ck(vkCreateSemaphore(device, &semaphore, nullptr, &acquireSem), "acquire semaphore");
         ck(vkCreateSemaphore(device, &semaphore, nullptr, &presentSem), "present semaphore");
@@ -585,15 +798,21 @@ struct Renderer {
         passBegin.pClearValues = clearValues;
         vkCmdBeginRenderPass(cmd, &passBegin, VK_SUBPASS_CONTENTS_INLINE);
         const bool filled = solidMode.load(std::memory_order_relaxed) && solidPipeline!=VK_NULL_HANDLE;
-        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, filled ? solidPipeline : pipeline);
+        const bool textured=filled&&useTexture.load(std::memory_order_relaxed)&&
+            texturePipeline!=VK_NULL_HANDLE&&textureDescriptor!=VK_NULL_HANDLE;
+        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                          textured?texturePipeline:(filled?solidPipeline:pipeline));
         struct Parameters {float angle, aspect, width, height, pitch, distance, focusOffsetY;};
         static_assert(sizeof(Parameters) == 28, "Push constant layout must match GLSL");
         Parameters p{angle, static_cast<float>(size.width)/static_cast<float>(size.height),
                      static_cast<float>(size.width), static_cast<float>(size.height), pitch, distance,
                      cameraViewportOffset.load(std::memory_order_relaxed)};
-        vkCmdPushConstants(cmd, layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(p), &p);
+        VkPipelineLayout chosenLayout=textured?textureLayout:layout;
+        vkCmdPushConstants(cmd, chosenLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(p), &p);
+        if(textured)vkCmdBindDescriptorSets(cmd,VK_PIPELINE_BIND_POINT_GRAPHICS,
+            textureLayout,0,1,&textureDescriptor,0,nullptr);
         VkDeviceSize offset=0;
-        VkBuffer chosenBuffer=filled ? triangleBuffer : vertexBuffer;
+        VkBuffer chosenBuffer=textured?texturedBuffer:(filled ? triangleBuffer : vertexBuffer);
         vkCmdBindVertexBuffers(cmd,0,1,&chosenBuffer,&offset);
         vkCmdDraw(cmd, filled ? triangleVertexCount : vertexCount, 1, 0, 0);
         vkCmdEndRenderPass(cmd);
@@ -780,6 +999,9 @@ Java_dev_skyrimsemobile_launcher_VulkanSceneActivity_nativeSetGeometry(JNIEnv* e
         std::lock_guard<std::mutex> guard(geometryMutex);
         selectedGeometry=std::move(geometry);
         selectedTriangles.clear();
+        selectedUv.clear();selectedPixels.clear();
+        selectedTextureWidth=selectedTextureHeight=0;
+        useTexture.store(false,std::memory_order_relaxed);
         geometryTriangleCount=0;
         solidMode.store(false,std::memory_order_relaxed);
         geometryLabel=std::move(safe);
@@ -792,6 +1014,9 @@ Java_dev_skyrimsemobile_launcher_VulkanSceneActivity_nativeClearGeometry(JNIEnv*
     std::lock_guard<std::mutex> guard(geometryMutex);
     selectedGeometry.clear();
     selectedTriangles.clear();geometryTriangleCount=0;
+    selectedUv.clear();selectedPixels.clear();
+    selectedTextureWidth=selectedTextureHeight=0;
+    useTexture.store(false,std::memory_order_relaxed);
     solidMode.store(false,std::memory_order_relaxed);
     geometryLabel="Куб (встроенный)";geometryEdgeCount=12;
 }
@@ -811,6 +1036,9 @@ Java_dev_skyrimsemobile_launcher_VulkanSceneActivity_nativeSetSurfaceTriangles(J
     std::lock_guard<std::mutex> guard(geometryMutex);
     if(selectedGeometry.empty())return JNI_FALSE;
     selectedTriangles=std::move(geometry);
+    selectedUv.clear();selectedPixels.clear();
+    selectedTextureWidth=selectedTextureHeight=0;
+    useTexture.store(false,std::memory_order_relaxed);
     geometryTriangleCount=static_cast<uint32_t>(len/9);
     return JNI_TRUE;
 }
@@ -823,4 +1051,45 @@ Java_dev_skyrimsemobile_launcher_VulkanSceneActivity_nativeSetSolidMode(JNIEnv*,
     }
     solidMode.store(enabled==JNI_TRUE,std::memory_order_relaxed);
     return JNI_TRUE;
+}
+
+
+// Upload a bounded UV-per-triangle payload and CPU-decoded DDS first mip.
+// The JNI bridge owns no Android Bitmap and writes no user files.
+extern "C" JNIEXPORT jboolean JNICALL
+Java_dev_skyrimsemobile_launcher_VulkanSceneActivity_nativeSetTexture(
+    JNIEnv* env,jclass,jfloatArray coordinates,jintArray image,jint width,jint height){
+    if(!coordinates||!image||width<1||height<1||width>2048||height>2048)return JNI_FALSE;
+    const int64_t pixels=static_cast<int64_t>(width)*height;
+    if(pixels>2048LL*2048LL||env->GetArrayLength(image)!=pixels)return JNI_FALSE;
+    jsize len=env->GetArrayLength(coordinates);
+    if(len<6||len>30000*3*2||len%6!=0)return JNI_FALSE;
+    std::vector<float> uv(static_cast<size_t>(len));
+    env->GetFloatArrayRegion(coordinates,0,len,uv.data());
+    if(env->ExceptionCheck())return JNI_FALSE;
+    for(float v:uv)if(!std::isfinite(v)||std::abs(v)>8192.f)return JNI_FALSE;
+    std::vector<jint> input(static_cast<size_t>(pixels));
+    env->GetIntArrayRegion(image,0,static_cast<jsize>(pixels),input.data());
+    if(env->ExceptionCheck())return JNI_FALSE;
+    std::vector<uint8_t> rgba(static_cast<size_t>(pixels)*4);
+    for(int64_t i=0;i<pixels;i++){
+        uint32_t color=static_cast<uint32_t>(input[static_cast<size_t>(i)]);
+        rgba[i*4]=static_cast<uint8_t>((color>>16)&255);
+        rgba[i*4+1]=static_cast<uint8_t>((color>>8)&255);
+        rgba[i*4+2]=static_cast<uint8_t>(color&255);
+        rgba[i*4+3]=static_cast<uint8_t>((color>>24)&255);
+    }
+    std::lock_guard<std::mutex> guard(geometryMutex);
+    if(selectedTriangles.empty()||uv.size()!=(selectedTriangles.size()/3)*2)return JNI_FALSE;
+    selectedUv=std::move(uv);
+    selectedPixels=std::move(rgba);
+    selectedTextureWidth=static_cast<uint32_t>(width);
+    selectedTextureHeight=static_cast<uint32_t>(height);
+    return JNI_TRUE;
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_dev_skyrimsemobile_launcher_VulkanSceneActivity_nativeSetUseTexture(
+    JNIEnv*,jclass,jboolean enabled){
+    useTexture.store(enabled==JNI_TRUE,std::memory_order_relaxed);
 }
