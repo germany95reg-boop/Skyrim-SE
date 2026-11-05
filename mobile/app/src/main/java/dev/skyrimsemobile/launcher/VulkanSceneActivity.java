@@ -45,6 +45,8 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
     private static native boolean nativeSetSolidMode(boolean enabled);
     private static native boolean nativeSetTexture(float[] uv,int[] argb,int width,int height);
     private static native void nativeSetUseTexture(boolean enabled);
+    private static native boolean nativeSetNormalTexture(int[] argb,int width,int height);
+    private static native void nativeSetUseNormalMap(boolean enabled);
     private static final int PICK_OBJ = 606;
     private String meshLabel = "Куб (встроенный)";
     private String nifDimensions = "";
@@ -59,9 +61,10 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
     private Button modelButton;
     private Button surfaceButton;
     private Button textureButton;
+    private Button normalButton;
     private boolean hasSurface = false;
-    private boolean hasTexture = false;
-    private boolean solidMode = false, useTexture = false;
+    private boolean hasTexture = false,hasNormalMap=false;
+    private boolean solidMode = false,useTexture = false,useNormalMap=false;
 
     private final Handler ui = new Handler(Looper.getMainLooper());
     private final Runnable poll = new Runnable() {
@@ -126,7 +129,7 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
         root.addView(viewport, new FrameLayout.LayoutParams(-1, -1));
 
         TextView title = new TextView(this);
-        title.setText("SKYRIM SE MOBILE\nVulkan 3D · v2.1.2");
+        title.setText("SKYRIM SE MOBILE\nVulkan 3D · v2.2");
         sceneTitle=title;
         title.setTypeface(Typeface.SERIF, Typeface.BOLD);
         title.setTextSize(20);
@@ -173,7 +176,7 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
         meshControls.addView(pyramid, new LinearLayout.LayoutParams(0, dp(46), 1));
         Button cube = controlButton("Куб");
         cube.setOnClickListener(v -> {
-            nativeClearGeometry(); hasSurface=false;hasTexture=false;useTexture=false;solidMode=false;updateSurfaceButton(); meshLabel = "Куб (встроенный)"; nifDimensions=""; modelRadius=SceneFraming.CUBE_RADIUS; fitFollowsLayout=true; refreshFraming();
+            nativeClearGeometry(); hasSurface=false;hasTexture=false;hasNormalMap=false;useTexture=false;useNormalMap=false;solidMode=false;updateSurfaceButton(); meshLabel = "Куб (встроенный)"; nifDimensions=""; modelRadius=SceneFraming.CUBE_RADIUS; fitFollowsLayout=true; refreshFraming();
             getSharedPreferences("launcher_state",MODE_PRIVATE).edit().remove("obj_uri").apply();
             restartRenderer();
         });
@@ -206,6 +209,15 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
             updateSurfaceButton();
         });
         actions.addView(textureButton,new LinearLayout.LayoutParams(0,dp(48),1));
+        normalButton=controlButton("Нормали: Выкл");
+        normalButton.setEnabled(false);
+        normalButton.setOnClickListener(v->{
+            if(!hasNormalMap)return;
+            useNormalMap=!useNormalMap;
+            nativeSetUseNormalMap(useNormalMap);
+            updateSurfaceButton();
+        });
+        actions.addView(normalButton,new LinearLayout.LayoutParams(0,dp(48),1));
         actions.addView(back, new LinearLayout.LayoutParams(0, dp(48),2));
         LinearLayout views = new LinearLayout(this);
         Button front = controlButton("Спереди");
@@ -235,7 +247,8 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
             if(nif != null){
                 nifDimensions=nif.details;
                 activateModel(nif.model,nif.label,null,nif.surfaceTriangles,
-                    nif.surfaceUVs,nif.argb,nif.textureWidth,nif.textureHeight);
+                    nif.surfaceUVs,nif.argb,nif.textureWidth,nif.textureHeight,
+                    nif.normalArgb,nif.normalWidth,nif.normalHeight);
             }
             else restoreModel();
         }
@@ -309,12 +322,17 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
             textureButton.setEnabled(hasTexture);
             textureButton.setText(useTexture?"DDS: Вкл":"DDS: Выкл");
         }
+        if(normalButton!=null){
+            normalButton.setEnabled(hasNormalMap);
+            normalButton.setText(useNormalMap?"Нормали: Вкл":"Нормали: Выкл");
+        }
     }
     private void activateModel(ObjWireParser.Model model,String name,Uri persist,float[] triangles) {
-        activateModel(model,name,persist,triangles,null,null,0,0);
+        activateModel(model,name,persist,triangles,null,null,0,0,null,0,0);
     }
     private void activateModel(ObjWireParser.Model model,String name,Uri persist,float[] triangles,
-           float[] uv,int[] pixels,int textureW,int textureH) {
+           float[] uv,int[] pixels,int textureW,int textureH,
+           int[] normalPixels,int normalW,int normalH) {
         loadingModel=false;modelButton.setEnabled(true);
         if(destroyed || loadingError!=null)return;
         boolean accepted=nativeSetGeometry(model.segments,name);
@@ -323,6 +341,10 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
         hasTexture=hasSurface&&uv!=null&&pixels!=null&&nativeSetTexture(uv,pixels,textureW,textureH);
         useTexture=hasTexture;
         nativeSetUseTexture(useTexture);
+        hasNormalMap=hasTexture&&normalPixels!=null&&
+            nativeSetNormalTexture(normalPixels,normalW,normalH);
+        useNormalMap=hasNormalMap;
+        nativeSetUseNormalMap(useNormalMap);
         solidMode=false;
         nativeSetSolidMode(false); // Always open with the proven wireframe first.
         updateSurfaceButton();
@@ -456,6 +478,7 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
         nativeSetFpsCap(fpsCap);
         nativeSetSolidMode(solidMode);
         nativeSetUseTexture(useTexture);
+        nativeSetUseNormalMap(useNormalMap);
         refreshFraming();
         final AssetManager assets = getAssets();
         worker = new Thread(() -> {
