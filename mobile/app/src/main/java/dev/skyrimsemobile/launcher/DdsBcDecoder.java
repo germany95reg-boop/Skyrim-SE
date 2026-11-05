@@ -48,40 +48,83 @@ public final class DdsBcDecoder {
         }
         return a;
     }
-    /** Decodes one first-mip image into pixels, requiring valid DDS header and complete first mip. */
+    private static int[] channelBlock(byte[] src,int off) {
+        int[] codes=alphaPalette(src[off]&255,src[off+1]&255),pixels=new int[16];
+        long selector=0;
+        for(int i=0;i<6;i++)selector|=((long)src[off+2+i]&255)<<(8*i);
+        for(int i=0;i<16;i++)pixels[i]=codes[(int)((selector>>>(3*i))&7)];
+        return pixels;
+    }
+    /** Safe CPU preview of one first mip. BC4/5 signed and BC7 need separate decoders. */
     public static Image decode(byte[] dds) throws IOException {
         if(dds==null||dds.length<128)throw new IOException("DDS: недостаточно данных");
         DdsHeaderInspector.Result h=DdsHeaderInspector.inspect(dds,dds.length);
         if(h.width>2048||h.height>2048||(long)h.width*h.height>MAX_PIXELS)
             throw new IOException("DDS: изображение больше безопасного предела 2048×2048");
-        if(h.depth>1||h.arraySize!=1)throw new IOException("DDS: только одна 2D-текстура");
-        boolean bc1="DXT1".equals(h.fourCC)||(h.isDx10&&(h.dxgiFormat==71||h.dxgiFormat==72));
-        boolean bc3="DXT5".equals(h.fourCC)||(h.isDx10&&(h.dxgiFormat==77||h.dxgiFormat==78));
-        if(!bc1&&!bc3)throw new IOException("Предпросмотр доступен только для BC1/DXT1 и BC3/DXT5");
-        int bytesPerBlock=bc1?8:16;
-        long blocksX=((long)h.width+3)/4,blocksY=((long)h.height+3)/4;
-        long firstMip=blocksX*blocksY*bytesPerBlock;
-        if(firstMip>Integer.MAX_VALUE||h.headerBytes+firstMip>dds.length)
-            throw new IOException("DDS: данные первого mip-уровня обрезаны");
+        if(h.depth>1||h.arraySize!=1)throw new IOException("DDS: только одна плоская 2D-текстура");
+        String f=h.fourCC;int dg=h.dxgiFormat;
+        if("BC4S".equals(f)||"BC5S".equals(f)||
+           (h.isDx10&&(dg==81||dg==84)))
+            throw new IOException("Signed BC4/BC5 SNORM требует отдельного декодера");
+        int kind=0;
+        if("DXT1".equals(f)||(h.isDx10&&(dg==71||dg==72)))kind=1;
+        else if("DXT3".equals(f)||(h.isDx10&&(dg==74||dg==75)))kind=2;
+        else if("DXT5".equals(f)||(h.isDx10&&(dg==77||dg==78)))kind=3;
+        else if("ATI1".equals(f)||"BC4U".equals(f)||(h.isDx10&&dg==80))kind=4;
+        else if("ATI2".equals(f)||"BC5U".equals(f)||(h.isDx10&&dg==83))kind=5;
+        else if(h.isDx10&&(dg==28||dg==29))kind=6;
+        else if(h.isDx10&&(dg==87||dg==91))kind=7;
+        if(kind==0)throw new IOException("Для формата "+h.format+" CPU-предпросмотр пока недоступен");
         int[] pixels=new int[h.width*h.height];
-        for(int by=0;by<(int)blocksY;by++)for(int bx=0;bx<(int)blocksX;bx++){
-            int off=h.headerBytes+(int)((by*blocksX+bx)*bytesPerBlock);
-            int colorsOffset=off+(bc3?8:0);
-            int[] p=palette(dds,colorsOffset,bc3);
-            long selections=u32(dds,colorsOffset+4);
-            int[] alphas=null;long alphaSelection=0;
-            if(bc3){
-                alphas=alphaPalette(dds[off]&255,dds[off+1]&255);
-                for(int i=0;i<6;i++)alphaSelection|=((long)dds[off+2+i]&255)<<(8*i);
+        if(kind>=6){
+            long length=(long)h.width*h.height*4;
+            if(h.headerBytes+length>dds.length)throw new IOException("DDS RGBA: первый mip обрезан");
+            for(int i=0;i<pixels.length;i++){
+                int at=h.headerBytes+4*i;
+                int red=dds[at+(kind==7?2:0)]&255,green=dds[at+1]&255;
+                int blue=dds[at+(kind==7?0:2)]&255,alpha=dds[at+3]&255;
+                pixels[i]=(alpha<<24)|(red<<16)|(green<<8)|blue;
+            }
+            return new Image(h.width,h.height,pixels,kind==6?"RGBA8":"BGRA8");
+        }
+        int bytesPerBlock=(kind==1||kind==4)?8:16;
+        long bxCount=((long)h.width+3)/4,byCount=((long)h.height+3)/4;
+        long need=bxCount*byCount*bytesPerBlock;
+        if(h.headerBytes+need>dds.length)
+            throw new IOException("DDS: данные первого mip-уровня обрезаны");
+        for(int by=0;by<(int)byCount;by++)for(int bx=0;bx<(int)bxCount;bx++){
+            int off=h.headerBytes+(int)(((long)by*bxCount+bx)*bytesPerBlock);
+            int[] colors=null,first=null,second=null;long selectors=0;
+            if(kind<=3){
+                int colorOff=off+(kind==1?0:8);
+                colors=palette(dds,colorOff,kind!=1);
+                selectors=u32(dds,colorOff+4);
+                if(kind==3)first=channelBlock(dds,off);
+            }else{
+                first=channelBlock(dds,off);
+                if(kind==5)second=channelBlock(dds,off+8);
             }
             for(int i=0;i<16;i++){
-                int xx=bx*4+i%4,yy=by*4+i/4;
-                if(xx>=h.width||yy>=h.height)continue;
-                int value=p[(int)((selections>>(2*i))&3)];
-                if(bc3)value=(value&0x00ffffff)|(alphas[(int)((alphaSelection>>(3*i))&7)]<<24);
-                pixels[yy*h.width+xx]=value;
+                int x=bx*4+i%4,y=by*4+i/4;
+                if(x>=h.width||y>=h.height)continue;
+                int pixel;
+                if(kind<=3){
+                    pixel=colors[(int)((selectors>>>(2*i))&3)];
+                    if(kind==2){
+                        int nibble=((dds[off+i/2]&255)>>>((i%2)*4))&15;
+                        pixel=(pixel&0x00ffffff)|((nibble*17)<<24);
+                    }else if(kind==3)pixel=(pixel&0x00ffffff)|(first[i]<<24);
+                }else if(kind==4){
+                    int v=first[i];pixel=0xff000000|(v<<16)|(v<<8)|v;
+                }else{
+                    // Preview shows unsigned R/G channels; blue is a visualization aid.
+                    pixel=0xff0000ff|(first[i]<<16)|(second[i]<<8);
+                }
+                pixels[y*h.width+x]=pixel;
             }
         }
-        return new Image(h.width,h.height,pixels,bc1?"BC1/DXT1":"BC3/DXT5");
+        String label=kind==1?"BC1/DXT1":kind==2?"BC2/DXT3":
+          kind==3?"BC3/DXT5":kind==4?"BC4 grayscale":"BC5 RG channels";
+        return new Image(h.width,h.height,pixels,label);
     }
 }

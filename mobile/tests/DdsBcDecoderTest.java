@@ -43,8 +43,36 @@ public final class DdsBcDecoderTest {
         catch(IOException ok){count++;}
         try{DdsBcDecoder.decode(make(4096,4096,"DXT1",1));throw new AssertionError("accepted oversized DDS");}
         catch(IOException ok){count++;}
-        try{DdsBcDecoder.decode(make(4,4,"DXT3",1));throw new AssertionError("accepted BC2");}
+        byte[] bc2=make(4,4,"DXT3",1);
+        Arrays.fill(bc2,128,136,(byte)0x88);
+        bc2[136]=0;bc2[137]=(byte)0xf8;
+        img=DdsBcDecoder.decode(bc2);
+        check(img.format.contains("BC2")&&(img.argb[0]>>>24)==136,"BC2 alpha 4-bit");
+        byte[] bc4=make(4,4,"ATI1",1);
+        bc4[128]=(byte)255;
+        img=DdsBcDecoder.decode(bc4);check(img.argb[0]==0xffffffff,"BC4 grayscale");
+        byte[] bc5=make(4,4,"ATI2",1);
+        bc5[128]=(byte)255;
+        img=DdsBcDecoder.decode(bc5);
+        check(img.argb[0]==0xffff00ff,"BC5 raw RG");
+        byte[] bad=make(4,4,"BC5S",1);
+        try{DdsBcDecoder.decode(bad);throw new AssertionError("accepted BC5 signed");}
         catch(IOException ok){count++;}
-        System.out.println("PASS DdsBcDecoderTest: "+count+" assertions");
+        byte[] cutBc2=Arrays.copyOf(make(4,4,"DXT3",1),143);
+        try{DdsBcDecoder.decode(cutBc2);throw new AssertionError("accepted truncated BC2");}
+        catch(IOException ok){count++;}
+        byte[] dx10=new byte[152];dx10[0]='D';dx10[1]='D';dx10[2]='S';dx10[3]=' ';
+        u32(dx10,4,124);u32(dx10,12,1);u32(dx10,16,1);
+        u32(dx10,76,32);u32(dx10,80,4);
+        dx10[84]='D';dx10[85]='X';dx10[86]='1';dx10[87]='0';
+        u32(dx10,128,28);u32(dx10,132,3);u32(dx10,140,1);
+        dx10[148]=12;dx10[149]=34;dx10[150]=56;dx10[151]=(byte)255;
+        check(DdsBcDecoder.decode(dx10).argb[0]==0xff0c2238,"DX10 RGBA8 preview");
+        u32(dx10,128,87);dx10[148]=56;dx10[150]=12;
+        check(DdsBcDecoder.decode(dx10).argb[0]==0xff0c2238,"DX10 BGRA8 preview");
+        u32(dx10,128,84);
+        try{DdsBcDecoder.decode(dx10);throw new AssertionError("accepted signed BC5");}
+        catch(IOException ok){count++;}
+        System.out.println("PASS DdsBcDecoderTest v2.0: "+count+" assertions");
     }
 }

@@ -57,7 +57,7 @@ public final class BsaCatalogActivity extends Activity {
         ScrollView scroll=new ScrollView(this);scroll.setBackgroundColor(0xff101116);scroll.setFillViewport(true);
         LinearLayout root=new LinearLayout(this);root.setOrientation(LinearLayout.VERTICAL);
         root.setPadding(dp(16),dp(14),dp(16),dp(18));scroll.addView(root);
-        TextView title=text("Skyrim SE · NIF v1.9",22,0xffdbc5fb);title.setGravity(Gravity.CENTER);root.addView(title);
+        TextView title=text("Skyrim SE · NIF v2.0",22,0xffdbc5fb);title.setGravity(Gravity.CENTER);root.addView(title);
         root.addView(text("BSA 105: каталог, заголовок NIF и таблица блоков. Выбирай конкретный файл через строку поиска; читаться будет только первая найденная NIF-запись. Без сохранения на диск и изменения игры.",13,0xffd5d3dd));
         button(root,"Выбрать архив BSA",this::pick);
         filter=new EditText(this);filter.setSingleLine(true);filter.setHint("Поиск: meshes, .nif, fish...");
@@ -72,11 +72,11 @@ public final class BsaCatalogActivity extends Activity {
         nifOnly.setOnCheckedChangeListener((b,value)->renderResults());
         button(root,"Прочитать первый найденный NIF (только заголовок)",this::inspectFirstNif);
         button(root,"Исследовать блоки выбранного NIF · v1.0",this::inspectNifBlocks);
-        button(root,"Показать BSTriShape в Vulkan · v1.9",this::previewNifGeometry);
-        button(root,"Пути текстур NIF · v1.9",this::inspectNifMaterials);
-        button(root,"Найти DDS в папке Data · v1.9",this::pickDataForDds);
-        button(root,"Заголовки найденных DDS · v1.9",this::inspectFoundDdsHeaders);
-        button(root,"Показать текстуры DDS · BC1/BC3 · v1.9",this::previewFoundDds);
+        button(root,"Показать BSTriShape в Vulkan · v2.0",this::previewNifGeometry);
+        button(root,"Пути текстур NIF · v2.0",this::inspectNifMaterials);
+        button(root,"Найти DDS в папке Data · v2.0",this::pickDataForDds);
+        button(root,"Заголовки найденных DDS · v2.0",this::inspectFoundDdsHeaders);
+        button(root,"Показать текстуры DDS · BC1/2/3/4/5 · v2.0",this::previewFoundDds);
         button(root,"Скопировать список и отчёт",this::copyReport);
         button(root,"Назад",this::finish);
         summary=text("Выбери BSA-файл из памяти телефона. Архив будет открыт только на чтение.",14,0xffeeeeee);
@@ -249,7 +249,7 @@ public final class BsaCatalogActivity extends Activity {
                 final List<String> safeTargets=candidates.isEmpty()?Collections.emptyList():
                     new ArrayList<>(DdsArchiveFinder.targets(candidates).values());
                 final String report="Ресурс: "+entry.path+"\n"+m.report()+
-                    "\n\nПоиск v1.9: "+safeTargets.size()+" подходящих путей DDS"+
+                    "\n\nПоиск v2.0: "+safeTargets.size()+" подходящих путей DDS"+
                     (unsupported>0?" · неподдерживаемых или сверх лимита: "+unsupported:"")+". "+
                     "Нажми «Найти DDS в папке Data» и выбери каталог игры Data.";
                 runOnUiThread(()->{
@@ -268,7 +268,7 @@ public final class BsaCatalogActivity extends Activity {
     /** User grants read-only access to the containing Data directory via SAF. */
     private void pickDataForDds(){
         if(currentUri==null||materialBsaUri==null||!currentUri.equals(materialBsaUri)||materialDdsPaths.isEmpty()){
-            inspectionOutput.setText("Сначала выбери NIF и нажми «Пути текстур NIF · v1.9». "+
+            inspectionOutput.setText("Сначала выбери NIF и нажми «Пути текстур NIF · v2.0». "+
                 "После получения путей DDS можно искать их в папке Data.");return;
         }
         List<BsaCatalogReader.Entry> found=catalog==null?Collections.emptyList():
@@ -347,7 +347,7 @@ public final class BsaCatalogActivity extends Activity {
                     if(destroyed||!nifUri.equals(currentUri))return;
                     final int checked=read;
                     runOnUiThread(()->{if(!destroyed&&nifUri.equals(currentUri))
-                        inspectionOutput.setText("Поиск DDS v1.9: проверено "+checked+" из "+docs.size()+
+                        inspectionOutput.setText("Поиск DDS v2.0: проверено "+checked+" из "+docs.size()+
                             " BSA…\nТолько индексы имён, без распаковки.");});
                     try(InputStream in=getContentResolver().openInputStream(doc.uri)){
                         if(in==null)throw new IOException("Невозможно открыть архив");
@@ -362,7 +362,7 @@ public final class BsaCatalogActivity extends Activity {
                         if(failures.size()<10)failures.add(doc.name+": "+ex.getMessage());
                     }
                 }
-                StringBuilder out=new StringBuilder("Поиск DDS v1.9 · только каталоги BSA\n");
+                StringBuilder out=new StringBuilder("Поиск DDS v2.0 · только каталоги BSA\n");
                 out.append("Исходный NIF: ").append(nifName).append('\n');
                 out.append("BSA в Data: ").append(docs.size()).append(" · прочитано: ").append(read)
                    .append(" · ошибок: ").append(docs.size()-read).append(" · частичных индексов: ")
@@ -391,7 +391,7 @@ public final class BsaCatalogActivity extends Activity {
                     if(!destroyed&&nifUri.equals(currentUri)&&nifName.equals(materialNifPath)){
                         foundDds=Collections.unmodifiableList(new ArrayList<>(located));
                         lastDdsSearchReport=report;
-                        inspectionOutput.setText(report+"\n\nНажми «Заголовки найденных DDS · v1.9» для проверки формата изображений.");
+                        inspectionOutput.setText(report+"\n\nНажми «Заголовки найденных DDS · v2.0» для проверки формата изображений.");
                     }
                 });
             }catch(Exception e){
@@ -414,7 +414,7 @@ public final class BsaCatalogActivity extends Activity {
         inspectionOutput.setText("Проверяю заголовки "+entries.size()+" найденных DDS…\nТекстуры не декодируются и не записываются.");
         new Thread(()->{
             StringBuilder report=new StringBuilder(searchReport);
-            report.append("\n\nЗаголовки DDS v1.9 · только чтение выбранных записей BSA\n");
+            report.append("\n\nЗаголовки DDS v2.0 · только чтение выбранных записей BSA\n");
             int checked=0,failed=0;
             // Prefer the first matching BSA entry for each canonical texture path.
             java.util.HashSet<String> seen=new java.util.HashSet<>();
@@ -447,7 +447,7 @@ public final class BsaCatalogActivity extends Activity {
         },"dds-v17-single-header-reader").start();
     }
 
-    /** v1.9: CPU decode only the first mip of up to four explicitly matched DDS records. */
+    /** v2.0: CPU decode only the first mip of up to four explicitly matched DDS records. */
     private void previewFoundDds(){
         final Uri nifUri=currentUri;
         if(nifUri==null||materialBsaUri==null||!nifUri.equals(materialBsaUri)||foundDds.isEmpty()){
@@ -456,12 +456,12 @@ public final class BsaCatalogActivity extends Activity {
         }
         final List<LocatedDds> matches=new ArrayList<>(foundDds);
         inspectionOutput.setText("Декодирую первые mip-уровни найденных DDS в памяти…\n"+
-            "Только BC1/DXT1 и BC3/DXT5, до 4 изображений. Файлы игры не изменяются.");
+            "BC1/BC2/BC3/BC4/BC5 и RGBA8/BGRA8, до 4 изображений. Файлы игры не изменяются.");
         new Thread(()->{
             ArrayList<DdsBcDecoder.Image> images=new ArrayList<>();
             ArrayList<String> names=new ArrayList<>();
             java.util.HashSet<String> used=new java.util.HashSet<>();
-            StringBuilder report=new StringBuilder("Предпросмотр DDS v1.9 · BC1/BC3\n");
+            StringBuilder report=new StringBuilder("Предпросмотр DDS v2.0 · BC1/2/3/4/5\n");
             for(LocatedDds item:matches){
                 if(destroyed||!nifUri.equals(currentUri))return;
                 String key;
@@ -513,7 +513,7 @@ public final class BsaCatalogActivity extends Activity {
 
     private void copyReport(){
         ClipboardManager cb=(ClipboardManager)getSystemService(Context.CLIPBOARD_SERVICE);
-        if(cb!=null)cb.setPrimaryClip(ClipData.newPlainText("Skyrim SE BSA v1.9",summary.getText()+"\n\n"+results.getText()+"\n\n"+inspectionOutput.getText()));
+        if(cb!=null)cb.setPrimaryClip(ClipData.newPlainText("Skyrim SE BSA v2.0",summary.getText()+"\n\n"+results.getText()+"\n\n"+inspectionOutput.getText()));
     }
     @Override protected void onDestroy(){destroyed=true;super.onDestroy();}
 }
