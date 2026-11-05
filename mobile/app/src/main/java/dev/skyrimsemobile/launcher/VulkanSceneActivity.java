@@ -43,6 +43,8 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
     private static native void nativeClearGeometry();
     private static native boolean nativeSetSurfaceTriangles(float[] triangles);
     private static native boolean nativeSetSolidMode(boolean enabled);
+    private static native boolean nativeSetTexture(float[] uv,int[] argb,int width,int height);
+    private static native void nativeSetUseTexture(boolean enabled);
     private static final int PICK_OBJ = 606;
     private String meshLabel = "Куб (встроенный)";
     private String nifDimensions = "";
@@ -56,8 +58,10 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
     private String framingInfo="";
     private Button modelButton;
     private Button surfaceButton;
+    private Button textureButton;
     private boolean hasSurface = false;
-    private boolean solidMode = false;
+    private boolean hasTexture = false;
+    private boolean solidMode = false, useTexture = false;
 
     private final Handler ui = new Handler(Looper.getMainLooper());
     private final Runnable poll = new Runnable() {
@@ -77,7 +81,8 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
                         fps, frames, w, h, info.optDouble("yaw"), info.optDouble("pitch"),
                         info.optDouble("distance"), info.optString("geometry","Куб"), info.optInt("edges")) : "") +
                         (nifDimensions.isEmpty() ? "" : "\n"+nifDimensions) +
-                        "\nРежим: " + (info.optBoolean("solidMode") ? "Поверхность" : "Каркас") +
+                        "\nРежим: " + (info.optBoolean("solidMode") ?
+                          (hasTexture&&useTexture?"Поверхность · DDS":"Поверхность") : "Каркас") +
                         " · Треугольников: " + info.optInt("triangles") + "\nВид: "+viewPreset +
                         (framingInfo.isEmpty()?"":"\n"+framingInfo));
                     status.setTextColor(error ? 0xffffabab : 0xffb4d8fd);
@@ -168,7 +173,7 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
         meshControls.addView(pyramid, new LinearLayout.LayoutParams(0, dp(46), 1));
         Button cube = controlButton("Куб");
         cube.setOnClickListener(v -> {
-            nativeClearGeometry(); hasSurface=false; solidMode=false; updateSurfaceButton(); meshLabel = "Куб (встроенный)"; nifDimensions=""; modelRadius=SceneFraming.CUBE_RADIUS; fitFollowsLayout=true; refreshFraming();
+            nativeClearGeometry(); hasSurface=false;hasTexture=false;useTexture=false;solidMode=false;updateSurfaceButton(); meshLabel = "Куб (встроенный)"; nifDimensions=""; modelRadius=SceneFraming.CUBE_RADIUS; fitFollowsLayout=true; refreshFraming();
             getSharedPreferences("launcher_state",MODE_PRIVATE).edit().remove("obj_uri").apply();
             restartRenderer();
         });
@@ -192,6 +197,15 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
             else status.setText("Невозможно переключить Vulkan-режим");
         });
         actions.addView(surfaceButton,new LinearLayout.LayoutParams(0,dp(48),1));
+        textureButton=controlButton("DDS: Выкл");
+        textureButton.setEnabled(false);
+        textureButton.setOnClickListener(v->{
+            if(!hasTexture)return;
+            useTexture=!useTexture;
+            nativeSetUseTexture(useTexture);
+            updateSurfaceButton();
+        });
+        actions.addView(textureButton,new LinearLayout.LayoutParams(0,dp(48),1));
         actions.addView(back, new LinearLayout.LayoutParams(0, dp(48),2));
         LinearLayout views = new LinearLayout(this);
         Button front = controlButton("Спереди");
@@ -218,7 +232,11 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
         } else {
             ui.post(poll);
             NifGeometryTransfer.Selected nif=NifGeometryTransfer.take();
-            if(nif != null){ nifDimensions=nif.details; activateModel(nif.model,nif.label,null,nif.surfaceTriangles); }
+            if(nif != null){
+                nifDimensions=nif.details;
+                activateModel(nif.model,nif.label,null,nif.surfaceTriangles,
+                    nif.surfaceUVs,nif.argb,nif.textureWidth,nif.textureHeight);
+            }
             else restoreModel();
         }
     }
@@ -283,16 +301,28 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
         activateModel(model,name,persist,null);
     }
     private void updateSurfaceButton(){
-        if(surfaceButton==null)return;
-        surfaceButton.setEnabled(hasSurface);
-        surfaceButton.setText(solidMode?"Каркас":"Поверхность");
+        if(surfaceButton!=null){
+            surfaceButton.setEnabled(hasSurface);
+            surfaceButton.setText(solidMode?"Каркас":"Поверхность");
+        }
+        if(textureButton!=null){
+            textureButton.setEnabled(hasTexture);
+            textureButton.setText(useTexture?"DDS: Вкл":"DDS: Выкл");
+        }
     }
     private void activateModel(ObjWireParser.Model model,String name,Uri persist,float[] triangles) {
+        activateModel(model,name,persist,triangles,null,null,0,0);
+    }
+    private void activateModel(ObjWireParser.Model model,String name,Uri persist,float[] triangles,
+           float[] uv,int[] pixels,int textureW,int textureH) {
         loadingModel=false;modelButton.setEnabled(true);
         if(destroyed || loadingError!=null)return;
         boolean accepted=nativeSetGeometry(model.segments,name);
         if(!accepted){status.setText("Модель отклонена нативным рендерером");return;}
         hasSurface=triangles!=null && nativeSetSurfaceTriangles(triangles);
+        hasTexture=hasSurface&&uv!=null&&pixels!=null&&nativeSetTexture(uv,pixels,textureW,textureH);
+        useTexture=hasTexture;
+        nativeSetUseTexture(useTexture);
         solidMode=false;
         nativeSetSolidMode(false); // Always open with the proven wireframe first.
         updateSurfaceButton();
@@ -425,6 +455,7 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
         nativeSetView(yaw, pitch, zoom, autoSpin);
         nativeSetFpsCap(fpsCap);
         nativeSetSolidMode(solidMode);
+        nativeSetUseTexture(useTexture);
         refreshFraming();
         final AssetManager assets = getAssets();
         worker = new Thread(() -> {
