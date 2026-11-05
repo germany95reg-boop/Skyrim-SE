@@ -1,44 +1,39 @@
 # Skyrim SE Mobile Launcher
 
-Native Android ARM64 Vulkan prototype. **This is not a port of the Skyrim Special Edition game engine.** The application does not execute SkyrimSE.exe, SKSE64, scripts or the Skyrim game world.
+Experimental **Android ARM64 / Vulkan** prototype for reading Skyrim Special Edition resources and viewing NIF meshes. **This is not a port of SkyrimSE.exe**: SKSE64, actual game execution, Havok, gameplay, animation and the Skyrim rendering engine are not included.
 
-## Verified on-device milestones
+## Confirmed on Samsung / Adreno 840
 
-- v0.6: OBJ pyramid drawn using native Vulkan, working gestures on Samsung Android 17 / Adreno 840.
-- v0.7–v1.0: read actual Skyrim SE `Data` contents and BSA 105 / NIF blocks read-only.
-- v1.1: real `lureargonian01.nif` BSTriShape wireframe shown on Samsung, 248 edges.
-- v1.2: confirmed wireframe and model dimensions 3.27 × 7.74 × 1.26.
-- **v1.3: user confirmed correct fit of the entire NIF between the header and controls**; 47% frame margin, last measured display FPS 120 uncapped. This is a graphics-test number, not game performance.
+- v0.6: native Vulkan OBJ pyramid and touch gestures.
+- v0.7–v1.0: real game Data and BSA 105 catalogues, NIF block structures (read-only).
+- v1.1–v1.3: real `lureargonian01.nif` wireframe, 112 vertices, 140 triangles, 248 unique edges; centered auto-fit verified.
+- **v1.4: user supplied a screenshot of the real NIF rendered with filled purple surfaces** at reported 120 FPS, 751 frames, 1440×2915; the object is fully visible and the surface mode runs. These figures are graphics-demo metrics, not Skyrim game performance.
 
-## v1.4 — solid geometry preview of Skyrim SE NIF
+## v1.5 — enumerate NIF material texture paths
 
-**[Successful GitHub Actions build #42064084787](https://github.com/germany95reg-boop/Skyrim-SE/actions/runs/42064084787)**
+**[GitHub Actions #42068104478 — SUCCESS](https://github.com/germany95reg-boop/Skyrim-SE/actions/runs/42068104478)**.
 
-Artifact `Skyrim-SE-Vulkan-3D-v1.4-APK` contains `app-debug.apk`.
+Artifact name: `Skyrim-SE-Vulkan-3D-v1.5-APK`, containing `app-debug.apk`.
+APK: 3,468,994 bytes; SHA-256 `5cb4450738e6c4ebad32bd48075cfbfd825c4daf0df028c6b2f44503d0edf929`.
 
-APK size: 3,452,618 bytes. SHA-256: `7e803c60d8f0b0de6db498dba355f6989d4ebca958a59c058ae60f692b8b86f6`.
+### Changes
 
-### Features
+- Added the **«Пути текстур NIF · v1.5»** action in the BSA v105 catalogue screen.
+- Reads *one* selected NIF entry in RAM, validates NIF 20.2.0.7 block table and enumerates all `BSShaderTextureSet` blocks. The output shows named slots: diffuse, normal/gloss, glow/skin, parallax/height, environment, masks and additional slots.
+- Counts `BSLightingShaderProperty` and `BSTriShape` blocks to provide context. The relationship between specific shader and texture-set blocks is **not yet validated**.
+- Bounds-checks 64 sets, 32 slots/set, 1024 UTF-8 bytes/path. Paths are strings for display, **never treated as writable filesystem paths**.
+- Existing solid / wireframe Vulkan renderer, depth test, camera auto-fit, OBJ test, BSA 105 index, and single NIF LZ4 reader remain intact.
 
-- A bounded SSE `BSTriShape` decoder now retains normalized triangle coordinates **as well as** the proven wire-edge coordinates from the same transformation and bounds.
-- Android→JNI passes a separate validated array of triangle vertices; previous line rendering remains unchanged.
-- A second Vulkan `VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST` graphics pipeline, its own vertex buffer, a device-local depth attachment (D16/D32) and `solid.frag.spv` provide a **neutral lit surface preview**.
-- In **Настройки → Ресурсы Skyrim SE → Каталог BSA v105 → selected NIF → Vulkan**, the new **«Поверхность»** button switches from wireframe to solid. Press **«Каркас»** to return. Solid mode is disabled for the built-in cube and OBJ.
-- Previous camera presets, gestures, auto-fit, Vulkan smoke tests, BSA/LZ4 read-only indexing and NIF diagnostics are retained.
-- Maximum limits: 40,000 vertices, 30,000 unique edges and 30,000 triangles. The app rejects malformed triangle indices and nonfinite coordinate values.
+**Not implemented:** DDS decoding, looking up those DDS in other BSA archives, UV coordinate sampling, applying textures on triangles, actual Skyrim material rendering. The NIF is still displayed with the same simple neutral purple solid shading.
 
-### Verify on Samsung
+### On-device test
 
-1. Install v1.4 APK, preserving app data before uninstall if a debug signing mismatch prevents in-place updating.
-2. Open `ccBGSSSE001-Fish.bsa`, search for `lureargonian01.nif`, and tap **«Показать BSTriShape в Vulkan · v1.4»**.
-3. Confirm the original wireframe is visible. Tap **«Поверхность»** and check neutral purple faces and correct front/back depth occlusion.
-4. Rotate the model, try side/top camera presets and **«Вписать»**, and toggle **«Каркас»**.
-5. Send screenshots and FPS from both modes; report any crash or visual artifacts.
+1. Install v1.5 (if Android refuses an update due to debug signature, back up relevant app data before uninstalling an older build).
+2. Go to **Настройки → Ресурсы Skyrim SE → Каталог BSA v105**.
+3. Open `ccBGSSSE001-Fish.bsa`, search for `lureargonian01.nif`.
+4. Tap **«Пути текстур NIF · v1.5»**, then **«Скопировать список и отчёт»**.
+5. Send the resulting text to determine which `Skyrim - Textures*.bsa` / Creation Club archive contains the referenced DDS files.
 
-**CI verified:** Android/NDK compile, GLSL→SPIR-V, BSA/LZ4, NIF block tables, the geometry decoder with 60 fixture checks, adaptive camera with 13 checks, and APK contents including 3 ARM64 libraries and 3 SPIR-V shaders. **The new filled mode has not yet been tested on the Samsung**, even though the prior wireframe has.
+Tests in CI: 25 synthetic material-table checks, 60 geometry checks, 14 NIF block checks, 13 camera tests, BSA/LZ4 checks, Android/NDK build and all three SPIR-V shaders. APK was examined: `NifMaterialInspector` exists in the DEX, three ARM64 renderer libraries and three SPIR-V shaders are present. **The new material inspector has not yet been exercised on the user's actual NIF on device.**
 
-No genuine Skyrim textures (DDS), material graph, skinning, animations, parent-node transforms, game rendering or SkyrimSE.exe execution yet. Game files are read only, never rewritten.
-
-## Source
-
-The source snapshot for this build is stored at `.skyrimse-v14-source.tar.xz` and unpacked by GitHub Actions before Gradle compilation; a separate source ZIP can be downloaded from the chat.
+Source snapshot in this repository: `.skyrimse-v15-source.tar.xz`. The game directory is read-only.
