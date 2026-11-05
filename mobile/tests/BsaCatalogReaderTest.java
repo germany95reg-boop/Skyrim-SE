@@ -43,6 +43,9 @@ public class BsaCatalogReaderTest {
         for(String[] group:files)for(String name:group){bytes(o,name);o.write(0);}
         return o.toByteArray();
     }
+    private static void set32(byte[] b,int offset,int value){
+        for(int i=0;i<4;i++)b[offset+i]=(byte)(value>>>(i*8));
+    }
     private static void expectError(byte[] data,String name) {
         try {BsaCatalogReader.read(new ByteArrayInputStream(data));throw new AssertionError("accepted "+name);}
         catch(IOException expected) { /* safe rejection */ }
@@ -61,6 +64,19 @@ public class BsaCatalogReaderTest {
         byte[] c=fixture(new String[]{"meshes"},new String[][]{{"one.nif","two.dds"}},true);
         eq(BsaCatalogReader.read(new ByteArrayInputStream(c)).entries.get(0).compressed,false,"XOR compression");
         eq(BsaCatalogReader.read(new ByteArrayInputStream(c)).entries.get(1).compressed,true,"default compression");
+        // MarketplaceTextures-style 9-byte discrepancy: only actual zero padding is safe.
+        byte[] padded=Arrays.copyOf(sample,sample.length+9);
+        set32(padded,28,("fish.nif".length()+1)+("fish2.nif".length()+1)+
+            ("fish.dds".length()+1)+9);
+        eq(BsaCatalogReader.read(new ByteArrayInputStream(padded)).indexedCount,3,
+           "allow nine trailing zero filename-table padding bytes");
+        byte[] nonzero=padded.clone();
+        nonzero[sample.length+3]=1;
+        expectError(nonzero,"nonzero filename-table tail");
+        byte[] tooMuch=Arrays.copyOf(sample,sample.length+17);
+        set32(tooMuch,28,("fish.nif".length()+1)+("fish2.nif".length()+1)+
+            ("fish.dds".length()+1)+17);
+        expectError(tooMuch,"excessive filename-table tail");
         byte[] corrupt=Arrays.copyOf(sample, sample.length-2);expectError(corrupt,"truncated table");
         corrupt=sample.clone();corrupt[4]=104;expectError(corrupt,"unsupported version");
         corrupt=sample.clone();corrupt[12]=0;expectError(corrupt,"no names");

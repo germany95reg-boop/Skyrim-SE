@@ -142,9 +142,22 @@ public final class BsaCatalogReader {
                 entries.add(new Entry(path,re.size,re.offset,re.compressed));
             }
         }
-        // In conventional BSA the table size matches exactly. Reject mismatches
-        // to avoid silently presenting a misleading partial catalog.
-        if(consumed!=fileNameBytes)throw new IOException("Длина таблицы имён не соответствует заголовку: прочитано "+consumed+" / заявлено "+fileNameBytes+" байт; возможен нестандартный вариант BSA");
+        // Some BSA name tables include a few bytes of zero padding after their
+        // last NUL-terminated filename. Permit up to 16 actual zero bytes only,
+        // and never treat non-zero or missing trailing bytes as valid metadata.
+        if(consumed!=fileNameBytes){
+            long pad=fileNameBytes-consumed;
+            if(pad<1||pad>16)
+                throw new IOException("Длина таблицы имён не соответствует заголовку: прочитано "+
+                    consumed+" / заявлено "+fileNameBytes+" байт; возможен нестандартный вариант BSA");
+            for(long i=0;i<pad;i++){
+                int next=in.read();
+                if(next!=0)
+                    throw new IOException("Длина таблицы имён не соответствует заголовку: прочитано "+
+                        consumed+" / заявлено "+fileNameBytes+
+                        " байт; ненулевой или отсутствующий завершающий блок BSA");
+            }
+        }
         return new Catalog(folderCount,fileCount,entries.size(),nifCount,flags,entries);
     }
     private static String safeName(byte[] bytes){

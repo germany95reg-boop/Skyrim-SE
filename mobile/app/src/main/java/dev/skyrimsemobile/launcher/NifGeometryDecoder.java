@@ -90,7 +90,10 @@ public final class NifGeometryDecoder {
         int descOffset=p+100+extraBytes;
         long desc=u64(b,descOffset,end);
         int stride=(int)(desc&15L)*4;
-        int uvOffset=(int)((desc>>>4)&15L)*4;
+        // BSVertexDesc low nibble: vertex stride. Next nibble: dynamic vertex size.
+        // UV1 offset is the THIRD nibble (bits 8..11), in four-byte words.
+        // v2.1 mistakenly read the dynamic-size nibble and rejected vanilla SSE NIF.
+        int uvOffset=(int)((desc>>>8)&15L)*4;
         int attributes=(int)((desc>>>44)&0xfff);
         boolean hasUv=(attributes&2)!=0;
         int triangles=u16(b,descOffset+8,end);
@@ -101,7 +104,9 @@ public final class NifGeometryDecoder {
         if((attributes&1)==0 || stride<16 || stride>MAX_VERTEX_STRIDE)
             throw new IOException("Нет float32-координат или неверный шаг BSVertexDesc");
         if(hasUv&&(uvOffset<16||uvOffset+4>stride))
-            throw new IOException("SSE UV: неверное смещение BSVertexDesc");
+            throw new IOException("SSE UV: неверное смещение BSVertexDesc"+
+                " (desc=0x"+Long.toHexString(desc)+", stride="+stride+
+                ", uvOffset="+uvOffset+")");
         long expected=(long)vertices*stride+(long)triangles*6;
         if(declaredSize != expected)
             throw new IOException("Data Size не совпадает с форматом вершин/граней: "+declaredSize+" / "+expected);

@@ -57,7 +57,7 @@ public final class NifGeometryDecoderTest {
         System.arraycopy(original,oldBase+48,expanded,oldBase+60,original.length-(oldBase+48));
         set32(expanded,sizePos,116+60+6);
         set32(expanded,blockPos+112,60+6);
-        set64(expanded,blockPos+100,5L|(4L<<4)|(3L<<44));
+        set64(expanded,blockPos+100,5L|(4L<<8)|(3L<<44)); // UV1 offset is nibble #2
         return expanded;
     }
     static void bad(byte[] bytes,String label){try{NifGeometryDecoder.decode(bytes);throw new AssertionError("Expected rejection: "+label);}catch(IOException ok){checks++;}}
@@ -88,7 +88,13 @@ public final class NifGeometryDecoderTest {
         ok(textured.surfaceUVs[0]==0f&&textured.surfaceUVs[1]==0f,"UV vertex zero");
         ok(textured.surfaceUVs[2]==1f&&textured.surfaceUVs[3]==0f,"UV vertex one");
         ok(textured.surfaceUVs[4]==0f&&textured.surfaceUVs[5]==1f,"UV vertex two");
-        byte[] badUv=uvBytes.clone();set64(badUv,blockPos+100,5L|(1L<<4)|(3L<<44));
+        // Regression: dynamic-vertex-size nibble (bits 4..7) must NOT be read as UV1.
+        byte[] dynamicBytes=uvBytes.clone();
+        set64(dynamicBytes,blockPos+100,5L|(2L<<4)|(4L<<8)|(3L<<44));
+        NifGeometryDecoder.Mesh dynamicUv=NifGeometryDecoder.decode(dynamicBytes);
+        ok(dynamicUv.surfaceUVs[2]==1f&&dynamicUv.surfaceUVs[5]==1f,
+           "Dynamic vertex-size nibble must not override UV1 offset");
+        byte[] badUv=uvBytes.clone();set64(badUv,blockPos+100,5L|(1L<<8)|(3L<<44));
         bad(badUv,"UV offset points inside position");
         badUv=uvBytes.clone();set16(badUv,blockPos+116+16,0x7e00);
         bad(badUv,"UV half NaN");
