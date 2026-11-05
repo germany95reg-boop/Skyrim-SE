@@ -1,4 +1,4 @@
-name: Skyrim SE Mobile Vulkan 3D APK v1.7
+name: Skyrim SE Mobile Vulkan 3D APK v1.8
 on:
   push:
     branches: [main]
@@ -21,64 +21,69 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
-      - name: Unpack v1.7 source
+      - name: Unpack v1.8 source
         run: |
-          mkdir -p SkyrimSEMobileLauncher_v1.7
-          tar -xJf .skyrimse-v17-source.tar.xz -C SkyrimSEMobileLauncher_v1.7
+          mkdir -p SkyrimSEMobileLauncher_v1.8
+          tar -xJf .skyrimse-v18-source.tar.xz -C SkyrimSEMobileLauncher_v1.8
+      - name: Validate icon, package identity, version, and persistent test signing key
+        run: |
+          python3 SkyrimSEMobileLauncher_v1.8/tests/release_signing_contract_test.py
+          test -s .ci/skyrimse-mobile-test.jks
+          keytool -list -v -keystore .ci/skyrimse-mobile-test.jks -storepass android -alias androiddebugkey | grep -F '16:B9:F1:0C:71:FE:29:0E:44:55:DF:39:B9:34:4B:9B:8B:28:24:79:F5:B0:A1:35:F3:58:49:7E:59:3B:B2:D7'
       - name: Validate BSA v105 parser and inspector contracts
-        working-directory: SkyrimSEMobileLauncher_v1.7
+        working-directory: SkyrimSEMobileLauncher_v1.8
         run: |
           mkdir -p /tmp/skyrim-bsa-tests
           javac -d /tmp/skyrim-bsa-tests app/src/main/java/dev/skyrimsemobile/launcher/BsaCatalogReader.java tests/BsaCatalogReaderTest.java
           java -cp /tmp/skyrim-bsa-tests BsaCatalogReaderTest
-          python3 tests/resource_v17_contract_test.py
+          python3 tests/resource_v18_contract_test.py
       - name: Validate Skyrim SE NIF block table and bounds
-        working-directory: SkyrimSEMobileLauncher_v1.7
+        working-directory: SkyrimSEMobileLauncher_v1.8
         run: |
-          mkdir -p /tmp/skyrim-v17-nif-tests
-          javac -encoding UTF-8 -d /tmp/skyrim-v17-nif-tests \
+          mkdir -p /tmp/skyrim-v18-nif-tests
+          javac -encoding UTF-8 -d /tmp/skyrim-v18-nif-tests \
             app/src/main/java/dev/skyrimsemobile/launcher/NifBlockInspector.java \
             tests/NifBlockInspectorTest.java
-          java -cp /tmp/skyrim-v17-nif-tests dev.skyrimsemobile.launcher.NifBlockInspectorTest
-          python3 tests/resource_v17_contract_test.py
-      - name: Test v1.7 safe viewport framing and camera behavior
-        working-directory: SkyrimSEMobileLauncher_v1.7
+          java -cp /tmp/skyrim-v18-nif-tests dev.skyrimsemobile.launcher.NifBlockInspectorTest
+          python3 tests/resource_v18_contract_test.py
+      - name: Test v1.8 safe viewport framing and camera behavior
+        working-directory: SkyrimSEMobileLauncher_v1.8
         run: |
-          mkdir -p /tmp/skyrim-v17-framing-tests
-          javac -encoding UTF-8 -d /tmp/skyrim-v17-framing-tests \
+          mkdir -p /tmp/skyrim-v18-framing-tests
+          javac -encoding UTF-8 -d /tmp/skyrim-v18-framing-tests \
             app/src/main/java/dev/skyrimsemobile/launcher/SceneFraming.java \
             tests/SceneFramingTest.java
-          java -cp /tmp/skyrim-v17-framing-tests dev.skyrimsemobile.launcher.SceneFramingTest
-          python3 tests/resource_v17_contract_test.py
+          java -cp /tmp/skyrim-v18-framing-tests dev.skyrimsemobile.launcher.SceneFramingTest
+          python3 tests/resource_v18_contract_test.py
       - name: Test read-only NIF BSShaderTextureSet paths
-        working-directory: SkyrimSEMobileLauncher_v1.7
+        working-directory: SkyrimSEMobileLauncher_v1.8
         run: |
-          mkdir -p /tmp/skyrim-v17-material-tests
-          javac -encoding UTF-8 -d /tmp/skyrim-v17-material-tests \
+          mkdir -p /tmp/skyrim-v18-material-tests
+          javac -encoding UTF-8 -d /tmp/skyrim-v18-material-tests \
             app/src/main/java/dev/skyrimsemobile/launcher/NifBlockInspector.java \
             app/src/main/java/dev/skyrimsemobile/launcher/NifMaterialInspector.java \
             tests/NifMaterialInspectorTest.java
-          java -cp /tmp/skyrim-v17-material-tests dev.skyrimsemobile.launcher.NifMaterialInspectorTest
-          python3 tests/resource_v17_contract_test.py
+          java -cp /tmp/skyrim-v18-material-tests dev.skyrimsemobile.launcher.NifMaterialInspectorTest
+          python3 tests/resource_v18_contract_test.py
       - name: Test DDS exact path matching and safe BSA index lookup
-        working-directory: SkyrimSEMobileLauncher_v1.7
+        working-directory: SkyrimSEMobileLauncher_v1.8
         run: |
-          mkdir -p /tmp/skyrim-v17-dds-tests
-          javac -encoding UTF-8 -d /tmp/skyrim-v17-dds-tests \
+          mkdir -p /tmp/skyrim-v18-dds-tests
+          javac -encoding UTF-8 -d /tmp/skyrim-v18-dds-tests \
             app/src/main/java/dev/skyrimsemobile/launcher/BsaCatalogReader.java \
             app/src/main/java/dev/skyrimsemobile/launcher/DdsArchiveFinder.java \
             tests/DdsArchiveFinderTest.java
-          java -cp /tmp/skyrim-v17-dds-tests dev.skyrimsemobile.launcher.DdsArchiveFinderTest
-          python3 tests/resource_v17_contract_test.py
+          java -cp /tmp/skyrim-v18-dds-tests dev.skyrimsemobile.launcher.DdsArchiveFinderTest
+          python3 tests/resource_v18_contract_test.py
       - name: Validate DDS headers and DX10 / BCn bounds
-        working-directory: SkyrimSEMobileLauncher_v1.7
+        working-directory: SkyrimSEMobileLauncher_v1.8
         run: |
-          mkdir -p /tmp/skyrim-v17-dds-header-tests
-          javac -encoding UTF-8 -d /tmp/skyrim-v17-dds-header-tests \
+          mkdir -p /tmp/skyrim-v18-dds-header-tests
+          javac -encoding UTF-8 -d /tmp/skyrim-v18-dds-header-tests \
             app/src/main/java/dev/skyrimsemobile/launcher/DdsHeaderInspector.java \
             tests/DdsHeaderInspectorTest.java
-          java -cp /tmp/skyrim-v17-dds-header-tests dev.skyrimsemobile.launcher.DdsHeaderInspectorTest
-          python3 tests/resource_v17_contract_test.py
+          java -cp /tmp/skyrim-v18-dds-header-tests dev.skyrimsemobile.launcher.DdsHeaderInspectorTest
+          python3 tests/resource_v18_contract_test.py
       - name: Install Android SDK and shader compiler
         run: |
           sdkmanager --install "platforms;android-35" "build-tools;35.0.0" "ndk;27.2.12479018" "cmake;3.22.1"
@@ -87,24 +92,29 @@ jobs:
       - name: Compile Vulkan GLSL to SPIR-V
         run: |
           glslangValidator -V --target-env vulkan1.0 -S vert \
-            SkyrimSEMobileLauncher_v1.7/app/src/main/shaders/cube.vert \
-            -o SkyrimSEMobileLauncher_v1.7/app/src/main/assets/cube.vert.spv
+            SkyrimSEMobileLauncher_v1.8/app/src/main/shaders/cube.vert \
+            -o SkyrimSEMobileLauncher_v1.8/app/src/main/assets/cube.vert.spv
           glslangValidator -V --target-env vulkan1.0 -S frag \
-            SkyrimSEMobileLauncher_v1.7/app/src/main/shaders/cube.frag \
-            -o SkyrimSEMobileLauncher_v1.7/app/src/main/assets/cube.frag.spv
+            SkyrimSEMobileLauncher_v1.8/app/src/main/shaders/cube.frag \
+            -o SkyrimSEMobileLauncher_v1.8/app/src/main/assets/cube.frag.spv
           glslangValidator -V --target-env vulkan1.0 -S frag \
-            SkyrimSEMobileLauncher_v1.7/app/src/main/shaders/solid.frag \
-            -o SkyrimSEMobileLauncher_v1.7/app/src/main/assets/solid.frag.spv
+            SkyrimSEMobileLauncher_v1.8/app/src/main/shaders/solid.frag \
+            -o SkyrimSEMobileLauncher_v1.8/app/src/main/assets/solid.frag.spv
       - name: Build signed debug APK
-        working-directory: SkyrimSEMobileLauncher_v1.7
+        working-directory: SkyrimSEMobileLauncher_v1.8
         run: gradle --no-daemon --stacktrace :app:assembleDebug
+      - name: Verify APK is signed with the persistent development certificate
+        run: |
+          APK="SkyrimSEMobileLauncher_v1.8/app/build/outputs/apk/debug/app-debug.apk"
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs "$APK"
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs "$APK" | grep -Fi "16b9f10c71fe290e4455df39b9344b9b8b282479f5b0a135f358497e593bb2d7"
       - name: Test single NIF extraction, LZ4 and bounds
-        working-directory: SkyrimSEMobileLauncher_v1.7
+        working-directory: SkyrimSEMobileLauncher_v1.8
         run: |
           LZ4_JAR="$(find "$HOME/.gradle/caches/modules-2/files-2.1/org.lz4/lz4-java/1.8.0" -name '*.jar' -print -quit)"
           test -n "$LZ4_JAR"
-          mkdir -p /tmp/skyrim-v17-java-tests
-          javac -cp "$LZ4_JAR" -d /tmp/skyrim-v17-java-tests \
+          mkdir -p /tmp/skyrim-v18-java-tests
+          javac -cp "$LZ4_JAR" -d /tmp/skyrim-v18-java-tests \
             app/src/main/java/dev/skyrimsemobile/launcher/BsaCatalogReader.java \
             app/src/main/java/dev/skyrimsemobile/launcher/ResourceHeaderInspector.java \
             app/src/main/java/dev/skyrimsemobile/launcher/BsaEntryInspector.java \
@@ -113,38 +123,38 @@ jobs:
             app/src/main/java/dev/skyrimsemobile/launcher/NifGeometryDecoder.java \
             app/src/main/java/dev/skyrimsemobile/launcher/ObjWireParser.java \
             tests/BsaEntryInspectorTest.java
-          java -cp "/tmp/skyrim-v17-java-tests:$LZ4_JAR" dev.skyrimsemobile.launcher.BsaEntryInspectorTest
+          java -cp "/tmp/skyrim-v18-java-tests:$LZ4_JAR" dev.skyrimsemobile.launcher.BsaEntryInspectorTest
       - name: Validate SSE BSTriShape decoding and NIF to Vulkan bridge
-        working-directory: SkyrimSEMobileLauncher_v1.7
+        working-directory: SkyrimSEMobileLauncher_v1.8
         run: |
-          mkdir -p /tmp/skyrim-v17-geometry-tests
-          javac -encoding UTF-8 -d /tmp/skyrim-v17-geometry-tests \
+          mkdir -p /tmp/skyrim-v18-geometry-tests
+          javac -encoding UTF-8 -d /tmp/skyrim-v18-geometry-tests \
             app/src/main/java/dev/skyrimsemobile/launcher/NifBlockInspector.java \
             app/src/main/java/dev/skyrimsemobile/launcher/NifGeometryDecoder.java \
             app/src/main/java/dev/skyrimsemobile/launcher/ObjWireParser.java \
             app/src/main/java/dev/skyrimsemobile/launcher/NifGeometryTransfer.java \
             tests/NifGeometryDecoderTest.java
-          java -cp /tmp/skyrim-v17-geometry-tests dev.skyrimsemobile.launcher.NifGeometryDecoderTest
-          python3 tests/resource_v17_contract_test.py
+          java -cp /tmp/skyrim-v18-geometry-tests dev.skyrimsemobile.launcher.NifGeometryDecoderTest
+          python3 tests/resource_v18_contract_test.py
       - name: Validate camera presets and NIF local transforms
-        working-directory: SkyrimSEMobileLauncher_v1.7
-        run: python3 tests/resource_v17_contract_test.py
+        working-directory: SkyrimSEMobileLauncher_v1.8
+        run: python3 tests/resource_v18_contract_test.py
       - name: Test bounded BSA DDS reading and LZ4
-        working-directory: SkyrimSEMobileLauncher_v1.7
+        working-directory: SkyrimSEMobileLauncher_v1.8
         run: |
           LZ4_JAR="$(find "$HOME/.gradle/caches/modules-2/files-2.1/org.lz4/lz4-java/1.8.0" -name '*.jar' -print -quit)"
           test -n "$LZ4_JAR"
-          mkdir -p /tmp/skyrim-v17-dds-bsa-tests
-          javac -encoding UTF-8 -cp "$LZ4_JAR" -d /tmp/skyrim-v17-dds-bsa-tests \
+          mkdir -p /tmp/skyrim-v18-dds-bsa-tests
+          javac -encoding UTF-8 -cp "$LZ4_JAR" -d /tmp/skyrim-v18-dds-bsa-tests \
             app/src/main/java/dev/skyrimsemobile/launcher/BsaCatalogReader.java \
             app/src/main/java/dev/skyrimsemobile/launcher/DdsArchiveFinder.java \
             app/src/main/java/dev/skyrimsemobile/launcher/DdsHeaderInspector.java \
             app/src/main/java/dev/skyrimsemobile/launcher/BsaDdsInspector.java \
             tests/BsaDdsInspectorTest.java
-          java -cp "/tmp/skyrim-v17-dds-bsa-tests:$LZ4_JAR" dev.skyrimsemobile.launcher.BsaDdsInspectorTest
+          java -cp "/tmp/skyrim-v18-dds-bsa-tests:$LZ4_JAR" dev.skyrimsemobile.launcher.BsaDdsInspectorTest
       - name: Upload Vulkan 3D test APK
         uses: actions/upload-artifact@v4
         with:
-          name: Skyrim-SE-Vulkan-3D-v1.7-APK
-          path: SkyrimSEMobileLauncher_v1.7/app/build/outputs/apk/debug/app-debug.apk
+          name: Skyrim-SE-Vulkan-3D-v1.8-APK
+          path: SkyrimSEMobileLauncher_v1.8/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
