@@ -1,17 +1,20 @@
-# Skyrim SE Mobile Launcher — v2.3
+# Skyrim SE Mobile — Vulkan 3D v2.4
 
-Android ARM64/Vulkan viewer for user-supplied Skyrim Special Edition NIF/DDS/BSA resources. This is **not** a playable Skyrim engine.
+Android ARM64 Vulkan viewer for selected Skyrim SE NIF meshes and DDS resources; not a playable game engine.
 
-## v2.3
+## New in v2.4
 
-- Four real-time view-space light presets: Сбоку (the proven v2.2 lighting), Спереди, Слева, Сверху.
-- A separate normal-map emphasis control: 50%, 100% (v2.2 default), 150%. Changes update a Vulkan push constant without reloading textures or reconstructing the swapchain.
-- The existing CPU-decoded diffuse and normal DDS atlas, 3D geometry, wireframe and camera/FPS controls remain intact.
-- Pure JVM preset tests, Vulkan shader contract tests and all existing BSA/NIF/DDS safety checks are in CI.
-- `applicationId dev.skyrimsemobile.launcher`, `versionCode 25`, `versionName 2.3.0`, same fixed test signing certificate as v2.2 (in-place upgrade).
+- Per-pixel **experimental material highlight** from alpha of the normal DDS (`LureArgonian_n.dds` BC3/DXT5) plus existing tangent-space normal lighting.
+- Two controls: **Блик: 0/25/50/100%** and **Ширина: Широкий/Средний/Узкий**.
+- Real-time updates use atomic C++ values and a 52-byte Vulkan push constant; no BSA re-scan or Vulkan swapchain rebuild.
+- **Default highlight OFF**: the user-confirmed v2.3 look (DDS, normal map, light presets and relief) is preserved.
+- Controls disabled when no matched normal DDS atlas exists. CPU assets and game BSA remain read-only.
+- Test-only signing fingerprint preserved, versionCode 26, versionName 2.4.0, applicationId `dev.skyrimsemobile.launcher`; supports upgrade over signed v2.3.
 
-## Scope
+### Limitations
 
-One static BSTriShape, single texture set, first DDS mip, normal-map lighting preview. No Skyrim game engine, quests, animation, multiple materials or full PBR shading. Verify new lighting presets on the actual phone.
+This is not Skyrim engine material rendering or full PBR; gloss alpha interpretation varies between actual textures. Highlight position and width are approximate, with a fixed preview camera vector. One BSTriShape + one texture set, first mip only. Real device GPU comparison is required.
 
-**Instructions inside app:** [DEVICE_TEST_V23_RU.md](DEVICE_TEST_V23_RU.md).
+## Phone procedure (only inside app)
+
+See [DEVICE_TEST_V24_RU.md](DEVICE_TEST_V24_RU.md).

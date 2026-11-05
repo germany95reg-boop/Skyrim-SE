@@ -24,6 +24,6 @@ public final class PreviewMaterial {
         return "Блик: "+STRENGTH[clampSpecular(index)]+"%";
     }
     public static String sizeLabel(int index) {
-        return "Блик: "+SIZES[clampSize(index)];
+        return "Ширина: "+SIZES[clampSize(index)];
     }
 }

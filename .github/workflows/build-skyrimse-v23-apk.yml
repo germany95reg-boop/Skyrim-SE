@@ -1,7 +1,5 @@
-name: Skyrim SE Mobile Vulkan 3D APK v2.3 — Lighting Controls
+name: Skyrim SE Mobile Vulkan 3D APK v2.3 (archived)
 on:
-  push:
-    branches: [main, development/v2.3-lighting-controls]
   workflow_dispatch:
 
 jobs:
