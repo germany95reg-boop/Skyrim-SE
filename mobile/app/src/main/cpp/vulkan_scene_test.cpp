@@ -50,7 +50,9 @@ std::vector<float> selectedTriangles;
 std::vector<float> selectedUv;
 std::vector<uint8_t> selectedPixels;
 uint32_t selectedTextureWidth=0,selectedTextureHeight=0;
+bool selectedNormalAtlas=false; // first half diffuse, second half normal
 std::atomic<bool> useTexture{false};
+std::atomic<bool> useNormalMap{false};
 std::atomic<bool> solidMode{false};
 uint32_t geometryTriangleCount = 0;
 std::string geometryLabel = "Куб (встроенный)";
@@ -124,6 +126,7 @@ struct Renderer {
     VkDescriptorSetLayout textureSetLayout=VK_NULL_HANDLE;
     VkDescriptorPool textureDescriptorPool=VK_NULL_HANDLE;
     VkDescriptorSet textureDescriptor=VK_NULL_HANDLE;
+    bool hasNormalAtlas=false;
     VkImage sampledImage=VK_NULL_HANDLE;
     VkDeviceMemory sampledMemory=VK_NULL_HANDLE;
     VkImageView sampledView=VK_NULL_HANDLE;
@@ -270,22 +273,26 @@ struct Renderer {
         std::vector<float> triangleData,uvData;
         std::vector<uint8_t> rgbaData;
         uint32_t texWidth=0,texHeight=0;
+        bool normalAtlas=false;
         {
             std::lock_guard<std::mutex> lock(geometryMutex);
             vertexData = selectedGeometry.empty() ? defaultCube() : selectedGeometry;
             triangleData = selectedTriangles;
             uvData=selectedUv;rgbaData=selectedPixels;
             texWidth=selectedTextureWidth;texHeight=selectedTextureHeight;
+            normalAtlas=selectedNormalAtlas;
             geometryEdgeCount = static_cast<uint32_t>(vertexData.size()/6);
         }
         bool textureReady=!triangleData.empty()&&uvData.size()==(triangleData.size()/3)*2&&
             texWidth>0&&texHeight>0&&texWidth<=2048&&texHeight<=2048&&
             rgbaData.size()==static_cast<size_t>(texWidth)*texHeight*4;
+        hasNormalAtlas=textureReady&&normalAtlas;
         if(textureReady){
             VkFormatProperties supported{};
             vkGetPhysicalDeviceFormatProperties(physical,VK_FORMAT_R8G8B8A8_UNORM,&supported);
             textureReady=(supported.optimalTilingFeatures&VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT)!=0;
         }
+        hasNormalAtlas=hasNormalAtlas&&textureReady;
         if(vertexData.empty() || vertexData.size()%3!=0) throw std::runtime_error("Invalid OBJ vertex buffer");
         vertexCount = static_cast<uint32_t>(vertexData.size()/3);
         VkPhysicalDeviceMemoryProperties memoryProperties{};
@@ -609,7 +616,11 @@ struct Renderer {
             VkDescriptorSetLayoutCreateInfo dsInfo{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};
             dsInfo.bindingCount=1;dsInfo.pBindings=&samplerBinding;
             ck(vkCreateDescriptorSetLayout(device,&dsInfo,nullptr,&textureSetLayout),"texture set layout");
+            VkPushConstantRange texRange=range;
+            texRange.size=36; // 7 float camera fields + atlasMode + normalEnabled
+            texRange.stageFlags=VK_SHADER_STAGE_VERTEX_BIT|VK_SHADER_STAGE_FRAGMENT_BIT;
             VkPipelineLayoutCreateInfo texLayoutInfo=layoutInfo;
+            texLayoutInfo.pPushConstantRanges=&texRange;
             texLayoutInfo.setLayoutCount=1;texLayoutInfo.pSetLayouts=&textureSetLayout;
             ck(vkCreatePipelineLayout(device,&texLayoutInfo,nullptr,&textureLayout),"texture pipeline layout");
             VkVertexInputBindingDescription uvBinding{};
@@ -808,7 +819,20 @@ struct Renderer {
                      static_cast<float>(size.width), static_cast<float>(size.height), pitch, distance,
                      cameraViewportOffset.load(std::memory_order_relaxed)};
         VkPipelineLayout chosenLayout=textured?textureLayout:layout;
-        vkCmdPushConstants(cmd, chosenLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(p), &p);
+        if(textured){
+            struct TexturedParameters{
+                Parameters camera;
+                int atlasMode;
+                int normalEnabled;
+            } texParams{p,hasNormalAtlas?1:0,
+                (hasNormalAtlas&&useNormalMap.load(std::memory_order_relaxed))?1:0};
+            static_assert(sizeof(TexturedParameters)==36,"GLSL push constants must be 36 bytes");
+            vkCmdPushConstants(cmd,chosenLayout,
+                VK_SHADER_STAGE_VERTEX_BIT|VK_SHADER_STAGE_FRAGMENT_BIT,
+                0,sizeof(texParams),&texParams);
+        }else{
+            vkCmdPushConstants(cmd,chosenLayout,VK_SHADER_STAGE_VERTEX_BIT,0,sizeof(p),&p);
+        }
         if(textured)vkCmdBindDescriptorSets(cmd,VK_PIPELINE_BIND_POINT_GRAPHICS,
             textureLayout,0,1,&textureDescriptor,0,nullptr);
         VkDeviceSize offset=0;
@@ -1001,7 +1025,9 @@ Java_dev_skyrimsemobile_launcher_VulkanSceneActivity_nativeSetGeometry(JNIEnv* e
         selectedTriangles.clear();
         selectedUv.clear();selectedPixels.clear();
         selectedTextureWidth=selectedTextureHeight=0;
+        selectedNormalAtlas=false;
         useTexture.store(false,std::memory_order_relaxed);
+        useNormalMap.store(false,std::memory_order_relaxed);
         geometryTriangleCount=0;
         solidMode.store(false,std::memory_order_relaxed);
         geometryLabel=std::move(safe);
@@ -1016,7 +1042,9 @@ Java_dev_skyrimsemobile_launcher_VulkanSceneActivity_nativeClearGeometry(JNIEnv*
     selectedTriangles.clear();geometryTriangleCount=0;
     selectedUv.clear();selectedPixels.clear();
     selectedTextureWidth=selectedTextureHeight=0;
+    selectedNormalAtlas=false;
     useTexture.store(false,std::memory_order_relaxed);
+    useNormalMap.store(false,std::memory_order_relaxed);
     solidMode.store(false,std::memory_order_relaxed);
     geometryLabel="Куб (встроенный)";geometryEdgeCount=12;
 }
@@ -1038,7 +1066,9 @@ Java_dev_skyrimsemobile_launcher_VulkanSceneActivity_nativeSetSurfaceTriangles(J
     selectedTriangles=std::move(geometry);
     selectedUv.clear();selectedPixels.clear();
     selectedTextureWidth=selectedTextureHeight=0;
+    selectedNormalAtlas=false;
     useTexture.store(false,std::memory_order_relaxed);
+    useNormalMap.store(false,std::memory_order_relaxed);
     geometryTriangleCount=static_cast<uint32_t>(len/9);
     return JNI_TRUE;
 }
@@ -1085,6 +1115,8 @@ Java_dev_skyrimsemobile_launcher_VulkanSceneActivity_nativeSetTexture(
     selectedPixels=std::move(rgba);
     selectedTextureWidth=static_cast<uint32_t>(width);
     selectedTextureHeight=static_cast<uint32_t>(height);
+    selectedNormalAtlas=false;
+    useNormalMap.store(false,std::memory_order_relaxed);
     return JNI_TRUE;
 }
 
@@ -1092,4 +1124,42 @@ extern "C" JNIEXPORT void JNICALL
 Java_dev_skyrimsemobile_launcher_VulkanSceneActivity_nativeSetUseTexture(
     JNIEnv*,jclass,jboolean enabled){
     useTexture.store(enabled==JNI_TRUE,std::memory_order_relaxed);
+}
+
+
+// v2.2: Single sampled RGBA8 atlas; avoids a second Vulkan descriptor and
+// preserves the proven v2.1.x image upload path. This path supports normal
+// maps up to 2048x1024, with original diffuse in top half, normals below.
+extern "C" JNIEXPORT jboolean JNICALL
+Java_dev_skyrimsemobile_launcher_VulkanSceneActivity_nativeSetNormalTexture(
+    JNIEnv* env,jclass,jintArray image,jint width,jint height){
+    if(!image||width<1||width>2048||height<1||height>1024)return JNI_FALSE;
+    int64_t pixels=static_cast<int64_t>(width)*height;
+    if(env->GetArrayLength(image)!=pixels)return JNI_FALSE;
+    std::vector<jint> input(static_cast<size_t>(pixels));
+    env->GetIntArrayRegion(image,0,static_cast<jsize>(pixels),input.data());
+    if(env->ExceptionCheck())return JNI_FALSE;
+    std::vector<uint8_t> rgba(static_cast<size_t>(pixels)*4);
+    for(int64_t i=0;i<pixels;i++){
+        uint32_t c=static_cast<uint32_t>(input[static_cast<size_t>(i)]);
+        rgba[i*4] =static_cast<uint8_t>((c>>16)&255);
+        rgba[i*4+1]=static_cast<uint8_t>((c>>8)&255);
+        rgba[i*4+2]=static_cast<uint8_t>(c&255);
+        rgba[i*4+3]=static_cast<uint8_t>((c>>24)&255);
+    }
+    std::lock_guard<std::mutex> guard(geometryMutex);
+    if(selectedNormalAtlas||selectedPixels.empty()||
+       selectedTextureWidth!=static_cast<uint32_t>(width)||
+       selectedTextureHeight!=static_cast<uint32_t>(height)||
+       selectedPixels.size()!=rgba.size())return JNI_FALSE;
+    selectedPixels.insert(selectedPixels.end(),rgba.begin(),rgba.end());
+    selectedTextureHeight=static_cast<uint32_t>(height*2);
+    selectedNormalAtlas=true;
+    return JNI_TRUE;
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_dev_skyrimsemobile_launcher_VulkanSceneActivity_nativeSetUseNormalMap(
+    JNIEnv*,jclass,jboolean enabled){
+    useNormalMap.store(enabled==JNI_TRUE,std::memory_order_relaxed);
 }
