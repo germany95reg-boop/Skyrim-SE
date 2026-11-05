@@ -1,4 +1,4 @@
-name: Skyrim SE Mobile Vulkan 3D APK v1.1
+name: Skyrim SE Mobile Vulkan 3D APK v1.2
 on:
   push:
     branches: [main]
@@ -21,26 +21,26 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
-      - name: Unpack v1.1 source
+      - name: Unpack v1.2 source
         run: |
-          mkdir -p SkyrimSEMobileLauncher_v1.1
-          base64 --decode .skyrimse-v11-source.tar.xz.b64 | tar -xJf - -C SkyrimSEMobileLauncher_v1.1
+          mkdir -p SkyrimSEMobileLauncher_v1.2
+          base64 --decode .skyrimse-v12-source.tar.xz.b64 | tar -xJf - -C SkyrimSEMobileLauncher_v1.2
       - name: Validate BSA v105 parser and inspector contracts
-        working-directory: SkyrimSEMobileLauncher_v1.1
+        working-directory: SkyrimSEMobileLauncher_v1.2
         run: |
           mkdir -p /tmp/skyrim-bsa-tests
           javac -d /tmp/skyrim-bsa-tests app/src/main/java/dev/skyrimsemobile/launcher/BsaCatalogReader.java tests/BsaCatalogReaderTest.java
           java -cp /tmp/skyrim-bsa-tests BsaCatalogReaderTest
-          python3 tests/resource_v11_contract_test.py
+          python3 tests/resource_v12_contract_test.py
       - name: Validate Skyrim SE NIF block table and bounds
-        working-directory: SkyrimSEMobileLauncher_v1.1
+        working-directory: SkyrimSEMobileLauncher_v1.2
         run: |
-          mkdir -p /tmp/skyrim-v11-nif-tests
-          javac -encoding UTF-8 -d /tmp/skyrim-v11-nif-tests \
+          mkdir -p /tmp/skyrim-v12-nif-tests
+          javac -encoding UTF-8 -d /tmp/skyrim-v12-nif-tests \
             app/src/main/java/dev/skyrimsemobile/launcher/NifBlockInspector.java \
             tests/NifBlockInspectorTest.java
-          java -cp /tmp/skyrim-v11-nif-tests dev.skyrimsemobile.launcher.NifBlockInspectorTest
-          python3 tests/resource_v11_contract_test.py
+          java -cp /tmp/skyrim-v12-nif-tests dev.skyrimsemobile.launcher.NifBlockInspectorTest
+          python3 tests/resource_v12_contract_test.py
       - name: Install Android SDK and shader compiler
         run: |
           sdkmanager --install "platforms;android-35" "build-tools;35.0.0" "ndk;27.2.12479018" "cmake;3.22.1"
@@ -49,21 +49,21 @@ jobs:
       - name: Compile Vulkan GLSL to SPIR-V
         run: |
           glslangValidator -V --target-env vulkan1.0 -S vert \
-            SkyrimSEMobileLauncher_v1.1/app/src/main/shaders/cube.vert \
-            -o SkyrimSEMobileLauncher_v1.1/app/src/main/assets/cube.vert.spv
+            SkyrimSEMobileLauncher_v1.2/app/src/main/shaders/cube.vert \
+            -o SkyrimSEMobileLauncher_v1.2/app/src/main/assets/cube.vert.spv
           glslangValidator -V --target-env vulkan1.0 -S frag \
-            SkyrimSEMobileLauncher_v1.1/app/src/main/shaders/cube.frag \
-            -o SkyrimSEMobileLauncher_v1.1/app/src/main/assets/cube.frag.spv
+            SkyrimSEMobileLauncher_v1.2/app/src/main/shaders/cube.frag \
+            -o SkyrimSEMobileLauncher_v1.2/app/src/main/assets/cube.frag.spv
       - name: Build signed debug APK
-        working-directory: SkyrimSEMobileLauncher_v1.1
+        working-directory: SkyrimSEMobileLauncher_v1.2
         run: gradle --no-daemon --stacktrace :app:assembleDebug
       - name: Test single NIF extraction, LZ4 and bounds
-        working-directory: SkyrimSEMobileLauncher_v1.1
+        working-directory: SkyrimSEMobileLauncher_v1.2
         run: |
           LZ4_JAR="$(find "$HOME/.gradle/caches/modules-2/files-2.1/org.lz4/lz4-java/1.8.0" -name '*.jar' -print -quit)"
           test -n "$LZ4_JAR"
-          mkdir -p /tmp/skyrim-v11-java-tests
-          javac -cp "$LZ4_JAR" -d /tmp/skyrim-v11-java-tests \
+          mkdir -p /tmp/skyrim-v12-java-tests
+          javac -cp "$LZ4_JAR" -d /tmp/skyrim-v12-java-tests \
             app/src/main/java/dev/skyrimsemobile/launcher/BsaCatalogReader.java \
             app/src/main/java/dev/skyrimsemobile/launcher/ResourceHeaderInspector.java \
             app/src/main/java/dev/skyrimsemobile/launcher/BsaEntryInspector.java \
@@ -71,22 +71,25 @@ jobs:
             app/src/main/java/dev/skyrimsemobile/launcher/NifGeometryDecoder.java \
             app/src/main/java/dev/skyrimsemobile/launcher/ObjWireParser.java \
             tests/BsaEntryInspectorTest.java
-          java -cp "/tmp/skyrim-v11-java-tests:$LZ4_JAR" dev.skyrimsemobile.launcher.BsaEntryInspectorTest
+          java -cp "/tmp/skyrim-v12-java-tests:$LZ4_JAR" dev.skyrimsemobile.launcher.BsaEntryInspectorTest
       - name: Validate SSE BSTriShape decoding and NIF to Vulkan bridge
-        working-directory: SkyrimSEMobileLauncher_v1.1
+        working-directory: SkyrimSEMobileLauncher_v1.2
         run: |
-          mkdir -p /tmp/skyrim-v11-geometry-tests
-          javac -encoding UTF-8 -d /tmp/skyrim-v11-geometry-tests \
+          mkdir -p /tmp/skyrim-v12-geometry-tests
+          javac -encoding UTF-8 -d /tmp/skyrim-v12-geometry-tests \
             app/src/main/java/dev/skyrimsemobile/launcher/NifBlockInspector.java \
             app/src/main/java/dev/skyrimsemobile/launcher/NifGeometryDecoder.java \
             app/src/main/java/dev/skyrimsemobile/launcher/ObjWireParser.java \
             app/src/main/java/dev/skyrimsemobile/launcher/NifGeometryTransfer.java \
             tests/NifGeometryDecoderTest.java
-          java -cp /tmp/skyrim-v11-geometry-tests dev.skyrimsemobile.launcher.NifGeometryDecoderTest
-          python3 tests/resource_v11_contract_test.py
+          java -cp /tmp/skyrim-v12-geometry-tests dev.skyrimsemobile.launcher.NifGeometryDecoderTest
+          python3 tests/resource_v12_contract_test.py
+      - name: Validate camera presets and NIF local transforms
+        working-directory: SkyrimSEMobileLauncher_v1.2
+        run: python3 tests/resource_v12_contract_test.py
       - name: Upload Vulkan 3D test APK
         uses: actions/upload-artifact@v4
         with:
-          name: Skyrim-SE-Vulkan-3D-v1.1-APK
-          path: SkyrimSEMobileLauncher_v1.1/app/build/outputs/apk/debug/app-debug.apk
+          name: Skyrim-SE-Vulkan-3D-v1.2-APK
+          path: SkyrimSEMobileLauncher_v1.2/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
