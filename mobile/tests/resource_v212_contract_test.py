@@ -14,7 +14,8 @@ assert 'Показать текстуры DDS · BC1/2/3/4/5 · v2.1.2' in java
 assert 'BsaDdsPixelReader.preview(' in java
 assert 'Bitmap.createBitmap(' in java
 assert 'MAX_PIXELS=2048*2048' in (p/'app/src/main/java/dev/skyrimsemobile/launcher/DdsBcDecoder.java').read_text()
-assert (p/'app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml').read_text().count('ic_skyrim_background')==1
+assert (p/'app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml').read_text().count('ic_skyrim_backplate')==1
+assert (p/'app/src/main/res/drawable-nodpi/ic_skyrim_foreground.xml').read_text().count('ic_skyrim_background')==1
 bg=(p/'app/src/main/res/drawable-nodpi/ic_skyrim_background.jpg').read_bytes()
 assert len(bg)>100000 and bg[:3]==b'\xff\xd8\xff', 'full bleed JPEG background'
 for den,size in [('mdpi',48),('hdpi',72),('xhdpi',96),('xxhdpi',144),('xxxhdpi',192)]:
