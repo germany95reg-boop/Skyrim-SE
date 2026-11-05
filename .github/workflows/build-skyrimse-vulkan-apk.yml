@@ -1,4 +1,4 @@
-name: Skyrim SE Mobile Vulkan 3D APK v0.9
+name: Skyrim SE Mobile Vulkan 3D APK v1.0
 on:
   push:
     branches: [main]
@@ -21,17 +21,26 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
-      - name: Unpack v0.9 source
+      - name: Unpack v1.0 source
         run: |
-          mkdir -p SkyrimSEMobileLauncher_v0.9
-          base64 --decode .skyrimse-v09-source.tar.xz.b64 | tar -xJf - -C SkyrimSEMobileLauncher_v0.9
+          mkdir -p SkyrimSEMobileLauncher_v1.0
+          base64 --decode .skyrimse-v10-source.tar.xz.b64 | tar -xJf - -C SkyrimSEMobileLauncher_v1.0
       - name: Validate BSA v105 parser and inspector contracts
-        working-directory: SkyrimSEMobileLauncher_v0.9
+        working-directory: SkyrimSEMobileLauncher_v1.0
         run: |
           mkdir -p /tmp/skyrim-bsa-tests
           javac -d /tmp/skyrim-bsa-tests app/src/main/java/dev/skyrimsemobile/launcher/BsaCatalogReader.java tests/BsaCatalogReaderTest.java
           java -cp /tmp/skyrim-bsa-tests BsaCatalogReaderTest
-          python3 tests/resource_v09_contract_test.py
+          python3 tests/resource_v10_contract_test.py
+      - name: Validate Skyrim SE NIF block table and bounds
+        working-directory: SkyrimSEMobileLauncher_v1.0
+        run: |
+          mkdir -p /tmp/skyrim-v10-nif-tests
+          javac -encoding UTF-8 -d /tmp/skyrim-v10-nif-tests \
+            app/src/main/java/dev/skyrimsemobile/launcher/NifBlockInspector.java \
+            tests/NifBlockInspectorTest.java
+          java -cp /tmp/skyrim-v10-nif-tests dev.skyrimsemobile.launcher.NifBlockInspectorTest
+          python3 tests/resource_v10_contract_test.py
       - name: Install Android SDK and shader compiler
         run: |
           sdkmanager --install "platforms;android-35" "build-tools;35.0.0" "ndk;27.2.12479018" "cmake;3.22.1"
@@ -40,29 +49,30 @@ jobs:
       - name: Compile Vulkan GLSL to SPIR-V
         run: |
           glslangValidator -V --target-env vulkan1.0 -S vert \
-            SkyrimSEMobileLauncher_v0.9/app/src/main/shaders/cube.vert \
-            -o SkyrimSEMobileLauncher_v0.9/app/src/main/assets/cube.vert.spv
+            SkyrimSEMobileLauncher_v1.0/app/src/main/shaders/cube.vert \
+            -o SkyrimSEMobileLauncher_v1.0/app/src/main/assets/cube.vert.spv
           glslangValidator -V --target-env vulkan1.0 -S frag \
-            SkyrimSEMobileLauncher_v0.9/app/src/main/shaders/cube.frag \
-            -o SkyrimSEMobileLauncher_v0.9/app/src/main/assets/cube.frag.spv
+            SkyrimSEMobileLauncher_v1.0/app/src/main/shaders/cube.frag \
+            -o SkyrimSEMobileLauncher_v1.0/app/src/main/assets/cube.frag.spv
       - name: Build signed debug APK
-        working-directory: SkyrimSEMobileLauncher_v0.9
+        working-directory: SkyrimSEMobileLauncher_v1.0
         run: gradle --no-daemon --stacktrace :app:assembleDebug
       - name: Test single NIF extraction, LZ4 and bounds
-        working-directory: SkyrimSEMobileLauncher_v0.9
+        working-directory: SkyrimSEMobileLauncher_v1.0
         run: |
           LZ4_JAR="$(find "$HOME/.gradle/caches/modules-2/files-2.1/org.lz4/lz4-java/1.8.0" -name '*.jar' -print -quit)"
           test -n "$LZ4_JAR"
-          mkdir -p /tmp/skyrim-v09-java-tests
-          javac -cp "$LZ4_JAR" -d /tmp/skyrim-v09-java-tests \
+          mkdir -p /tmp/skyrim-v10-java-tests
+          javac -cp "$LZ4_JAR" -d /tmp/skyrim-v10-java-tests \
             app/src/main/java/dev/skyrimsemobile/launcher/BsaCatalogReader.java \
             app/src/main/java/dev/skyrimsemobile/launcher/ResourceHeaderInspector.java \
             app/src/main/java/dev/skyrimsemobile/launcher/BsaEntryInspector.java \
+            app/src/main/java/dev/skyrimsemobile/launcher/NifBlockInspector.java \
             tests/BsaEntryInspectorTest.java
-          java -cp "/tmp/skyrim-v09-java-tests:$LZ4_JAR" dev.skyrimsemobile.launcher.BsaEntryInspectorTest
+          java -cp "/tmp/skyrim-v10-java-tests:$LZ4_JAR" dev.skyrimsemobile.launcher.BsaEntryInspectorTest
       - name: Upload Vulkan 3D test APK
         uses: actions/upload-artifact@v4
         with:
-          name: Skyrim-SE-Vulkan-3D-v0.9-APK
-          path: SkyrimSEMobileLauncher_v0.9/app/build/outputs/apk/debug/app-debug.apk
+          name: Skyrim-SE-Vulkan-3D-v1.0-APK
+          path: SkyrimSEMobileLauncher_v1.0/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
