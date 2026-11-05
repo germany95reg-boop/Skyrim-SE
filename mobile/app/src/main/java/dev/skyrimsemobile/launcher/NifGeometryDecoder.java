@@ -24,13 +24,16 @@ public final class NifGeometryDecoder {
         public final ObjWireParser.Model lines;
         /** xyz xyz xyz per face, normalized exactly like the existing line model. */
         public final float[] surfaceTriangles;
+        /** SSE half-float UV pairs, expanded per triangle in the same vertex order. Empty when absent. */
+        public final float[] surfaceUVs;
         public final int shapeIndex, triangles, stride, vertexFlags;
         public final String shapeType;
         public final float[] rawDimensions, localDimensions, translation;
         public final float localScale;
-        Mesh(ObjWireParser.Model lines,float[] surfaceTriangles,int shapeIndex,int triangles,int stride,int flags,String type,
+        Mesh(ObjWireParser.Model lines,float[] surfaceTriangles,float[] surfaceUVs,int shapeIndex,int triangles,int stride,int flags,String type,
              float[] rawDimensions,float[] localDimensions,float[] translation,float localScale) {
             this.lines=lines;this.surfaceTriangles=surfaceTriangles.clone();
+            this.surfaceUVs=surfaceUVs.clone();
             this.shapeIndex=shapeIndex;this.triangles=triangles;
             this.stride=stride;this.vertexFlags=flags;this.shapeType=type;
             this.rawDimensions=rawDimensions.clone();this.localDimensions=localDimensions.clone();
@@ -41,6 +44,7 @@ public final class NifGeometryDecoder {
                 "Блок: #"+shapeIndex+" "+shapeType+"\n"+
                 "Вершин: "+lines.vertices+" · треугольников: "+triangles+
                 " · уникальных рёбер: "+lines.edges+"\n"+
+                "UV: "+(surfaceUVs.length>0?"да, "+surfaceUVs.length/2+" развёрнутых вершин":"отсутствуют")+"\n"+
                 "Шаг вершины: "+stride+" байт · атрибуты: 0x"+
                 Integer.toHexString(vertexFlags)+"\n"+
                 "Размер исходной модели XYZ: "+fmt3(rawDimensions)+"\n"+
@@ -86,7 +90,9 @@ public final class NifGeometryDecoder {
         int descOffset=p+100+extraBytes;
         long desc=u64(b,descOffset,end);
         int stride=(int)(desc&15L)*4;
+        int uvOffset=(int)((desc>>>4)&15L)*4;
         int attributes=(int)((desc>>>44)&0xfff);
+        boolean hasUv=(attributes&2)!=0;
         int triangles=u16(b,descOffset+8,end);
         int vertices=u16(b,descOffset+10,end);
         long declaredSize=u32(b,descOffset+12,end);
@@ -94,6 +100,8 @@ public final class NifGeometryDecoder {
             throw new IOException("Неверное число вершин/треугольников: "+vertices+"/"+triangles);
         if((attributes&1)==0 || stride<16 || stride>MAX_VERTEX_STRIDE)
             throw new IOException("Нет float32-координат или неверный шаг BSVertexDesc");
+        if(hasUv&&(uvOffset<16||uvOffset+4>stride))
+            throw new IOException("SSE UV: неверное смещение BSVertexDesc");
         long expected=(long)vertices*stride+(long)triangles*6;
         if(declaredSize != expected)
             throw new IOException("Data Size не совпадает с форматом вершин/граней: "+declaredSize+" / "+expected);
@@ -111,6 +119,7 @@ public final class NifGeometryDecoder {
         if(Math.abs(localScale)<1e-7f || Math.abs(localScale)>1e6f)
             throw new IOException("Масштаб BSTriShape вне безопасного диапазона");
         float[] positions=new float[vertices*3];
+        float[] uvs=hasUv?new float[vertices*2]:new float[0];
         float[] rawLow={Float.POSITIVE_INFINITY,Float.POSITIVE_INFINITY,Float.POSITIVE_INFINITY};
         float[] rawHigh={Float.NEGATIVE_INFINITY,Float.NEGATIVE_INFINITY,Float.NEGATIVE_INFINITY};
         for(int v=0;v<vertices;v++) {
@@ -121,6 +130,15 @@ public final class NifGeometryDecoder {
                 if(Math.abs(f)>1e9f)throw new IOException("Слишком большая координата вершины #"+v);
                 rawLow[k]=Math.min(rawLow[k],f);rawHigh[k]=Math.max(rawHigh[k],f);
                 xyz[k]=f;
+            }
+            if(hasUv){
+                float u=halfFloat(u16(b,address+uvOffset,end));
+                float vCoord=halfFloat(u16(b,address+uvOffset+2,end));
+                if(!Float.isFinite(u)||!Float.isFinite(vCoord)||
+                   Math.abs(u)>8192f||Math.abs(vCoord)>8192f)
+                    throw new IOException("SSE UV: недопустимые half-float координаты вершины #"+v);
+                uvs[2*v]=u;
+                uvs[2*v+1]=vCoord;
             }
             for(int row=0;row<3;row++) {
                 double transformed=translation[row]+(double)localScale*(
@@ -162,14 +180,21 @@ public final class NifGeometryDecoder {
         // Use the very same bounding box as the validated wireframe. Never create
         // a separately normalized surface: the two modes must overlap exactly.
         float[] surfaceTriangles=new float[indices.length*3];
-        for(int i=0;i<indices.length;i++)for(int k=0;k<3;k++)
-            surfaceTriangles[i*3+k]=((positions[indices[i]*3+k]-low[k])/span-0.5f)*2f;
+        float[] surfaceUVs=hasUv?new float[indices.length*2]:new float[0];
+        for(int i=0;i<indices.length;i++){
+            for(int k=0;k<3;k++)
+                surfaceTriangles[i*3+k]=((positions[indices[i]*3+k]-low[k])/span-0.5f)*2f;
+            if(hasUv){
+                surfaceUVs[i*2]=uvs[indices[i]*2];
+                surfaceUVs[i*2+1]=uvs[indices[i]*2+1];
+            }
+        }
         float[] rawDimensions=new float[3],localDimensions=new float[3];
         for(int k=0;k<3;k++){
             rawDimensions[k]=rawHigh[k]-rawLow[k];
             localDimensions[k]=high[k]-low[k];
         }
-        return new Mesh(new ObjWireParser.Model(segments,vertices,edges.size()),surfaceTriangles,
+        return new Mesh(new ObjWireParser.Model(segments,vertices,edges.size()),surfaceTriangles,surfaceUVs,
             block.index,triangles,stride,attributes,block.type,rawDimensions,localDimensions,
             translation,localScale);
     }
@@ -181,6 +206,20 @@ public final class NifGeometryDecoder {
         float f=Float.intBitsToFloat((int)u32(b,p,end));
         if(!Float.isFinite(f))throw new IOException("Некорректное значение: "+field+" #"+index);
         return f;
+    }
+    /** IEEE 754 binary16 -> float32, including signed zero, subnormals and Inf/NaN. */
+    static float halfFloat(int bits){
+        int sign=(bits&0x8000)<<16;
+        int exponent=(bits>>>10)&31;
+        int mantissa=bits&0x3ff;
+        if(exponent==31)return Float.intBitsToFloat(sign|0x7f800000|(mantissa<<13));
+        if(exponent==0){
+            if(mantissa==0)return Float.intBitsToFloat(sign);
+            int e=-14;
+            while((mantissa&0x400)==0){mantissa<<=1;e--;}
+            return Float.intBitsToFloat(sign|((e+127)<<23)|((mantissa&0x3ff)<<13));
+        }
+        return Float.intBitsToFloat(sign|((exponent-15+127)<<23)|(mantissa<<13));
     }
     private static int u16(byte[] b,int p,int end)throws IOException{
         if(p<0||p+2>end)throw new IOException("Обрезанное поле ushort BSTriShape");

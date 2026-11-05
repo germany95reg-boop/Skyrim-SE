@@ -41,11 +41,35 @@ public final class NifGeometryDecoderTest {
     }
     static void set16(byte[] b,int p,int v){b[p]=(byte)v;b[p+1]=(byte)(v>>>8);}
     static void set32(byte[] b,int p,int v){for(int i=0;i<4;i++)b[p+i]=(byte)(v>>>(8*i));}
+    static void set64(byte[] b,int p,long value){set32(b,p,(int)value);set32(b,p+4,(int)(value>>>32));}
+    static byte[] validUv(){
+        byte[] original=valid();
+        int oldBase=blockPos+116;
+        byte[] expanded=new byte[original.length+12];
+        System.arraycopy(original,0,expanded,0,oldBase);
+        int[] halfU={0,0x3c00,0},halfV={0,0,0x3c00};
+        for(int vertex=0;vertex<3;vertex++){
+            int dst=oldBase+vertex*20;
+            System.arraycopy(original,oldBase+vertex*16,expanded,dst,16);
+            set16(expanded,dst+16,halfU[vertex]);
+            set16(expanded,dst+18,halfV[vertex]);
+        }
+        System.arraycopy(original,oldBase+48,expanded,oldBase+60,original.length-(oldBase+48));
+        set32(expanded,sizePos,116+60+6);
+        set32(expanded,blockPos+112,60+6);
+        set64(expanded,blockPos+100,5L|(4L<<4)|(3L<<44));
+        return expanded;
+    }
     static void bad(byte[] bytes,String label){try{NifGeometryDecoder.decode(bytes);throw new AssertionError("Expected rejection: "+label);}catch(IOException ok){checks++;}}
     public static void main(String[] args)throws Exception {
         byte[] original=valid();
         NifGeometryDecoder.Mesh mesh=NifGeometryDecoder.decode(original);
         ok(mesh.shapeIndex==0,"shape index");
+        ok(mesh.surfaceUVs.length==0,"UV absent in position-only BSTriShape");
+        ok(NifGeometryDecoder.halfFloat(0x3c00)==1f,"half +1");
+        ok(NifGeometryDecoder.halfFloat(0xbc00)==-1f,"half -1");
+        ok(NifGeometryDecoder.halfFloat(0x0001)>0f,"half subnormal");
+        ok(Float.isNaN(NifGeometryDecoder.halfFloat(0x7e00)),"half NaN");
         ok(mesh.lines.vertices==3,"vertex count");
         ok(mesh.triangles==1 && mesh.lines.edges==3,"triangle and edges");
         ok(mesh.stride==16 && mesh.vertexFlags==1,"descriptor");
@@ -58,6 +82,16 @@ public final class NifGeometryDecoderTest {
         for(float coordinate:a)ok(Float.isFinite(coordinate)&&Math.abs(coordinate)<=1.001f,"valid bounded surface position");
         for(float f:mesh.lines.segments)ok(Float.isFinite(f)&&f>=-1.001f&&f<=1.001f,"normalized vertices");
         ok(mesh.report().contains("уникальных рёбер"),"report");
+        byte[] uvBytes=validUv();
+        NifGeometryDecoder.Mesh textured=NifGeometryDecoder.decode(uvBytes);
+        ok(textured.stride==20 && textured.surfaceUVs.length==6,"UV stride and triangle count");
+        ok(textured.surfaceUVs[0]==0f&&textured.surfaceUVs[1]==0f,"UV vertex zero");
+        ok(textured.surfaceUVs[2]==1f&&textured.surfaceUVs[3]==0f,"UV vertex one");
+        ok(textured.surfaceUVs[4]==0f&&textured.surfaceUVs[5]==1f,"UV vertex two");
+        byte[] badUv=uvBytes.clone();set64(badUv,blockPos+100,5L|(1L<<4)|(3L<<44));
+        bad(badUv,"UV offset points inside position");
+        badUv=uvBytes.clone();set16(badUv,blockPos+116+16,0x7e00);
+        bad(badUv,"UV half NaN");
         byte[] moreExtras=new byte[original.length+4];
         System.arraycopy(original,0,moreExtras,0,blockPos+8);
         for(int i=0;i<4;i++)moreExtras[blockPos+8+i]=(byte)0xff;

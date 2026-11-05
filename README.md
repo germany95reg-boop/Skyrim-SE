@@ -1,73 +1,31 @@
-# Skyrim SE Mobile Launcher — v2.0
+# Skyrim SE Mobile Launcher — v2.1
 
-**Статус:** Android ARM64/Vulkan-приложение для просмотра 3D-моделей и ресурсов Skyrim Special Edition. Это **не игровой порт**: SkyrimSE.exe, NPC, квесты и игровой мир не запускаются.
+**Skyrim SE Mobile** is an experimental Android ARM64/Vulkan NIF and DDS asset inspector. It is **not** a playable Skyrim Special Edition port: game engine, NPC and quest systems are not implemented.
 
-## Новое в v2.0
+## New in v2.1
 
-- Изображения DDS теперь просматриваются в формате **BC1, BC2/DXT3, BC3/DXT5, BC4, BC5**, а также DX10 **RGBA8/BGRA8**. Для BC5 показываются несжатые цветовые каналы X/Y как диагностическое изображение.
-- Сжатые BC6H/BC7 и signed BC4/BC5 не декодируются программно; вместо неверной картинки выводится объяснение.
-- Сохранены каталог BSA v105, поиск NIF → DDS, NIF-поверхности и каркас в Vulkan. Наложение DDS по UV на 3D-модель пока не реализовано.
-- **APK обновляется поверх v1.9:** `applicationId dev.skyrimsemobile.launcher`, `versionCode 20`, та же приватная тестовая подпись, что у v1.9. Не удаляйте установленную v1.9 перед обновлением.
-- Исходный код Android находится в папке [mobile/](mobile/), а не только в архиве.
+- UV coordinate decoding for static Skyrim SE `BSTriShape` (binary16 pairs at descriptor offset). NIF geometry, surface triangles and wireframe use the same normalized geometry.
+- An optional **“Показать NIF с DDS в Vulkan · v2.1”** entry after finding DDS in a user-selected Data folder. Requires **exactly one BSTriShape, one BSShaderTextureSet**, non-empty diffuse slot 0 and an existing compatible DDS.
+- CPU decoded first-mip BC1/BC2/BC3/BC4/BC5 / RGBA8 → bounded RGBA8 Vulkan image. Sampled through a new descriptor and GLSL shaders. Unsupported formats are rejected with a visible error.
+- Vulkan preview now offers **“DDS: Вкл/Выкл”**, retaining the original wireframe and solid modes.
+- Preserves the original `applicationId dev.skyrimsemobile.launcher` and private persistent *test-only* signing certificate. `versionCode 21`, `versionName 2.1.0`, install over v2.0.
 
-**Проверенная сборка:** [GitHub Actions v2.0](https://github.com/germany95reg-boop/Skyrim-SE/actions/runs/42102953386) — успешно. В разделе **Artifacts** скачайте `Skyrim-SE-Vulkan-3D-v2.0-APK`.
+**Supported limitations:** one static material/mesh, no animation, no multi-material shader system, no parent transforms, no BC7 GPU decoding, no full Skyrim renderer. This is a single-texture **preview**, not a game.
 
-**Тестирование на Samsung:** установите поверх v1.9, откройте «Ресурсы Skyrim SE» → BSA, выберите `ccBGSSSE001-Fish.bsa`, найдите `lureargonian01.nif`, затем найденные DDS. Проверьте предпросмотр BC1 и BC3 и иконку без полос. Проверка на реальном телефоне ещё не подтверждена.
+**GitHub Actions:** workflow **Skyrim SE Mobile Vulkan 3D APK v2.1**, artifact `Skyrim-SE-Vulkan-3D-v2.1-APK`.
 
----
+### Test on phone
+1. Install the new signed v2.1 APK **over v2.0**, without uninstalling.
+2. In Resources → BSA load the Creation Club fishing BSA (or another BSA containing your NIF).
+3. Choose NIF → “Пути текстур NIF” → “Найти DDS в папке Data”.
+4. Select the new **“Показать NIF с DDS в Vulkan”** action (only works when NIF has one UV-compatible BSTriShape and exactly one texture set).
+5. Tap **“Поверхность”** to see DDS; use **“DDS: Выкл”** to compare with the untextured solid.
+6. If UVs appear vertically reversed on the phone, save a screenshot for a targeted fix. No original game files are written.
 
-## Архивные примечания для v1.9
+Real Samsung GPU/display behavior is **not yet verified** by CI tests.
 
-Экспериментальный Android ARM64/Vulkan лаунчер и предпросмотр ресурсов Skyrim Special Edition. **Не является готовым портом SkyrimSE.exe:** движок игры, SKSE64, скрипты и мир Skyrim не запускаются.
+## Previous release
 
-## v1.9 — исправленная адаптивная иконка и предпросмотр DDS BC1/BC3
+v2.0: DDS BC1/BC2/BC3/BC4/BC5 CPU previews and editable source in `mobile/`.
 
-**[GitHub Actions #42093043622 — SUCCESS](https://github.com/germany95reg-boop/Skyrim-SE/actions/runs/42093043622)**. Артефакт `Skyrim-SE-Vulkan-3D-v1.9-APK` содержит `app-debug.apk`.
-
-Размер APK: **4 221 820 байт**. SHA-256:
-`bc7d3af2591b73de57a8d58849a4c8f1e6f15cc4fdc7e4f70b90e465aaa083d6`.
-
-### Новая иконка пользователя
-
-- Исходный материал: предоставленная пользователем картинка 1536×1536 от 5 ноября 2026 года.
-- Исправлена «иконка внутри иконки» (поля, вложенные скругления и тёмные полосы). Фото находится в **полноразмерном** фоне adaptive icon, Android сам применяет системную маску.
-- Ресурсы: адаптивные и круглые значки, legacy PNG mdpi–xxxhdpi, фоновый drawable JPEG. Исходный рисунок сохранён в исходном ZIP.
-- На реальном Samsung новую иконку ещё нужно проверить визуально.
-
-### Постоянная подпись APK
-
-- `applicationId dev.skyrimsemobile.launcher` **сохранён**.
-- `versionCode 19`, `versionName 1.9.0`; v1.8 был versionCode 18.
-- Подписано тем же **постоянным тестовым сертификатом** в приватном репозитории `.ci/skyrimse-mobile-test.jks`, что и v1.8. GitHub Actions подтвердил совпадение SHA-256 отпечатка сертификата через `apksigner`. Можно установить APK **поверх v1.8** без удаления и сброса настроек.
-- Ключ предназначен для **приватной разработки**, не для публичного релиза. Его не следует публиковать; исходный ZIP не содержит ключа.
-
-### Новый DDS-предпросмотр
-
-- `DdsBcDecoder` декодирует **первый mip-уровень** DDS BC1/DXT1 и BC3/DXT5 в ARGB8888 в оперативной памяти. Строгие ограничения размеров (макс. 2048×2048).
-- `BsaDdsPixelReader` читает **только выбранную запись** BSA через Storage Access Framework, поддерживает несжатые и LZ4 Frame записи, контролирует полный размер и отказывается от повреждённых данных (до 8 МиБ упакованных / 16 МиБ распакованных).
-- Кнопка **«Показать текстуры DDS · BC1/BC3 · v1.9»** в просмотрщике BSA открывает изображения в отдельном Android-окне. До четырёх уникальных найденных DDS, игровые файлы не меняются.
-- Текстуры **пока не накладываются на NIF в Vulkan**; для этого потребуются UV-координаты и работа с Vulkan image/sampler.
-
-### Подтверждённые реальные DDS Skyrim SE
-
-Архив: `ccBGSSSE001-Fish.bsa`; NIF: `lureargonian01.nif`.
-
-| Текстура | Размер | Формат | Mip |
-|---|---|---|---|
-| `textures/creationclub/bgssse001/rods/LureArgonian.dds` | 128×256 | BC1/DXT1 | 7 |
-| `textures/creationclub/bgssse001/rods/LureArgonian_n.dds` | 128×256 | BC3/DXT5 | 7 |
-
-Эти заголовки проверены пользователем на телефоне в v1.7. В v1.9 **сами пиксели на телефоне ещё не проверены**.
-
-### Проверка на Samsung
-
-1. **Установить v1.9 поверх v1.8** без удаления приложения и убедиться, что настройки сохранились.
-2. Проверить полноразмерную иконку на рабочем столе OneUI (нет внутренних полос).
-3. Настройки → Ресурсы Skyrim SE → Каталог BSA v105 → `ccBGSSSE001-Fish.bsa`.
-4. Найти `lureargonian01.nif`, нажать «Пути текстур NIF», затем «Найти DDS в папке Data» и выбрать Data.
-5. Нажать **«Показать текстуры DDS · BC1/BC3 · v1.9»**; должны появиться два изображения.
-6. При необходимости вернуть режимы «Каркас» / «Поверхность» в прежней Vulkan-сцене.
-
-**GitHub CI:** автоматические тесты BSA/NIF/LZ4, декодера BC1/BC3, подписанного APK, адаптивной иконки, Gradle/NDK/Vulkan и загрузки артефакта успешно пройдены. Первый прогон выявил слишком строгую минимальную длину LZ4-сжатой записи. После исправления повторный прогон завершился **SUCCESS**.
-
-Репозиторий содержит сборочный снимок `.skyrimse-v19-source.tar.xz`; исходный ZIP проекта доступен в чате. Предыдущий проверенный каркасный и закрашенный Vulkan-рендер без изменений.
+Historical source archives remain in repository; source code is directly editable in `mobile/`.
