@@ -1,34 +1,41 @@
 # Skyrim SE Mobile Launcher
 
-**Experimental Android ARM64 / Vulkan launcher.** This repository contains a Vulkan graphics test and read-only Skyrim SE resource inspectors — **not** a complete Skyrim Special Edition engine port.
+Экспериментальный Android ARM64-лаунчер Skyrim Special Edition с отдельным нативным Vulkan-графическим тестом. **Это не готовый порт движка Skyrim SE.** SkyrimSE.exe и SKSE64 не запускаются.
 
-## Confirmed on Samsung Android 17 / Adreno 840
+## Подтверждённые проверки на Samsung / Adreno 840
 
-- v0.6: user saw the OBJ pyramid and verified touch camera controls on the real device.
-- v0.7: user enumerated 23 BSA archives and 10 ESM/ESP/ESL plugins in Skyrim SE `Data`, and read BSA v105 headers.
-- v0.8: user read the complete catalogue of `ccBGSSSE001-Fish.bsa`: 110 folders, 744 files, 231 NIF entries, flags `0x83`, searchable index 744/744.
-- **v0.9: user successfully read real NIF bytes** from the BSA: `meshes/creationclub/bgssse001/clutter/lureargonian01.nif`, offset `0x34d22fe`, 5092 bytes, not compressed, **Gamebryo File Format v20.2.0.7**, without modifying the archive.
+- v0.6 — пользователь подтвердил видимую OBJ-пирамиду и управление камерой на настоящем телефоне.
+- v0.7 — перечисление настоящих игровых файлов в папке Data и чтение заголовков архивов BSA версии 105.
+- v0.8 — прочитан полный индекс `ccBGSSSE001-Fish.bsa`: 110 папок, 744 файла, 231 запись NIF.
+- v0.9 — из архива прочитана одна настоящая несжатая запись `lureargonian01.nif` размером 5092 байта, NIF 20.2.0.7.
+- v1.0 — проверен полный список блоков `lureargonian01.nif`: 8 блоков, Bethesda Stream 100; среди них `BSTriShape` размером 4096 байт.
 
-## v1.0 — inspect a real NIF's block table
+## v1.1 — пробный каркасный предпросмотр NIF через Vulkan
 
-**GitHub Actions: [v1.0 SUCCESS](https://github.com/germany95reg-boop/Skyrim-SE/actions/runs/42046644853)**. Download artifact `Skyrim-SE-Vulkan-3D-v1.0-APK` and install the contained `app-debug.apk`.
+**[GitHub Actions v1.1 — SUCCESS](https://github.com/germany95reg-boop/Skyrim-SE/actions/runs/42050199507)**, артефакт `Skyrim-SE-Vulkan-3D-v1.1-APK`. APK размером 3 442 660 байт, SHA-256: `d1c905bb01370cf96b3654df52a72fad9e3d74a89afea7fe15083ccbdfe69224`.
 
-On the device, open **Настройки → Ресурсы Skyrim SE → Каталог BSA v105**, select `ccBGSSSE001-Fish.bsa`, search `lureargonian01.nif`, and tap **Исследовать блоки выбранного NIF · v1.0**.
+### Новый сценарий
 
-The new read-only `NifBlockInspector` handles NIF 20.2.0.7, little-endian, Bethesda user version 12 and stream versions 83/100. It:
+1. Установить APK v1.1 из артефакта GitHub Actions. При конфликте подписей отладки — сначала сохранить данные старого тестового приложения.
+2. Открыть **Настройки → Ресурсы Skyrim SE → Каталог BSA v105**.
+3. Выбрать `ccBGSSSE001-Fish.bsa`, найти `lureargonian01.nif`.
+4. Нажать **«Показать BSTriShape в Vulkan · v1.1»**.
+5. При успешном разборе откроется существующая 3D-сцена с **каркасом настоящей NIF-модели** (без текстур). Вращение одним пальцем, масштабирование двумя, FPS и автовращение работают как раньше.
+6. Если NIF использует неподдерживаемое расположение данных, будет показано подробное сообщение; надо скопировать его и проверить конкретный вариант формата.
 
-- Parses header export strings, block type names, block type indices, per-block byte sizes, NIF string table, group table and footer root references.
-- Lists counts of block types and first 32 blocks with bounded offsets.
-- Detects *candidate mesh block types* (`BSTriShape`, `BSDynamicTriShape`, `BSSubIndexTriShape`, `BSMeshLODTriShape`, older `NiTriShape`).
-- Rejects truncated data, oversized tables, invalid type indices, invalid root references and inconsistent byte ranges.
-- Does not write or export Skyrim files. BSA entry extraction remains bounded to 8 MiB packed and 16 MiB decoded.
+### Реализованная часть
 
-**Tests passed in CI:** BSA catalogue contracts, synthetic NIF block table unit tests (14 checks), single-entry NIF extraction and LZ4 tests, shader compilation and Android/NDK build. The built APK contains the `NifBlockInspector` bytecode, both compiled SPIR-V shaders and the existing three ARM64 libraries.
+- Чтение **одной** NIF-записи из BSA 105 (только через доступ на чтение) с прежними ограничениями 8 МиБ сжатых / 16 МиБ распакованных данных.
+- Формат NIF 20.2.0.7, Bethesda User Version 12 / Stream 100.
+- Разбор статического `BSTriShape` с `BSVertexDesc`, поддержкой переменного числа ссылок `NiObjectNET`, float32-координатами и индексами треугольников uint16.
+- Проверка размеров, конечности float-координат, индексов, предела 40 000 вершин / 30 000 уникальных рёбер.
+- Нормализация до диапазона видимой сцены и **передача только в оперативной памяти** в прежний ARM64 Vulkan-рендерер через проверяемый JNI-буфер.
+- Исходные файлы `Data`, NIF и BSA не изменяются и не копируются на диск.
 
-**Not yet validated on the actual NIF:** the new block table parser v1.0; this needs an on-device test and report.
+**Протестировано в CI:** Android Java/NDK, Vulkan GLSL→SPIR-V, прежние BSA/LZ4 тесты, синтетические проверки `BSTriShape` (35 проверок), контракты чтения только на вход. **На конкретном `lureargonian01.nif` декодирование геометрии в v1.1 ещё не проверено на устройстве.**
 
-**Not implemented:** actual decoding of geometry and triangle indices from `BSTriShape`, rendering the real NIF in Vulkan, textures, skeleton/animation, SkyrimSE.exe execution, SKSE64 or game mod integration. All previously working Vulkan and OBJ graphics tests remain available.
+### Ограничения
 
-## Source layout and testing
+Предпросмотр статического каркаса **не является игровым рендером**. Нет текстур, материалов, расчёта освещения Skyrim, родителей/трансформаций scene graph, SkinPartition, анимаций, скелетов, Havok, SKSE64 и исполнения SkyrimSE.exe. Неподдерживаемые NIF не конвертируются автоматически. Предыдущие работающие тесты Vulkan/OBJ сохранены.
 
-Android SDK 35, Java 17, Gradle 8.9, NDK 27, CMake, GLSL → SPIR-V. CI source: `.skyrimse-v10-source.tar.xz.b64`; the archived source is unpacked by the workflow before build. This packed arrangement is temporary; a conventional Git source tree can replace it later.
+Исходники v1.1 пока передаются GitHub Actions через `.skyrimse-v11-source.tar.xz.b64`; это временный формат хранения исходного кода.
