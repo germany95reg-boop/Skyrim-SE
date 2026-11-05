@@ -20,7 +20,8 @@ jobs:
           set -euo pipefail
           test -s .skyrimse-v19-source.tar.xz
           mkdir -p mobile
-          tar -tJf .skyrimse-v19-source.tar.xz | head -n 30
+          tar -tJf .skyrimse-v19-source.tar.xz > /tmp/skyrim-source-list.txt
+          head -n 30 /tmp/skyrim-source-list.txt
           tar -xJf .skyrimse-v19-source.tar.xz -C mobile
           test -s mobile/app/build.gradle
           test -s mobile/app/src/main/AndroidManifest.xml
