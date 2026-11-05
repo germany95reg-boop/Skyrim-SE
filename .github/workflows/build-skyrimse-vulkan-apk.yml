@@ -25,7 +25,7 @@ jobs:
         run: |
           mkdir -p SkyrimSEMobileLauncher_v1.1
           base64 --decode .skyrimse-v11-source.tar.xz.b64 | tar -xJf - -C SkyrimSEMobileLauncher_v1.1
-      - name: Validate BSA v115 parser and inspector contracts
+      - name: Validate BSA v105 parser and inspector contracts
         working-directory: SkyrimSEMobileLauncher_v1.1
         run: |
           mkdir -p /tmp/skyrim-bsa-tests
@@ -68,6 +68,8 @@ jobs:
             app/src/main/java/dev/skyrimsemobile/launcher/ResourceHeaderInspector.java \
             app/src/main/java/dev/skyrimsemobile/launcher/BsaEntryInspector.java \
             app/src/main/java/dev/skyrimsemobile/launcher/NifBlockInspector.java \
+            app/src/main/java/dev/skyrimsemobile/launcher/NifGeometryDecoder.java \
+            app/src/main/java/dev/skyrimsemobile/launcher/ObjWireParser.java \
             tests/BsaEntryInspectorTest.java
           java -cp "/tmp/skyrim-v11-java-tests:$LZ4_JAR" dev.skyrimsemobile.launcher.BsaEntryInspectorTest
       - name: Validate SSE BSTriShape decoding and NIF to Vulkan bridge
