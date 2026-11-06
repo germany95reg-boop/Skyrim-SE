@@ -39,7 +39,7 @@ public final class ResourceInspectorActivity extends Activity {
         scroll.setFillViewport(true);scroll.setBackgroundColor(0xff101116);
         LinearLayout root=new LinearLayout(this);root.setOrientation(LinearLayout.VERTICAL);
         root.setPadding(dp(16),dp(17),dp(16),dp(20));scroll.addView(root);
-        TextView title=new TextView(this);title.setText("Ресурсы Skyrim SE · v2.8");
+        TextView title=new TextView(this);title.setText("Ресурсы Skyrim SE · v2.9");
         title.setTextSize(22);title.setTextColor(0xffdbc5fb);title.setGravity(Gravity.CENTER);
         root.addView(title);
         TextView info=new TextView(this);
