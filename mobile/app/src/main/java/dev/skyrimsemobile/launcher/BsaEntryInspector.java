@@ -93,6 +93,13 @@ public final class BsaEntryInspector {
         return NifGeometryDecoder.scan(d.bytes);
     }
 
+    /** v2.10: inspect validated per-BSTriShape material links in a single bounded NIF. */
+    public static NifMaterialLinkInspector.Result readPartMaterialLinks(InputStream bsa,
+            BsaCatalogReader.Entry entry,long archiveFlags)throws IOException{
+        Decoded d=readDecoded(bsa,entry,archiveFlags);
+        return NifMaterialLinkInspector.inspect(d.bytes);
+    }
+
     /** v1.5: bounded read-only material and DDS texture path list of one selected NIF. */
     public static String inspectMaterials(InputStream bsa,BsaCatalogReader.Entry entry,long archiveFlags)
             throws IOException {
