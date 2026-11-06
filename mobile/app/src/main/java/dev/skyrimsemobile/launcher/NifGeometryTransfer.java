@@ -11,16 +11,20 @@ final class NifGeometryTransfer {
         final int textureWidth,textureHeight;
         final int[] normalArgb;
         final int normalWidth,normalHeight;
+        final float[] materialSlots;
+        final int diffuseAtlasGrid;
         final String label, details;
         Selected(ObjWireParser.Model model,float[] surfaceTriangles,float[] uv,int[] pixels,
-                 int width,int height,int[] normal,int nw,int nh,String label,String details){
+                 int width,int height,int[] normal,int nw,int nh,String label,String details,
+                 float[] slots,int grid){
             this.model=model;this.surfaceTriangles=surfaceTriangles;
             this.surfaceUVs=uv;this.argb=pixels;textureWidth=width;textureHeight=height;
             normalArgb=normal;normalWidth=nw;normalHeight=nh;
+            materialSlots=slots;diffuseAtlasGrid=grid;
             this.label=label;this.details=details;}
     }
     static synchronized void offer(ObjWireParser.Model model,float[] surfaceTriangles,String label,String details){
-        pending=new Selected(model,surfaceTriangles,null,null,0,0,null,0,0,label,details);
+        pending=new Selected(model,surfaceTriangles,null,null,0,0,null,0,0,label,details,null,0);
     }
     static synchronized void offerTextured(ObjWireParser.Model model,float[] surfaceTriangles,
             float[] uv,DdsBcDecoder.Image image,String label,String details){
@@ -35,7 +39,27 @@ final class NifGeometryTransfer {
             throw new IllegalArgumentException("Normal/Diffuse DDS sizes differ");
         pending=new Selected(model,surfaceTriangles.clone(),uv.clone(),image.argb.clone(),
             image.width,image.height,normal==null?null:normal.argb.clone(),
-            normal==null?0:normal.width,normal==null?0:normal.height,label,details);
+            normal==null?0:normal.width,normal==null?0:normal.height,label,details,null,0);
+    }
+    /** Composite first-mip diffuse atlas, one material slot per triangle vertex. */
+    static synchronized void offerAtlas(ObjWireParser.Model model,float[] triangles,
+            NifCompositeDdsAtlas.Result atlas,String label,String details){
+        if(model==null||triangles==null||atlas==null||atlas.argb==null||
+           atlas.width<1||atlas.width>2048||atlas.height!=atlas.width||
+           (long)atlas.width*atlas.height!=atlas.argb.length||
+           atlas.grid<1||atlas.grid>4||
+           triangles.length<9||triangles.length%9!=0||
+           atlas.uvAndSlot.length!=(triangles.length/3)*3)
+            throw new IllegalArgumentException("Composite NIF UV/atlas size mismatch");
+        int verts=triangles.length/3;
+        float[] uv=new float[verts*2],slots=new float[verts];
+        for(int i=0;i<verts;i++){
+            uv[i*2]=atlas.uvAndSlot[i*3];
+            uv[i*2+1]=atlas.uvAndSlot[i*3+1];
+            slots[i]=atlas.uvAndSlot[i*3+2];
+        }
+        pending=new Selected(model,triangles.clone(),uv,atlas.argb.clone(),
+            atlas.width,atlas.height,null,0,0,label,details,slots,atlas.grid);
     }
     static synchronized Selected take(){
         Selected result=pending;pending=null;return result;

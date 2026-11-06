@@ -45,6 +45,7 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
     private static native boolean nativeSetSurfaceTriangles(float[] triangles);
     private static native boolean nativeSetSolidMode(boolean enabled);
     private static native boolean nativeSetTexture(float[] uv,int[] argb,int width,int height);
+    private static native boolean nativeSetDiffuseAtlas(float[] uv,float[] slots,int[] argb,int width,int height,int grid);
     private static native void nativeSetUseTexture(boolean enabled);
     private static native boolean nativeSetNormalTexture(int[] argb,int width,int height);
     private static native void nativeSetUseNormalMap(boolean enabled);
@@ -139,7 +140,7 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
         root.addView(viewport, new FrameLayout.LayoutParams(-1, -1));
 
         TextView title = new TextView(this);
-        title.setText("SKYRIM SE MOBILE\nVulkan 3D · v2.11");
+        title.setText("SKYRIM SE MOBILE\nVulkan 3D · v2.13");
         sceneTitle=title;
         title.setTypeface(Typeface.SERIF, Typeface.BOLD);
         title.setTextSize(20);
@@ -333,7 +334,8 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
                 nifDimensions=nif.details;
                 activateModel(nif.model,nif.label,null,nif.surfaceTriangles,
                     nif.surfaceUVs,nif.argb,nif.textureWidth,nif.textureHeight,
-                    nif.normalArgb,nif.normalWidth,nif.normalHeight);
+                    nif.normalArgb,nif.normalWidth,nif.normalHeight,
+                    nif.materialSlots,nif.diffuseAtlasGrid);
             }
             else restoreModel();
         }
@@ -429,20 +431,22 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
         }
     }
     private void activateModel(ObjWireParser.Model model,String name,Uri persist,float[] triangles) {
-        activateModel(model,name,persist,triangles,null,null,0,0,null,0,0);
+        activateModel(model,name,persist,triangles,null,null,0,0,null,0,0,null,0);
     }
     private void activateModel(ObjWireParser.Model model,String name,Uri persist,float[] triangles,
            float[] uv,int[] pixels,int textureW,int textureH,
-           int[] normalPixels,int normalW,int normalH) {
+           int[] normalPixels,int normalW,int normalH,float[] slots,int grid) {
         loadingModel=false;modelButton.setEnabled(true);
         if(destroyed || loadingError!=null)return;
         boolean accepted=nativeSetGeometry(model.segments,name);
         if(!accepted){status.setText("Модель отклонена нативным рендерером");return;}
         hasSurface=triangles!=null && nativeSetSurfaceTriangles(triangles);
-        hasTexture=hasSurface&&uv!=null&&pixels!=null&&nativeSetTexture(uv,pixels,textureW,textureH);
+        hasTexture=hasSurface&&uv!=null&&pixels!=null&&
+            (slots!=null?nativeSetDiffuseAtlas(uv,slots,pixels,textureW,textureH,grid):
+                         nativeSetTexture(uv,pixels,textureW,textureH));
         useTexture=hasTexture;
         nativeSetUseTexture(useTexture);
-        hasNormalMap=hasTexture&&normalPixels!=null&&
+        hasNormalMap=hasTexture&&slots==null&&normalPixels!=null&&
             nativeSetNormalTexture(normalPixels,normalW,normalH);
         useNormalMap=hasNormalMap;
         nativeSetUseNormalMap(useNormalMap);

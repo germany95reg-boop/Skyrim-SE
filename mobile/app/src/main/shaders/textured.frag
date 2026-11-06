@@ -2,6 +2,7 @@
 layout(set=0,binding=0) uniform sampler2D diffuseSampler;
 layout(location=0) in vec2 uv;
 layout(location=1) in vec3 viewPosition;
+layout(location=2) flat in int materialSlot;
 layout(location=0) out vec4 fragColor;
 
 // The vertex stage reads the first 28 bytes of the SAME push-constant block.
@@ -13,6 +14,7 @@ layout(push_constant) uniform NormalOptions {
     layout(offset=40) float reliefStrength;
     layout(offset=44) float specularStrength;
     layout(offset=48) int specularSize;
+    layout(offset=52) int diffuseAtlasGrid;
 } options;
 
 void main(){
@@ -20,8 +22,18 @@ void main(){
     // fract() + half-texel clamping to avoid bilinear bleed between its halves.
     vec2 tiled=fract(uv);
     float halfPixel=0.5/float(textureSize(diffuseSampler,0).y);
-    vec2 diffuseUV=options.atlasMode!=0 ?
+    vec2 diffuseUV=options.atlasMode==1 ?
         vec2(tiled.x,mix(halfPixel,0.5-halfPixel,tiled.y)) : uv;
+    // v2.13 composite diffuse atlas: flat material ID selects an isolated tile.
+    // Repeating shape-local UV stays inside its own half-texel-clamped tile.
+    if(options.atlasMode==2){
+        int grid=clamp(options.diffuseAtlasGrid,1,4);
+        int cell=clamp(materialSlot,0,grid*grid-1);
+        vec2 xy=vec2(float(cell%grid),float(cell/grid));
+        vec2 tileMin=xy/float(grid)+0.5/vec2(textureSize(diffuseSampler,0));
+        vec2 tileMax=(xy+vec2(1.0))/float(grid)-0.5/vec2(textureSize(diffuseSampler,0));
+        diffuseUV=mix(tileMin,tileMax,tiled);
+    }
     vec4 base=texture(diffuseSampler,diffuseUV);
     vec3 dpdx=dFdx(viewPosition),dpdy=dFdy(viewPosition);
     vec2 dudx=dFdx(uv),dudy=dFdy(uv);
@@ -32,7 +44,7 @@ void main(){
     // Per-pixel normal alpha is used as a gloss/specular *preview* mask.
     // It is not a full simulation of Skyrim's BSLightingShaderProperty.
     vec2 normalUV=vec2(tiled.x,mix(0.5+halfPixel,1.0-halfPixel,tiled.y));
-    if(options.atlasMode!=0&&options.normalEnabled!=0){
+    if(options.atlasMode==1&&options.normalEnabled!=0){
         vec2 xy=texture(diffuseSampler,normalUV).rg*2.0-1.0;
         // Bounded normal-map emphasis; 100% matches the proven v2.2 preview.
         xy=clamp(xy*clamp(options.reliefStrength,0.5,1.5),
@@ -57,7 +69,7 @@ void main(){
     else if(options.lightMode==3)lightDirection=vec3(0.15,0.94,0.30);
     float diffuse=abs(dot(n,normalize(lightDirection)));
     vec3 shaded=base.rgb*(0.45+0.55*diffuse);
-    if(options.atlasMode!=0&&options.specularStrength>0.001){
+    if(options.atlasMode==1&&options.specularStrength>0.001){
         // Two-sided preview geometry: orient the shaded normal toward a
         // camera-facing view vector. Approximate lighting, not game PBR.
         vec3 viewDir=normalize(vec3(0.0,0.0,-1.0)-viewPosition*0.08);
