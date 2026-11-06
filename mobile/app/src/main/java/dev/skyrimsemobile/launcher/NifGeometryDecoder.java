@@ -48,7 +48,7 @@ public final class NifGeometryDecoder {
             available=ready;
         }
         public String report(){
-            StringBuilder text=new StringBuilder("Части NIF v2.10 · BSTriShape (только чтение)\n");
+            StringBuilder text=new StringBuilder("Части NIF v2.10.1 · BSTriShape (только чтение)\n");
             text.append("Всего частей: ").append(items.size())
                 .append(" · доступны для Vulkan: ").append(available).append('\n');
             for(Part part:items){
