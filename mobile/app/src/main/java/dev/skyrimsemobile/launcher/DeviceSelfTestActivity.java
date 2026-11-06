@@ -221,6 +221,17 @@ public final class DeviceSelfTestActivity extends Activity {
                     stats.optString("textureMode","неизвестно"));
             else report.warn("3D-модель Vulkan",
                 "Отображался встроенный каркас, выбранная NIF недоступна");
+            if(stats.optBoolean("normalAtlasPresent",false)){
+                if(stats.optBoolean("normalMapApplied",false))
+                    report.pass("Normal DDS GPU",
+                        "Карты нормалей включены в Vulkan · shader: "+
+                        stats.optString("textureMode","неизвестно"));
+                else report.warn("Normal DDS GPU",
+                    "Карты нормалей загружены, но GPU выбрал совместимый "+
+                    stats.optString("textureMode","off")+
+                    " без normal shading; diffuse DDS сохранены");
+            }else report.skip("Normal DDS GPU",
+                "Не передан составной normal DDS-атлас; GPU тестирует diffuse или геометрию");
         }else {
             String reason=data==null?"Проверка была закрыта или прервана":
                 data.getStringExtra(VulkanSceneActivity.EXTRA_DEVICE_AUTOTEST_ERROR);

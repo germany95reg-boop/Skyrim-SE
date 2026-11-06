@@ -11,11 +11,11 @@ vert=read("app/src/main/shaders/textured.vert")
 frag=read("app/src/main/shaders/textured.frag")
 gradle=read("app/build.gradle")
 checks={
- "versionCode >=36":("versionCode 36" in gradle or "versionCode 37" in gradle or "versionCode 38" in gradle or "versionCode 39" in gradle or "versionCode 40" in gradle),
- "versionName >=2.13":("versionName '2.13.0'" in gradle or "versionName '2.14.0'" in gradle or "versionName '2.15.0'" in gradle or "versionName '2.16.0'" in gradle or "versionName '2.17.0'" in gradle),
+ "versionCode >=36":("versionCode 36" in gradle or "versionCode 37" in gradle or "versionCode 38" in gradle or "versionCode 39" in gradle or "versionCode 40" in gradle or "versionCode 41" in gradle),
+ "versionName >=2.13":("versionName '2.13.0'" in gradle or "versionName '2.14.0'" in gradle or "versionName '2.15.0'" in gradle or "versionName '2.16.0'" in gradle or "versionName '2.17.0'" in gradle or "versionName '2.18.0'" in gradle),
  "same Android package":"applicationId 'dev.skyrimsemobile.launcher'" in gradle,
  "persistent signed upgrades":"signingConfig signingConfigs.stableDebug" in gradle,
- "composite DDS button":"Показать ВСЕ части NIF с DDS · v2.13" in ui,
+ "composite DDS button":"Показать ВСЕ части NIF с DDS · v2.18" in ui,
  "composite scene geometry":"NifSceneComposer.combine(parts)" in ui,
  "exact shape material links":"NifPartTextureSelection.require(links,part.blockIndex)" in ui,
  "no DDS guess":"findLocatedDds(matches,link.diffuse)" in ui,
@@ -33,7 +33,8 @@ checks={
  "push constants match":"texRange.size=56" in native and "sizeof(TexturedParameters)==56" in native,
  "GLSL push constant grid":"layout(offset=52) int diffuseAtlasGrid" in frag,
  "GLSL flat shader input":"flat in int materialSlot" in frag and "flat out int materialSlot" in vert,
- "GLSL repeats UV inside tile":"diffuseUV=mix(tileMin,tileMax,tiled)" in frag,
+ "GLSL repeats UV inside tile":("diffuseUV=mix(tileMin,tileMax,tiled)" in frag or
+                                "diffuseUV=mix(tileMin+inset,tileMax-inset,tiled)" in frag),
  "normal DDS resize":"DdsNormalResampler.match(candidate,image.width,image.height)" in ui,
  "original single textured preserved":"private void previewTexturedNif()" in ui,
  "composite geometry-only preserved":"private void previewCombinedNif()" in ui,

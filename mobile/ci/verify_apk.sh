@@ -11,8 +11,8 @@ SIGNER="$ANDROID_HOME/build-tools/35.0.0/apksigner"
 INFO="$("$AAPT" dump badging "$APK" | head -1)"
 echo "$INFO"
 grep -Fq "name='dev.skyrimsemobile.launcher'" <<< "$INFO"
-grep -Fq "versionCode='40'" <<< "$INFO"
-grep -Fq "versionName='2.17.0'" <<< "$INFO"
+grep -Fq "versionCode='41'" <<< "$INFO"
+grep -Fq "versionName='2.18.0'" <<< "$INFO"
 
 FILES="$(unzip -Z1 "$APK")"
 for path in \
@@ -25,6 +25,7 @@ for path in \
     'assets/solid.frag.spv' \
     'assets/textured_safe.vert.spv' \
     'assets/textured_safe.frag.spv' \
+    'assets/textured_normal_safe.frag.spv' \
     'assets/textured_legacy.frag.spv'; do
     grep -Fxq "$path" <<< "$FILES" || { echo "APK is missing $path" >&2; exit 1; }
 done

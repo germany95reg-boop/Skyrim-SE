@@ -61,6 +61,25 @@ final class NifGeometryTransfer {
         pending=new Selected(model,triangles.clone(),uv,atlas.argb.clone(),
             atlas.width,atlas.height,null,0,0,label,details,slots,atlas.grid);
     }
+    /**
+     * The v2.18 normal atlas is a full-height CPU-packed image with diffuse
+     * above and matching normal-map slots below. No second GPU descriptor.
+     */
+    static synchronized void offerAtlasNormal(ObjWireParser.Model model,float[] triangles,
+            NifCompositeDdsAtlas.Result diffuse,NifCompositeNormalAtlas.Result normals,
+            String label,String details){
+        if(normals==null||diffuse==null||
+           normals.width!=diffuse.width||normals.height!=diffuse.height||
+           normals.grid!=diffuse.grid||normals.stackedArgb==null||
+           normals.stackedArgb.length!=(long)normals.width*normals.height)
+            throw new IllegalArgumentException("Normal atlas dimensions differ from diffuse");
+        offerAtlas(model,triangles,diffuse,label,details);
+        Selected saved=pending;
+        pending=new Selected(saved.model,saved.surfaceTriangles,saved.surfaceUVs,
+            saved.argb,saved.textureWidth,saved.textureHeight,
+            normals.stackedArgb.clone(),normals.width,normals.height,
+            saved.label,saved.details,saved.materialSlots,saved.diffuseAtlasGrid);
+    }
     static synchronized Selected take(){
         Selected result=pending;pending=null;return result;
     }

@@ -704,6 +704,15 @@ struct Renderer {
                     }
                     return result;
                 };
+                // A deliberately simpler normal preview using the proven
+                // float material varying. If unsupported, preserve the
+                // diffuse-only atlas-safe path without failing the GPU scene.
+                const VkResult normalSafeResult=hasNormalAtlas?tryAlternate(
+                    "textured_safe.vert.spv","textured_normal_safe.frag.spv"):VK_ERROR_UNKNOWN;
+                if(hasNormalAtlas&&normalSafeResult==VK_SUCCESS){
+                    textureMode="normal-safe";
+                    textureCompatibility=" · DDS: normal-safe preview (2 карты, упрощённое освещение)";
+                }else{
                 const VkResult safeResult=tryAlternate(
                     "textured_safe.vert.spv","textured_safe.frag.spv");
                 if(safeResult==VK_SUCCESS){
@@ -728,6 +737,7 @@ struct Renderer {
                         textureMode="off";
                         textureCompatibility=" · DDS недоступна: каркас и поверхность работают";
                     }
+                }
                 }
             }
         }
@@ -922,7 +932,7 @@ struct Renderer {
                 float specularStrength;
                 int specularSize;
                 int diffuseAtlasGrid;
-            } texParams{p,hasNormalAtlas?1:(diffuseAtlasGrid>0?2:0),
+            } texParams{p,hasNormalAtlas?(diffuseAtlasGrid>0?3:1):(diffuseAtlasGrid>0?2:0),
                 (hasNormalAtlas&&useNormalMap.load(std::memory_order_relaxed))?1:0,
                 previewLightMode.load(std::memory_order_relaxed),
                 previewReliefStrength.load(std::memory_order_relaxed),
@@ -1018,11 +1028,13 @@ std::string statsJson() {
     std::string activeGeometry;
     uint32_t activeEdges=0;
     uint32_t activeTriangles=0;
+    bool activeNormalAtlas=false;
     {
         std::lock_guard<std::mutex> geometryLock(geometryMutex);
         activeGeometry=geometryLabel;
         activeEdges=geometryEdgeCount;
         activeTriangles=geometryTriangleCount;
+        activeNormalAtlas=selectedNormalAtlas;
     }
     out << "{\"running\":" << (rendering?"true":"false")
         << ",\"error\":" << (failed?"true":"false")
@@ -1040,6 +1052,10 @@ std::string statsJson() {
         << ",\"triangles\":" << activeTriangles
         << ",\"solidMode\":" << (solidMode.load(std::memory_order_relaxed)?"true":"false")
         << ",\"textureMode\":\"" << esc(activeTextureMode) << "\""
+        << ",\"normalMapApplied\":" << ((activeNormalAtlas &&
+            (activeTextureMode=="full"||activeTextureMode=="normal-safe") &&
+            useNormalMap.load(std::memory_order_relaxed))?"true":"false")
+        << ",\"normalAtlasPresent\":" << (activeNormalAtlas?"true":"false")
         << ",\"message\":\"" << esc(stage) << "\"}";
     return out.str();
 }
@@ -1275,6 +1291,23 @@ Java_dev_skyrimsemobile_launcher_VulkanSceneActivity_nativeSetDiffuseAtlas(
     selectedNormalAtlas=false;
     selectedDiffuseAtlasGrid=grid;
     useNormalMap.store(false,std::memory_order_relaxed);
+    return JNI_TRUE;
+}
+
+// v2.18: 2048-bounded single-sampler stacked material atlas.
+// The top half has diffuse slots, and bottom half has matching normal slots.
+extern "C" JNIEXPORT jboolean JNICALL
+Java_dev_skyrimsemobile_launcher_VulkanSceneActivity_nativeSetDiffuseNormalAtlas(
+    JNIEnv* env,jclass cls,jfloatArray coordinates,jfloatArray materialIds,
+    jintArray combined,jint width,jint height,jint grid){
+    if(height<2 || (height&1)!=0 || height>2048)return JNI_FALSE;
+    jboolean accepted=Java_dev_skyrimsemobile_launcher_VulkanSceneActivity_nativeSetDiffuseAtlas(
+        env,cls,coordinates,materialIds,combined,width,height,grid);
+    if(accepted!=JNI_TRUE)return JNI_FALSE;
+    std::lock_guard<std::mutex> lock(geometryMutex);
+    if(selectedDiffuseAtlasGrid!=grid||selectedTextureWidth!=(uint32_t)width||
+       selectedTextureHeight!=(uint32_t)height)return JNI_FALSE;
+    selectedNormalAtlas=true;
     return JNI_TRUE;
 }
 

@@ -298,6 +298,7 @@ final class DeviceSelfTestRunner {
             return;
         }
         Map<Integer,DdsBcDecoder.Image> perShape=new HashMap<>();
+        Map<Integer,DdsBcDecoder.Image> perNormal=new HashMap<>();
         boolean prepared=false;
         try {
             step("5/5 · Ищу DDS, декодирую и собираю безопасный Vulkan-атлас…");
@@ -337,11 +338,39 @@ final class DeviceSelfTestRunner {
                         decodedPixels+=pixels;
                     }
                     perShape.put(part.blockIndex,image);
+                    // Normal DDS is optional; never reject a valid diffuse
+                    // simply because a normal mip is missing or unsupported.
+                    if(link.normal!=null&&!link.normal.isEmpty()){
+                        try{
+                            String normalKey=DdsArchiveFinder.normalizeDds(link.normal);
+                            Location normalLocation=found.get(normalKey);
+                            if(normalLocation!=null){
+                                DdsBcDecoder.Image normalImage=cache.get(normalKey);
+                                if(normalImage==null){
+                                    if(cache.size()>=MAX_UNIQUE_DIFFUSE)
+                                        throw new IOException("Лимит DDS cache");
+                                    try(InputStream in=open(normalLocation.uri)){
+                                        normalImage=BsaDdsPixelReader.preview(in,
+                                            normalLocation.entry,normalLocation.flags);
+                                    }
+                                    long nPixels=(long)normalImage.width*normalImage.height;
+                                    if(decodedPixels+nPixels>MAX_SOURCE_PIXELS)
+                                        throw new IOException("Превышен предел декодированных пикселей");
+                                    cache.put(normalKey,normalImage);
+                                    decodedPixels+=nPixels;
+                                }
+                                perNormal.put(part.blockIndex,normalImage);
+                            }
+                        }catch(Exception badNormal){
+                            report.warn("Normal DDS #"+part.blockIndex,
+                                "Не удалось декодировать normal mip: "+shortError(badNormal));
+                        }
+                    }
                 }catch(Exception partError){failures++;}
             }
             if(!perShape.isEmpty()){
                 report.pass("Декодирование DDS","Форматы BCn/RGBA · успешно "+
-                    cache.size()+" уникальных DDS · "+
+                    cache.size()+" уникальных DDS (diffuse и normal) · "+
                     perShape.size()+" частей NIF");
                 if(failures>0)report.warn("Материалы","Пропущено частей: "+failures+
                     " (невалидная или неподдерживаемая DDS)");
@@ -350,9 +379,31 @@ final class DeviceSelfTestRunner {
                         sample.parts,sample.scene,perShape);
                     report.pass("Vulkan DDS-атлас",atlas.width+"×"+atlas.height+
                         " · текстур "+atlas.textureCount+" · серых частей "+atlas.neutralParts);
-                    NifGeometryTransfer.offerAtlas(sample.scene.lines,
-                        sample.scene.triangles,atlas,"NIF: "+sample.nif.path,
-                        "АВТОТЕСТ · составная NIF с diffuse DDS");
+                    if(!perNormal.isEmpty()){
+                        try {
+                            NifCompositeNormalAtlas.Result combined=
+                                NifCompositeNormalAtlas.build(sample.parts,atlas,perNormal);
+                            NifGeometryTransfer.offerAtlasNormal(sample.scene.lines,
+                                sample.scene.triangles,atlas,combined,"NIF: "+sample.nif.path,
+                                "АВТОТЕСТ · составная NIF с diffuse + normal DDS");
+                            report.pass("Normal DDS-атлас",
+                                combined.normalParts+" частей · "+
+                                combined.uniqueNormals+" уникальных normal DDS · "+
+                                combined.neutralNormalParts+" с нейтральными нормалями");
+                        }catch(Exception normalError){
+                            report.warn("Normal DDS-атлас",
+                                shortError(normalError)+" · сохранён прежний diffuse atlas");
+                            NifGeometryTransfer.offerAtlas(sample.scene.lines,
+                                sample.scene.triangles,atlas,"NIF: "+sample.nif.path,
+                                "АВТОТЕСТ · составная NIF с diffuse DDS");
+                        }
+                    }else{
+                        report.warn("Normal DDS-атлас",
+                            "Normal DDS для выбранных частей не декодированы, рельефный шейдер не проверялся");
+                        NifGeometryTransfer.offerAtlas(sample.scene.lines,
+                            sample.scene.triangles,atlas,"NIF: "+sample.nif.path,
+                            "АВТОТЕСТ · составная NIF с diffuse DDS");
+                    }
                     prepared=true;
                 }catch(Exception ex){
                     report.warn("Vulkan DDS-атлас",shortError(ex)+

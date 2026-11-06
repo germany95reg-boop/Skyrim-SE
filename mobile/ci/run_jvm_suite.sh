@@ -28,7 +28,7 @@ fi
 sources=(
   BsaCatalogReader BsaDdsInspector BsaDdsPixelReader BsaEntryInspector
   DdsArchiveFinder DdsBcDecoder DdsHeaderInspector DdsNormalResampler
-  NifBlockInspector NifCatalogSelection NifCompositeDdsAtlas
+  NifBlockInspector NifCatalogSelection NifCompositeDdsAtlas NifCompositeNormalAtlas
   NifHierarchyTransforms
   NifGeometryDecoder NifGeometryTransfer NifMaterialInspector
   NifMaterialLinkInspector NifPartDdsAvailability NifPartTextureSelection

@@ -71,7 +71,7 @@ public final class BsaCatalogActivity extends Activity {
         ScrollView scroll=new ScrollView(this);scroll.setBackgroundColor(0xff101116);scroll.setFillViewport(true);
         LinearLayout root=new LinearLayout(this);root.setOrientation(LinearLayout.VERTICAL);
         root.setPadding(dp(16),dp(14),dp(16),dp(18));scroll.addView(root);
-        TextView title=text("Skyrim SE · NIF v2.13",22,0xffdbc5fb);title.setGravity(Gravity.CENTER);root.addView(title);
+        TextView title=text("Skyrim SE · NIF v2.18",22,0xffdbc5fb);title.setGravity(Gravity.CENTER);root.addView(title);
         root.addView(text("BSA 105: каталог, NIF и Vulkan. Последний разрешённый архив, модель и папка Data восстанавливаются автоматически. Содержимое файлов Skyrim не копируется и не изменяется.",13,0xffd5d3dd));
         button(root,"Запустить полный автотест на телефоне · v2.15",()->
             startActivity(new Intent(this,DeviceSelfTestActivity.class)));
@@ -108,7 +108,7 @@ public final class BsaCatalogActivity extends Activity {
         button(root,"Связи материалов частей NIF · v2.11",this::inspectPartMaterialLinks);
         button(root,"Найти DDS каждой части NIF · v2.11",this::findPartDds);
         button(root,"Показать выбранную часть NIF с её DDS · v2.12",this::previewTexturedPart);
-        button(root,"Показать ВСЕ части NIF с DDS · v2.13",this::previewCompositeDds);
+        button(root,"Показать ВСЕ части NIF с DDS · v2.18",this::previewCompositeDds);
         button(root,"Пути текстур NIF · v2.11",this::inspectNifMaterials);
         button(root,"Найти DDS в папке Data · v2.11",this::pickDataForDds);
         button(root,"Изменить папку Data · v2.11",this::chooseDataFolder);
@@ -746,7 +746,7 @@ public final class BsaCatalogActivity extends Activity {
         final BsaCatalogReader.Entry entry=candidates.get(0);
         final long flags=catalog.flags;
         final List<LocatedDds> matches=new ArrayList<>(foundDds);
-        inspectionOutput.setText("Собираю все части и их diffuse DDS в общий Vulkan-атлас v2.13…");
+        inspectionOutput.setText("Собираю части NIF с diffuse + normal DDS в общий Vulkan-атлас v2.18…");
         new Thread(()->{
             try{
                 NifGeometryDecoder.Parts parts;
@@ -762,6 +762,7 @@ public final class BsaCatalogActivity extends Activity {
                 NifSceneComposer.Combined scene=NifSceneComposer.combine(parts);
                 Map<String,DdsBcDecoder.Image> cache=new LinkedHashMap<>();
                 Map<Integer,DdsBcDecoder.Image> perShape=new LinkedHashMap<>();
+                Map<Integer,DdsBcDecoder.Image> perNormal=new LinkedHashMap<>();
                 StringBuilder errors=new StringBuilder();
                 long sourcePixels=0;
                 for(NifGeometryDecoder.Part part:parts.items){
@@ -788,6 +789,35 @@ public final class BsaCatalogActivity extends Activity {
                             cache.put(key,image);
                         }
                         perShape.put(part.blockIndex,image);
+                        if(link.normal!=null&&!link.normal.isEmpty()){
+                            try{
+                                LocatedDds normalHit=findLocatedDds(matches,link.normal);
+                                if(normalHit!=null){
+                                    String nk=DdsArchiveFinder.normalizeDds(link.normal);
+                                    DdsBcDecoder.Image normal=cache.get(nk);
+                                    if(normal==null){
+                                        if(cache.size()>=NifCompositeDdsAtlas.MAX_TEXTURES)
+                                            throw new IOException("Лимит DDS cache");
+                                        normal=readLocatedDds(normalHit);
+                                        if(!normal.format.startsWith("BC3")&&
+                                           !normal.format.startsWith("BC5")&&
+                                           !"RGBA8".equals(normal.format)&&
+                                           !"BGRA8".equals(normal.format))
+                                            throw new IOException("normal DDS format "+normal.format);
+                                        long nPixels=(long)normal.width*normal.height;
+                                        if(sourcePixels+nPixels>8L*1024*1024)
+                                            throw new IOException("Лимит декодированных DDS");
+                                        sourcePixels+=nPixels;
+                                        cache.put(nk,normal);
+                                    }
+                                    perNormal.put(part.blockIndex,normal);
+                                }
+                            }catch(Exception optionalNormal){
+                                errors.append("\\n• normal #").append(part.blockIndex)
+                                    .append(": ").append(optionalNormal.getMessage())
+                                    .append(" → плоская normal map");
+                            }
+                        }
                     }catch(Exception partError){
                         errors.append("\n• #").append(part.blockIndex).append(": ")
                             .append(partError.getMessage()).append(" → нейтральный материал");
@@ -795,22 +825,41 @@ public final class BsaCatalogActivity extends Activity {
                 }
                 NifCompositeDdsAtlas.Result atlas=
                     NifCompositeDdsAtlas.build(parts,scene,perShape);
+                NifCompositeNormalAtlas.Result stacked=null;
+                String normalNote="Normal DDS: недоступны; сохранён diffuse atlas";
+                if(!perNormal.isEmpty()){
+                    try{
+                        stacked=NifCompositeNormalAtlas.build(parts,atlas,perNormal);
+                        normalNote="Normal DDS: "+stacked.normalParts+
+                            " частей, уникальных карт "+stacked.uniqueNormals+
+                            " · нейтральных "+stacked.neutralNormalParts;
+                    }catch(Exception unsupported){
+                        normalNote="Normal DDS fallback: "+unsupported.getMessage()+
+                            " · сохранён diffuse atlas";
+                    }
+                }
+                final NifCompositeNormalAtlas.Result combinedNormal=stacked;
                 final String details="Составная NIF · "+scene.included+" частей · "+
-                    scene.triangleCount+" треугольников\n"+
-                    "Текстуры: "+atlas.textureCount+" · без DDS: "+
-                    atlas.neutralParts+" частей\n"+
+                    scene.triangleCount+" треугольников\\n"+
+                    "Diffuse DDS: "+atlas.textureCount+" · без DDS: "+
+                    atlas.neutralParts+" частей\\n"+
                     "DDS-атлас: "+atlas.width+"×"+atlas.height+" · сетка "+
-                    atlas.grid+"×"+atlas.grid+"\n"+
-                    "Нормали составной NIF пока отключены.\n"+
-                    "Родительские NiNode/BSFadeNode трансформации не применены."+
+                    atlas.grid+"×"+atlas.grid+"\\n"+
+                    normalNote+"\\n"+
+                    parts.hierarchyNote+
                     errors;
                 runOnUiThread(()->{
                     if(!isCurrentNif(uri,entry)||!entry.path.equals(materialNifPath))return;
-                    NifGeometryTransfer.offerAtlas(scene.lines,scene.triangles,atlas,
-                        "NIF: "+entry.path.substring(entry.path.lastIndexOf('/')+1)+
-                            " · все "+scene.included+" части",details);
-                    inspectionOutput.setText("Составная Vulkan DDS v2.13 подготовлена.\n"+details+
-                        "\nИгровые BSA не изменены.");
+                    String title="NIF: "+entry.path.substring(entry.path.lastIndexOf('/')+1)+
+                        " · все "+scene.included+" части";
+                    if(combinedNormal!=null)
+                        NifGeometryTransfer.offerAtlasNormal(scene.lines,scene.triangles,
+                            atlas,combinedNormal,title,details);
+                    else
+                        NifGeometryTransfer.offerAtlas(scene.lines,scene.triangles,
+                            atlas,title,details);
+                    inspectionOutput.setText("Составная Vulkan DDS v2.18 подготовлена.\\n"+
+                        details+"\\nИгровые BSA не изменены.");
                     startActivity(new Intent(this,VulkanSceneActivity.class));
                 });
             }catch(Exception error){
