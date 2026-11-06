@@ -12,6 +12,7 @@ import android.graphics.Color;
 import android.graphics.Typeface;
 import android.os.Bundle;
 import android.os.Handler;
+import android.os.SystemClock;
 import android.os.Looper;
 import android.view.Gravity;
 import android.view.Surface;
@@ -28,6 +29,25 @@ import org.json.JSONObject;
 /** A real animated Vulkan cube test. It does not load a Skyrim executable or any game assets. */
 public final class VulkanSceneActivity extends Activity implements SurfaceHolder.Callback {
     public static final String PREF_RESULT = "vulkan_scene_test_result";
+    public static final String EXTRA_DEVICE_AUTOTEST = "dev.skyrimsemobile.launcher.DEVICE_AUTOTEST";
+    public static final String EXTRA_DEVICE_AUTOTEST_RESULT = "deviceAutotestVulkanJson";
+    public static final String EXTRA_DEVICE_AUTOTEST_ERROR = "deviceAutotestError";
+    private boolean deviceAutotest=false,deviceAutotestFinished=false;
+    private long deviceAutotestStarted;
+    private final Runnable deviceAutotestTimeout=()->{
+        if(deviceAutotest&&!deviceAutotestFinished)
+            completeDeviceAutotest(false,null,"Vulkan не отрисовал достаточно кадров за 20 секунд");
+    };
+    private void completeDeviceAutotest(boolean success,String stats,String error){
+        if(!deviceAutotest||deviceAutotestFinished)return;
+        deviceAutotestFinished=true;
+        ui.removeCallbacks(deviceAutotestTimeout);
+        Intent result=new Intent();
+        if(success)result.putExtra(EXTRA_DEVICE_AUTOTEST_RESULT,stats);
+        else result.putExtra(EXTRA_DEVICE_AUTOTEST_ERROR,error);
+        setResult(success?RESULT_OK:RESULT_CANCELED,result);
+        finish();
+    }
     private static String loadingError;
     static {
         try { System.loadLibrary("skyrimse_scene"); }
@@ -107,6 +127,14 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
                         " · Треугольников: " + info.optInt("triangles") + "\nВид: "+viewPreset +
                         (framingInfo.isEmpty()?"":"\n"+framingInfo));
                     status.setTextColor(error ? 0xffffabab : 0xffb4d8fd);
+                    // Explicit one-tap device test only: a real Surface/Vulkan frame
+                    // must reach the GPU before we return a test result.
+                    if(deviceAutotest&&!deviceAutotestFinished){
+                        if(error)completeDeviceAutotest(false,json,message);
+                        else if(running&&frames>=45&&
+                            SystemClock.elapsedRealtime()-deviceAutotestStarted>=2300)
+                            completeDeviceAutotest(true,json,null);
+                    }
                     if (frames > 0 && !error) {
                         getSharedPreferences("launcher_state", MODE_PRIVATE).edit()
                             .putString(PREF_RESULT, json).apply();
@@ -135,6 +163,9 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
 
     @Override public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        deviceAutotest=getIntent().getBooleanExtra(EXTRA_DEVICE_AUTOTEST,false);
+        deviceAutotestStarted=SystemClock.elapsedRealtime();
+        if(deviceAutotest)ui.postDelayed(deviceAutotestTimeout,20000);
         getWindow().setStatusBarColor(0xff101115);
         getWindow().setNavigationBarColor(0xff101115);
         FrameLayout root = new FrameLayout(this);
@@ -332,6 +363,8 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
         title.addOnLayoutChangeListener((v,left,topEdge,right,bottom,oldLeft,oldTop,oldRight,oldBottom)->refreshFraming());
         root.post(this::refreshFraming);
         if (loadingError != null) {
+            if(deviceAutotest)ui.post(()->completeDeviceAutotest(false,null,
+                "ARM64-библиотека Vulkan недоступна: "+loadingError));
             status.setText("Не удалось загрузить ARM64: " + loadingError);
             status.setTextColor(0xffffabab);
         } else {
@@ -345,6 +378,11 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
                     nif.materialSlots,nif.diffuseAtlasGrid);
             }
             else restoreModel();
+            if(deviceAutotest&&hasSurface){
+                // Real diffuse/surface test rather than counting wireframe-only frames.
+                solidMode=nativeSetSolidMode(true);
+                updateSurfaceButton();
+            }
         }
     }
     private void chooseObj() {
@@ -625,6 +663,7 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
         destroyed = true;
         stopIfActive();
         ui.removeCallbacks(poll);
+        ui.removeCallbacks(deviceAutotestTimeout);
         super.onDestroy();
     }
 }
