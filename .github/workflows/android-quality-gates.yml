@@ -114,6 +114,8 @@ jobs:
       - name: Compile Android UI tests before emulator boot
         working-directory: mobile
         run: gradle --no-daemon --stacktrace -PciEmulator=true :app:assembleDebugAndroidTest
+      - name: Verify instrumentation APK actually contains AndroidJUnitRunner
+        run: python3 mobile/tests/android_instrumentation_apk_test.py
       - name: Run Android instrumented UI smoke tests without Skyrim assets
         uses: reactivecircus/android-emulator-runner@v2
         with:
