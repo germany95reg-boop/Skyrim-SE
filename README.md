@@ -1,4 +1,14 @@
-# Skyrim SE Mobile — Vulkan 3D v2.18
+# Skyrim SE Mobile — v2.19 (paired DDS materials)
+
+**По результатам реального автотеста v2.18: 19 PASS · Adreno 840 · Vulkan normal-safe**. В v2.19 две части NIF могут использовать один diffuse DDS и разные normal DDS без неверного общего номера материала. Графический атлас учитывает **пару diffuse/normal**, сохраняет нейтральные normal DDS и проверенный atlas-safe fallback. Пользовательская фраза об автоматической отправке убрана из конца текста автотеста по запросу пользователя; автоматическая отправка данных не добавлялась.
+
+Android versionCode 42, versionName 2.19.0, прежняя подпись и package ID. Устанавливается поверх v2.18.
+
+[Инструкция по проверке на телефоне](DEVICE_TEST_V219_RU.md).
+
+---
+
+## История: v2.18
 
 **Новое:** составной NIF-просмотр теперь может собирать diffuse DDS и normal DDS по реальным связям BSTriShape → shader → texture set в один ограниченный 2048×2048 Vulkan атлас. Добавлен облегчённый normal-safe шейдер для Adreno, сохранился проверенный diffuse-only atlas-safe fallback. В автотесте отдельно указано, были ли normal DDS только декодированы или **действительно применены GPU**. Результаты 30/60/∞ FPS и NiNode/BSFadeNode остаются в полном отчёте.
 
