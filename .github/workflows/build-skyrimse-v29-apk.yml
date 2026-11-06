@@ -1,7 +1,5 @@
-name: Skyrim SE Mobile Vulkan 3D APK v2.9 — Saved Paths
+name: Skyrim SE Mobile Vulkan 3D APK v2.9 (archived)
 on:
-  push:
-    branches: [main, development/v2.9-remember-bsa-nif-data]
   workflow_dispatch:
 
 jobs:
