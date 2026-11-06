@@ -96,6 +96,7 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
     private static native boolean nativeSetSolidMode(boolean enabled);
     private static native boolean nativeSetTexture(float[] uv,int[] argb,int width,int height);
     private static native boolean nativeSetDiffuseAtlas(float[] uv,float[] slots,int[] argb,int width,int height,int grid);
+    private static native boolean nativeSetDiffuseNormalAtlas(float[] uv,float[] slots,int[] stacked,int width,int height,int grid);
     private static native void nativeSetUseTexture(boolean enabled);
     private static native boolean nativeSetNormalTexture(int[] argb,int width,int height);
     private static native void nativeSetUseNormalMap(boolean enabled);
@@ -226,7 +227,7 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
         root.addView(viewport, new FrameLayout.LayoutParams(-1, -1));
 
         TextView title = new TextView(this);
-        title.setText("SKYRIM SE MOBILE\nVulkan 3D · v2.17");
+        title.setText("SKYRIM SE MOBILE\nVulkan 3D · v2.18");
         sceneTitle=title;
         title.setTypeface(Typeface.SERIF, Typeface.BOLD);
         title.setTextSize(20);
@@ -540,12 +541,15 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
         if(!accepted){status.setText("Модель отклонена нативным рендерером");return;}
         hasSurface=triangles!=null && nativeSetSurfaceTriangles(triangles);
         hasTexture=hasSurface&&uv!=null&&pixels!=null&&
-            (slots!=null?nativeSetDiffuseAtlas(uv,slots,pixels,textureW,textureH,grid):
-                         nativeSetTexture(uv,pixels,textureW,textureH));
+            (slots!=null?
+                (normalPixels!=null?
+                    nativeSetDiffuseNormalAtlas(uv,slots,normalPixels,normalW,normalH,grid):
+                    nativeSetDiffuseAtlas(uv,slots,pixels,textureW,textureH,grid)):
+                nativeSetTexture(uv,pixels,textureW,textureH));
         useTexture=hasTexture;
         nativeSetUseTexture(useTexture);
-        hasNormalMap=hasTexture&&slots==null&&normalPixels!=null&&
-            nativeSetNormalTexture(normalPixels,normalW,normalH);
+        hasNormalMap=hasTexture&&normalPixels!=null&&
+            (slots!=null||nativeSetNormalTexture(normalPixels,normalW,normalH));
         useNormalMap=hasNormalMap;
         nativeSetUseNormalMap(useNormalMap);
         lightMode=0;
