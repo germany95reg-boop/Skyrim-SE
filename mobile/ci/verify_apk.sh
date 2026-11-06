@@ -25,6 +25,7 @@ for path in \
     'assets/solid.frag.spv' \
     'assets/textured_safe.vert.spv' \
     'assets/textured_safe.frag.spv' \
+    'assets/textured_normal_safe.frag.spv' \
     'assets/textured_legacy.frag.spv'; do
     grep -Fxq "$path" <<< "$FILES" || { echo "APK is missing $path" >&2; exit 1; }
 done
