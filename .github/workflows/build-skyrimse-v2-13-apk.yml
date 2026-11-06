@@ -1,7 +1,5 @@
 name: Skyrim SE Mobile Vulkan 3D APK v2.13 — composite diffuse DDS atlas
 on:
-  push:
-    branches: [main, development/v2.13-composite-dds-atlas]
   workflow_dispatch:
 
 jobs:
