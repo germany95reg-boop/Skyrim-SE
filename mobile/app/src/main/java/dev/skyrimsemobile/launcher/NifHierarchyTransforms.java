@@ -151,18 +151,20 @@ final class NifHierarchyTransforms {
             "Нет NiNode/BSFadeNode; применены только локальные BSTriShape");
         Map<Integer,Transform> descendants=new HashMap<>();
         Set<Integer> visiting=new HashSet<>();
+        Set<Integer> linkedShapes=new HashSet<>();
         int[] edges={0};
         for(int root:nif.rootIndices) {
             if(root<0||root>=nif.blockCount)
                 throw new IOException("Некорректная ссылка корневого NiNode");
-            walk(root,Transform.identity(),nodes,nif,visiting,descendants,edges,0);
+            walk(root,Transform.identity(),nodes,visiting,descendants,
+                linkedShapes,edges,0,false);
         }
         int connected=0;
         Map<Integer,Transform> parents=new HashMap<>();
         for(NifBlockInspector.Block b:nif.blocks){
             if(!"BSTriShape".equals(b.type))continue;
             Transform p=descendants.get(b.index);
-            if(p!=null){
+            if(p!=null&&linkedShapes.contains(b.index)){
                 connected++;
                 parents.put(b.index,p);
             }
@@ -174,9 +176,9 @@ final class NifHierarchyTransforms {
     }
 
     private static void walk(int block,Transform world,Map<Integer,Node> nodes,
-                             NifBlockInspector.Result nif,Set<Integer> visiting,
-                             Map<Integer,Transform> outputs,int[] edges,int depth)
-                             throws IOException{
+                             Set<Integer> visiting,Map<Integer,Transform> outputs,
+                             Set<Integer> linkedShapes,int[] edges,int depth,
+                             boolean hasAncestor)throws IOException{
         if(depth>MAX_DEPTH)throw new IOException("Иерархия NiNode глубже "+MAX_DEPTH);
         if(!visiting.add(block))
             throw new IOException("Цикл обнаружен в NIF: блок #"+block);
@@ -190,10 +192,12 @@ final class NifHierarchyTransforms {
                 if(child<0)continue; // NiNode allows -1 null references.
                 if(++edges[0]>MAX_EDGES)
                     throw new IOException("В NIF слишком много связей NiNode");
-                walk(child,combined,nodes,nif,visiting,outputs,edges,depth+1);
+                walk(child,combined,nodes,visiting,outputs,
+                    linkedShapes,edges,depth+1,true);
             }
         } else {
             outputs.put(block,world);
+            if(hasAncestor)linkedShapes.add(block);
         }
         visiting.remove(block);
     }
