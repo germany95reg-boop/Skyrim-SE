@@ -1,7 +1,5 @@
-name: Skyrim SE Mobile Vulkan 3D APK v2.5 — Compact Viewer
+name: Skyrim SE Mobile Vulkan 3D APK v2.5 (archived)
 on:
-  push:
-    branches: [main, development/v2.5-compact-viewer]
   workflow_dispatch:
 
 jobs:

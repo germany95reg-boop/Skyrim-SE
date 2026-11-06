@@ -60,6 +60,25 @@ public final class NifGeometryDecoderTest {
         set64(expanded,blockPos+100,5L|(4L<<8)|(3L<<44)); // UV1 offset is nibble #2
         return expanded;
     }
+    /** Two contiguous BSTriShape payloads and a correctly rebuilt NIF header. */
+    static byte[] twoShapes(){
+        byte[] single=valid();
+        int oldBlockLen=116+3*16+6;
+        ByteArrayOutputStream b=new ByteArrayOutputStream();
+        byte[] line="Gamebryo File Format, Version 20.2.0.7\n"
+            .getBytes(StandardCharsets.US_ASCII);
+        b.write(line,0,line.length);
+        w32(b,0x14020007);b.write(1);w32(b,12);w32(b,2);w32(b,100);
+        for(int k=0;k<3;k++)b.write(0);
+        w16(b,1);text(b,"BSTriShape");
+        w16(b,0);w16(b,0);
+        w32(b,oldBlockLen);w32(b,oldBlockLen);
+        w32(b,0);w32(b,0);w32(b,0);
+        b.write(single,blockPos,oldBlockLen);
+        b.write(single,blockPos,oldBlockLen);
+        w32(b,1);w32(b,0);
+        return b.toByteArray();
+    }
     static void bad(byte[] bytes,String label){try{NifGeometryDecoder.decode(bytes);throw new AssertionError("Expected rejection: "+label);}catch(IOException ok){checks++;}}
     public static void main(String[] args)throws Exception {
         byte[] original=valid();
@@ -82,6 +101,28 @@ public final class NifGeometryDecoderTest {
         for(float coordinate:a)ok(Float.isFinite(coordinate)&&Math.abs(coordinate)<=1.001f,"valid bounded surface position");
         for(float f:mesh.lines.segments)ok(Float.isFinite(f)&&f>=-1.001f&&f<=1.001f,"normalized vertices");
         ok(mesh.report().contains("уникальных рёбер"),"report");
+        NifGeometryDecoder.Parts one=NifGeometryDecoder.scan(original);
+        ok(one.items.size()==1 && one.available==1,"single shape scan unchanged");
+        ok(one.items.get(0).blockIndex==0,"single block ID");
+        ok(one.report().contains("только чтение"),"scan report clearly read-only");
+        byte[] multiBytes=twoShapes();
+        NifGeometryDecoder.Parts multi=NifGeometryDecoder.scan(multiBytes);
+        ok(multi.items.size()==2&&multi.available==2,"two valid static parts");
+        ok(multi.items.get(0).blockIndex==0&&multi.items.get(1).blockIndex==1,
+            "separate shape block IDs preserved");
+        ok(multi.items.get(0).mesh.surfaceTriangles.length==9&&
+           multi.items.get(1).mesh.surfaceTriangles.length==9,"each mesh separately decoded");
+        ok(multi.items.get(1).label().contains("треугольников"),"human part label");
+        NifBlockInspector.Result multiTable=NifBlockInspector.inspect(multiBytes);
+        byte[] damagedPart=multiBytes.clone();
+        int secondAt=multiTable.blocks.get(1).byteOffset;
+        set64(damagedPart,secondAt+100,0L); // invalid stride, first remains valid
+        NifGeometryDecoder.Parts partial=NifGeometryDecoder.scan(damagedPart);
+        ok(partial.available==1&&partial.items.size()==2,
+            "corrupt second shape cannot hide first");
+        ok(partial.items.get(1).mesh==null&&partial.items.get(1).problem!=null,
+            "invalid part described without rendering");
+        ok(partial.items.get(0).mesh!=null,"first part unaffected by second failure");
         byte[] uvBytes=validUv();
         NifGeometryDecoder.Mesh textured=NifGeometryDecoder.decode(uvBytes);
         ok(textured.stride==20 && textured.surfaceUVs.length==6,"UV stride and triangle count");
