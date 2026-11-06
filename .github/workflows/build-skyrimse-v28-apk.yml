@@ -1,7 +1,5 @@
-name: Skyrim SE Mobile Vulkan 3D APK v2.8 — Tap NIF Selection
+name: Skyrim SE Mobile Vulkan 3D APK v2.8 (archived)
 on:
-  push:
-    branches: [main, development/v2.8-tap-nif-selection]
   workflow_dispatch:
 
 jobs:
