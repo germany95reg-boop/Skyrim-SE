@@ -10,7 +10,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: skyrim-quality-${{ github.workflow }}-${{ github.ref }}
+  # Push and PR checks for the same branch share one job group: no duplicate builds.
+  group: skyrim-quality-${{ github.workflow }}-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
 
 jobs:
