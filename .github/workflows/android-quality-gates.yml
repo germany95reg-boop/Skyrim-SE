@@ -111,6 +111,9 @@ jobs:
           df -h /
       - name: Build x86_64 emulator-only native test variant and shaders
         run: bash mobile/ci/setup_android_build.sh
+      - name: Compile Android UI tests before emulator boot
+        working-directory: mobile
+        run: gradle --no-daemon --stacktrace -PciEmulator=true :app:assembleDebugAndroidTest
       - name: Run Android instrumented UI smoke tests without Skyrim assets
         uses: reactivecircus/android-emulator-runner@v2
         with:
