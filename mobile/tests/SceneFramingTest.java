@@ -12,13 +12,24 @@ public final class SceneFramingTest {
         close(portrait.ndcYOffset,(260f-1100f)/2915f,0.0001f,"viewport center");
         ok(portrait.visibleFraction>.35f && portrait.visibleFraction<.60f,"content fraction");
         ok(portrait.distance>9.0f,"portrait should zoom out enough for a tall mesh");
-        SceneFraming.Frame compact=SceneFraming.compute(1.2f,1440,2915,260,690);
-        ok(compact.visibleFraction>portrait.visibleFraction,"smaller panel increases visible viewport");
-        ok(compact.distance<portrait.distance,"compact panel reduces fit distance safely");
+        // A round sphere may be limited by portrait width even after collapsing.
+        // A thin Skyrim prop has a much smaller XZ radius and benefits from it.
+        float[] slim={-0.20f,-1f,0f,0.20f,1f,0.05f,
+                      -0.15f,0.8f,-0.05f,0.10f,-0.8f,0.08f};
+        float xz=SceneFraming.horizontalRadius(slim);
+        ok(xz<SceneFraming.radius(slim)*0.4f,"narrow shape XZ footprint");
+        SceneFraming.Frame slimFull=SceneFraming.compute(1.2f,xz,1440,2915,260,1100);
+        SceneFraming.Frame compact=SceneFraming.compute(1.2f,xz,1440,2915,260,690);
+        ok(compact.visibleFraction>slimFull.visibleFraction,"smaller panel increases visible viewport");
+        ok(compact.distance<slimFull.distance,"slim model is fitted closer in compact mode");
+        ok(slimFull.distance<portrait.distance,"slim shape uses narrower real width");
         close(SceneFraming.closer(compact.distance),compact.distance*0.82f,0.0001f,
               "one larger step moves camera in");
         ok(SceneFraming.closer(2.7f)==2.7f,"large mode respects near plane");
         ok(SceneFraming.closer(40f)<40f,"large mode stays within max");
+        try{SceneFraming.horizontalRadius(new float[]{Float.NaN,0f,1f,1f,0f,1f});
+            throw new AssertionError("NaN horizontal radius accepted");
+        }catch(IllegalArgumentException expected){checks++;}
         try{SceneFraming.closer(Float.NaN);throw new AssertionError("NaN zoom accepted");}
         catch(IllegalArgumentException expected){checks++;}
         try{SceneFraming.closer(-2);throw new AssertionError("negative zoom accepted");}

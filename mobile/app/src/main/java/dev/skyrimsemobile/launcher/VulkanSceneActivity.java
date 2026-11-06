@@ -61,6 +61,7 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
     private TextView sceneTitle;
     private LinearLayout scenePanel;
     private float modelRadius=SceneFraming.CUBE_RADIUS;
+    private float modelHorizontalRadius=(float)Math.sqrt(2.0);
     private boolean fitFollowsLayout=true;
     private String framingInfo="";
     private Button modelButton;
@@ -185,7 +186,7 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
         meshControls.addView(pyramid, new LinearLayout.LayoutParams(0, dp(46), 1));
         Button cube = controlButton("Куб");
         cube.setOnClickListener(v -> {
-            nativeClearGeometry(); hasSurface=false;hasTexture=false;hasNormalMap=false;useTexture=false;useNormalMap=false;solidMode=false;updateSurfaceButton(); meshLabel = "Куб (встроенный)"; nifDimensions=""; modelRadius=SceneFraming.CUBE_RADIUS; fitFollowsLayout=true; refreshFraming();
+            nativeClearGeometry(); hasSurface=false;hasTexture=false;hasNormalMap=false;useTexture=false;useNormalMap=false;solidMode=false;updateSurfaceButton(); meshLabel = "Куб (встроенный)"; nifDimensions=""; modelRadius=SceneFraming.CUBE_RADIUS; modelHorizontalRadius=(float)Math.sqrt(2.0); fitFollowsLayout=true; refreshFraming();
             getSharedPreferences("launcher_state",MODE_PRIVATE).edit().remove("obj_uri").apply();
             restartRenderer();
         });
@@ -458,6 +459,7 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
         updateSurfaceButton();
         meshLabel=name;
         modelRadius=SceneFraming.radius(model.segments);
+        modelHorizontalRadius=SceneFraming.horizontalRadius(model.segments);
         fitFollowsLayout=true;
         refreshFraming();
         if(!name.startsWith("NIF:")) nifDimensions="";
@@ -484,7 +486,8 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
         if(sceneRoot==null||sceneTitle==null||scenePanel==null || loadingError!=null) return;
         int w=sceneRoot.getWidth(),h=sceneRoot.getHeight();
         if(w<=0||h<=0)return;
-        SceneFraming.Frame f=SceneFraming.compute(modelRadius,w,h,sceneTitle.getHeight(),scenePanel.getHeight());
+        SceneFraming.Frame f=SceneFraming.compute(modelRadius,modelHorizontalRadius,
+            w,h,sceneTitle.getHeight(),scenePanel.getHeight());
         nativeSetViewportOffset(f.ndcYOffset);
         if(fitFollowsLayout){ zoom=f.distance; nativeSetView(yaw,pitch,zoom,autoSpin); }
         framingInfo=String.format(java.util.Locale.US,"Кадр: %.0f%% свободно · авто-вписывание: %s",
