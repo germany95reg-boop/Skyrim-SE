@@ -1,7 +1,7 @@
-name: Skyrim SE Mobile Vulkan 3D APK v2.10.1.1 — SSE Shader Offset Fix
+name: Skyrim SE Mobile Vulkan 3D APK v2.10.1 — SSE Shader Offset Fix
 on:
   push:
-    branches: [main, fix/v2.10.1.1-sse-shader-offset]
+    branches: [main, fix/v2.10.1-sse-shader-offset]
   workflow_dispatch:
 
 jobs:
