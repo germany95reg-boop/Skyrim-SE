@@ -5,7 +5,6 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.content.UriPermission;
 import android.net.Uri;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
@@ -80,28 +79,18 @@ final class BsaSessionStore {
     }
 
     void saveModel(Uri archiveUri,String nifPath){
-        if(archiveUri==null||nifPath==null||nifPath.isEmpty()||
-            nifPath.length()>512||nifPath.indexOf('\n')>=0)return;
+        if(archiveUri==null||!RecentNifPaths.valid(nifPath))return;
         if(!archiveUri.toString().equals(prefs.getString(ARCHIVE,"")))return;
-        List<String> recent=new ArrayList<>(recentModels(archiveUri));
-        recent.remove(nifPath);
-        recent.add(0,nifPath);
-        if(recent.size()>8)recent=recent.subList(0,8);
         prefs.edit().putString(MODEL,nifPath)
-            .putString(RECENT,String.join("\n",recent)).apply();
+            .putString(RECENT,RecentNifPaths.insert(
+                prefs.getString(RECENT,""),nifPath)).apply();
     }
 
     List<String> recentModels(Uri archiveUri){
         if(archiveUri==null||
             !archiveUri.toString().equals(prefs.getString(ARCHIVE,"")))
             return Collections.emptyList();
-        String raw=prefs.getString(RECENT,"");
-        if(raw.isEmpty())return Collections.emptyList();
-        List<String> out=new ArrayList<>();
-        for(String value:raw.split("\n")){
-            if(!value.isEmpty()&&out.size()<8)out.add(value);
-        }
-        return out;
+        return RecentNifPaths.parse(prefs.getString(RECENT,""));
     }
 
     String lastModel(Uri archiveUri){
