@@ -57,17 +57,21 @@ public final class BsaCatalogActivity extends Activity {
     private EditText filter;
     private CheckBox nifOnly;
     private String currentName="";
+    private BsaSessionStore savedSession;
+    private long archiveLoadSequence=0;
     private volatile boolean destroyed=false;
     @Override public void onCreate(Bundle saved){
         super.onCreate(saved);
+        savedSession=new BsaSessionStore(this);
         getWindow().setStatusBarColor(0xff101115);
         getWindow().setNavigationBarColor(0xff101115);
         ScrollView scroll=new ScrollView(this);scroll.setBackgroundColor(0xff101116);scroll.setFillViewport(true);
         LinearLayout root=new LinearLayout(this);root.setOrientation(LinearLayout.VERTICAL);
         root.setPadding(dp(16),dp(14),dp(16),dp(18));scroll.addView(root);
-        TextView title=text("Skyrim SE · NIF v2.8",22,0xffdbc5fb);title.setGravity(Gravity.CENTER);root.addView(title);
-        root.addView(text("BSA 105: каталог, заголовок NIF и таблица блоков. Выбирай конкретный файл через строку поиска; читаться будет только первая найденная NIF-запись. Без сохранения на диск и изменения игры.",13,0xffd5d3dd));
+        TextView title=text("Skyrim SE · NIF v2.9",22,0xffdbc5fb);title.setGravity(Gravity.CENTER);root.addView(title);
+        root.addView(text("BSA 105: каталог, NIF и Vulkan. Последний разрешённый архив, модель и папка Data восстанавливаются автоматически. Содержимое файлов Skyrim не копируется и не изменяется.",13,0xffd5d3dd));
         button(root,"Выбрать архив BSA",this::pick);
+        button(root,"Забыть сохранённые пути · v2.9",this::forgetSavedPaths);
         filter=new EditText(this);filter.setSingleLine(true);filter.setHint("Поиск: meshes, .nif, fish...");
         filter.setTextColor(0xffeeeeee);filter.setHintTextColor(0xffaaa4b8);root.addView(filter);
         nifOnly=new CheckBox(this);nifOnly.setText("Только модели .nif");nifOnly.setTextColor(0xffeeeeee);
@@ -75,7 +79,8 @@ public final class BsaCatalogActivity extends Activity {
         selectedLabel=text("NIF не выбрана. Можно нажать имя в результатах или открыть список.",13,0xffd9c1ff);
         selectedLabel.setTextIsSelectable(true);
         root.addView(selectedLabel);
-        button(root,"Выбрать NIF из списка · v2.8",this::showNifChooser);
+        button(root,"Выбрать NIF из списка · v2.9",this::showNifChooser);
+        button(root,"Недавние модели NIF · v2.9",this::showRecentNif);
         filter.addTextChangedListener(new TextWatcher(){
             public void beforeTextChanged(CharSequence s,int st,int cnt,int after){}
             public void onTextChanged(CharSequence s,int st,int before,int count){
@@ -92,14 +97,15 @@ public final class BsaCatalogActivity extends Activity {
         nifOnly.setOnCheckedChangeListener((b,value)->renderResults());
         button(root,"Прочитать первый найденный NIF (только заголовок)",this::inspectFirstNif);
         button(root,"Исследовать блоки выбранного NIF · v1.0",this::inspectNifBlocks);
-        button(root,"Показать BSTriShape в Vulkan · v2.8",this::previewNifGeometry);
-        button(root,"Части NIF · выбрать BSTriShape · v2.8",this::selectNifPart);
-        button(root,"Показать все части NIF в Vulkan · v2.8",this::previewCombinedNif);
-        button(root,"Пути текстур NIF · v2.8",this::inspectNifMaterials);
-        button(root,"Найти DDS в папке Data · v2.8",this::pickDataForDds);
-        button(root,"Заголовки найденных DDS · v2.8",this::inspectFoundDdsHeaders);
-        button(root,"Показать текстуры DDS · BC1/2/3/4/5 · v2.8",this::previewFoundDds);
-        button(root,"Показать NIF с DDS в Vulkan · v2.8",this::previewTexturedNif);
+        button(root,"Показать BSTriShape в Vulkan · v2.9",this::previewNifGeometry);
+        button(root,"Части NIF · выбрать BSTriShape · v2.9",this::selectNifPart);
+        button(root,"Показать все части NIF в Vulkan · v2.9",this::previewCombinedNif);
+        button(root,"Пути текстур NIF · v2.9",this::inspectNifMaterials);
+        button(root,"Найти DDS в папке Data · v2.9",this::pickDataForDds);
+        button(root,"Изменить папку Data · v2.9",this::chooseDataFolder);
+        button(root,"Заголовки найденных DDS · v2.9",this::inspectFoundDdsHeaders);
+        button(root,"Показать текстуры DDS · BC1/2/3/4/5 · v2.9",this::previewFoundDds);
+        button(root,"Показать NIF с DDS в Vulkan · v2.9",this::previewTexturedNif);
         button(root,"Скопировать список и отчёт",this::copyReport);
         button(root,"Назад",this::finish);
         summary=text("Выбери BSA-файл из памяти телефона. Архив будет открыт только на чтение.",14,0xffeeeeee);
@@ -114,6 +120,7 @@ public final class BsaCatalogActivity extends Activity {
         inspectionOutput=text("Выбранный NIF ещё не проверялся.",13,0xffd9c1ff);
         inspectionOutput.setTextIsSelectable(true);root.addView(inspectionOutput);
         setContentView(scroll);
+        restoreSavedSession();
     }
     private int dp(float a){return (int)(a*getResources().getDisplayMetrics().density+.5f);}
     private TextView text(String s,int sp,int color){TextView t=new TextView(this);t.setText(s);t.setTextColor(color);t.setTextSize(sp);t.setPadding(0,dp(9),0,dp(9));return t;}
@@ -145,6 +152,7 @@ public final class BsaCatalogActivity extends Activity {
         if(!nifOnly.isChecked())nifOnly.setChecked(true);
         filter.setText(entry.path);
         filter.setSelection(filter.length());
+        savedSession.saveModel(currentUri,entry.path);
         selectedLabel.setText("Выбрана NIF: "+entry.path+
             "\nТеперь кнопки частей, общей сцены и DDS используют именно этот файл.");
         inspectionOutput.setText("Выбрана модель: "+entry.path+
@@ -169,36 +177,164 @@ public final class BsaCatalogActivity extends Activity {
             .setItems(labels,(dialog,index)->chooseNif(options.get(index)))
             .setNegativeButton("Отмена",null).show();
     }
+    /** Last eight exact NIF paths within the currently open BSA. */
+    private void showRecentNif(){
+        if(catalog==null||currentUri==null){
+            inspectionOutput.setText("Сначала открой архив BSA.");return;
+        }
+        List<String> recent=savedSession.recentModels(currentUri);
+        if(recent.isEmpty()){
+            inspectionOutput.setText("Недавних моделей пока нет. Выбери NIF из каталога.");
+            return;
+        }
+        String[] names=recent.toArray(new String[0]);
+        new AlertDialog.Builder(this)
+            .setTitle("Недавние NIF · до 8 моделей")
+            .setItems(names,(dialog,index)->{
+                List<BsaCatalogReader.Entry> found=NifCatalogSelection.matches(
+                    catalog,names[index],"");
+                if(found.isEmpty()){
+                    inspectionOutput.setText("Модель больше не найдена в BSA: "+names[index]);
+                    return;
+                }
+                chooseNif(found.get(0));
+            })
+            .setNegativeButton("Закрыть",null).show();
+    }
+
+    /** Auto-reopen the last archive only when the Android SAF read grant survives
+     * a process restart. Earlier (v2.8) selections need to be chosen once again. */
+    private void restoreSavedSession(){
+        Uri savedArchive=savedSession.lastArchive();
+        Uri savedTree=savedSession.lastDataTree();
+        if(savedArchive==null){
+            inspectionOutput.setText("Сохранённого BSA с постоянным доступом пока нет. "+
+                "Выбери архив один раз в v2.9; затем он будет открываться автоматически."+
+                (savedTree!=null?"\nРазрешение на папку Data сохранено.":""));
+            return;
+        }
+        openCatalog(savedArchive,savedSession.archiveDisplayName(),true);
+    }
+
+    /** One async loader for manual and automatic selection; prevents a stale
+     * worker from replacing a more recently selected archive. */
+    private void openCatalog(Uri uri,String displayName,boolean restored){
+        final long request=++archiveLoadSequence;
+        summary.setText((restored?"Восстанавливаю последний BSA: ":"Читаю BSA: ")+
+            displayName+"…");
+        results.setText("");
+        catalog=null;currentUri=null;
+        selectedNifPath="";selectedNifArchive=null;
+        clearMaterialSelection();
+        selectedLabel.setText("NIF не выбрана. Проверяю содержимое архива…");
+        inspectionOutput.setText("Чтение каталога BSA только для просмотра.");
+        new Thread(()->{
+            try(InputStream in=getContentResolver().openInputStream(uri)){
+                if(in==null)throw new IOException("Нет доступа к сохранённому архиву");
+                BsaCatalogReader.Catalog found=BsaCatalogReader.read(in);
+                runOnUiThread(()->{
+                    if(destroyed||request!=archiveLoadSequence)return;
+                    currentName=displayName;catalog=found;currentUri=uri;
+                    // Persist archive only if the SAF grant is durable.
+                    if(savedSession.hasReadPermission(uri))
+                        savedSession.saveArchive(uri,displayName);
+                    String priorNif=savedSession.lastModel(uri);
+                    List<BsaCatalogReader.Entry> exact=
+                        NifCatalogSelection.matches(found,priorNif,"");
+                    boolean valid=!priorNif.isEmpty()&&!exact.isEmpty()&&
+                        priorNif.equals(exact.get(0).path);
+                    if(valid){
+                        // Set the EditText first so its watcher cannot clear the
+                        // remembered explicit model during recovery.
+                        filter.setText(priorNif);
+                        nifOnly.setChecked(true);
+                        selectedNifPath=priorNif;selectedNifArchive=uri;
+                        selectedLabel.setText("Автовосстановление NIF: "+priorNif);
+                        inspectionOutput.setText("Архив и NIF восстановлены. "+
+                            "Для DDS нажми «Найти DDS» — папка Data тоже запоминается.");
+                    }else{
+                        if(!priorNif.isEmpty())savedSession.clearModel();
+                        filter.setText("");
+                        selectedLabel.setText("NIF не выбрана. Нажми имя в каталоге.");
+                        inspectionOutput.setText(restored?
+                            "Архив восстановлен. Предыдущая NIF больше не найдена — выбери другую.":
+                            "Архив открыт. Выбери нужную NIF нажатием на имя.");
+                    }
+                    renderResults();
+                    // Reading only one selected NIF is bounded; DDS discovery is
+                    // deliberately not started until the user requests it.
+                    if(valid)inspectNifMaterials();
+                });
+            }catch(Exception ex){
+                runOnUiThread(()->{
+                    if(destroyed||request!=archiveLoadSequence)return;
+                    if(restored)savedSession.clearArchive();
+                    summary.setText("Ошибка чтения "+
+                        (restored?"сохранённого ":"")+"BSA: "+ex.getMessage());
+                    results.setText("Выбери архив BSA вручную. "+
+                        "Файлы Skyrim не изменены.");
+                    selectedLabel.setText("Автоматическое восстановление недоступно.");
+                    inspectionOutput.setText("Проверь, не был ли архив перемещён "+
+                        "и не отозван ли доступ Android к нему.");
+                });
+            }
+        },"bsa-v29-restore-or-load").start();
+    }
+
+    /** Clear remembered paths; does not delete the BSA, NIF or DDS files. */
+    private void forgetSavedPaths(){
+        savedSession.forgetAll();
+        ++archiveLoadSequence;
+        currentUri=null;catalog=null;currentName="";
+        selectedNifPath="";selectedNifArchive=null;
+        clearMaterialSelection();
+        filter.setText("");
+        results.setText("");
+        summary.setText("Сохранённые пути и разрешения очищены. Выбери BSA снова.");
+        selectedLabel.setText("NIF не выбрана.");
+        inspectionOutput.setText("Автовосстановление очищено. "+
+            "Файлы Skyrim не изменены.");
+    }
+
     private void pick(){
         Intent i=new Intent(Intent.ACTION_OPEN_DOCUMENT);
         i.addCategory(Intent.CATEGORY_OPENABLE);
-        i.setType("*/*");i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        i.setType("*/*");
+        i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION |
+            Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
         startActivityForResult(i,PICK_BSA);
     }
     @Override protected void onActivityResult(int request,int result,Intent data){
         super.onActivityResult(request,result,data);
         if(result!=RESULT_OK||data==null||data.getData()==null)return;
-        if(request==PICK_DATA){scanDdsInTree(data.getData());return;}
+        if(request==PICK_DATA){
+            Uri tree=data.getData();
+            if(savedSession.retainReadPermission(tree)){
+                savedSession.saveDataTree(tree);
+                if(materialBsaUri!=null&&!materialDdsPaths.isEmpty())
+                    scanDdsInTree(tree);
+                else inspectionOutput.setText("Папка Data запомнена. "+
+                    "Теперь выбери NIF и прочитай пути DDS.");
+            }else{
+                savedSession.clearDataTree();
+                if(materialBsaUri!=null&&!materialDdsPaths.isEmpty())
+                    scanDdsInTree(tree);
+                else inspectionOutput.setText("Папка Data доступна временно, "+
+                    "но Android не дал разрешение сохранить доступ.");
+            }
+            return;
+        }
         if(request!=PICK_BSA)return;
         final Uri uri=data.getData();
+        boolean canKeep=savedSession.retainReadPermission(uri);
+        if(!canKeep)savedSession.clearArchive();
         String name="Выбранный BSA";
         try(Cursor c=getContentResolver().query(uri,new String[]{OpenableColumns.DISPLAY_NAME},null,null,null)){
             if(c!=null&&c.moveToFirst())name=c.getString(0);
         }catch(Exception ignored){}
-        final String chosen=name;
-        summary.setText("Читаю метаданные: "+chosen+"…");results.setText("");catalog=null;currentUri=null;
-        selectedNifPath="";selectedNifArchive=null;
-        clearMaterialSelection();
-        selectedLabel.setText("NIF не выбрана. Нажми имя в результатах или «Выбрать NIF из списка».");
-        inspectionOutput.setText("Выбранный NIF ещё не проверялся.");
-        new Thread(()->{
-            try(InputStream in=getContentResolver().openInputStream(uri)){
-                BsaCatalogReader.Catalog found=BsaCatalogReader.read(in);
-                runOnUiThread(()->{if(destroyed)return;currentName=chosen;catalog=found;currentUri=uri;renderResults();});
-            }catch(Exception e){
-                runOnUiThread(()->{if(destroyed)return;summary.setText("Ошибка чтения каталога: "+e.getMessage());results.setText("Файл не изменён.");});
-            }
-        },"bsa-v105-catalog").start();
+        openCatalog(uri,name,false);
+        if(!canKeep)selectedLabel.setText("Android разрешил BSA только на эту сессию; "+
+            "для автозагрузки нужен постоянный доступ к документу.");
     }
     private void renderResults(){
         if(catalog==null||summary==null||results==null)return;
@@ -208,6 +344,9 @@ public final class BsaCatalogActivity extends Activity {
             "\nИндекс поиска: "+c.indexedCount+" / "+c.fileCount+
             (c.partialIndex?" (ограничение объёма; поиск неполный)":" (полный)")+
             "\nЧтение только каталога; данные файлов не распакованы и не изменены.";
+        if(currentUri!=null&&!savedSession.hasReadPermission(currentUri))
+            info+="\nВнимание: Android предоставил только временный доступ к BSA. "+
+                "При следующем открытии каталога его понадобится выбрать заново.";
         summary.setText(info);
         List<BsaCatalogReader.Entry> found=c.find(filter.getText().toString(),nifOnly.isChecked(),60);
         SpannableStringBuilder b=new SpannableStringBuilder(
@@ -311,7 +450,7 @@ public final class BsaCatalogActivity extends Activity {
         },"nif-v13-geometry").start();
     }
 
-    /** v2.8: choose among static BSTriShape blocks without assuming material links.
+    /** v2.9: choose among static BSTriShape blocks without assuming material links.
      * Reads one bounded NIF entry on a worker thread. Mesh bytes stay in memory.
      */
     private void selectNifPart(){
@@ -368,7 +507,7 @@ public final class BsaCatalogActivity extends Activity {
         },"nif-v26-part-selector").start();
     }
 
-    /** v2.8: read a single BSA NIF once and preview all VALID static BSTriShape
+    /** v2.9: read a single BSA NIF once and preview all VALID static BSTriShape
      * blocks together with a common normalization. Deliberately no DDS.
      */
     private void previewCombinedNif(){
@@ -441,7 +580,7 @@ public final class BsaCatalogActivity extends Activity {
                 final List<String> safeTargets=candidates.isEmpty()?Collections.emptyList():
                     new ArrayList<>(DdsArchiveFinder.targets(candidates).values());
                 final String report="Ресурс: "+entry.path+"\n"+m.report()+
-                    "\n\nПоиск v2.8: "+safeTargets.size()+" подходящих путей DDS"+
+                    "\n\nПоиск v2.9: "+safeTargets.size()+" подходящих путей DDS"+
                     (unsupported>0?" · неподдерживаемых или сверх лимита: "+unsupported:"")+". "+
                     "Нажми «Найти DDS в папке Data» и выбери каталог игры Data.";
                 runOnUiThread(()->{
@@ -460,7 +599,7 @@ public final class BsaCatalogActivity extends Activity {
     /** User grants read-only access to the containing Data directory via SAF. */
     private void pickDataForDds(){
         if(currentUri==null||materialBsaUri==null||!currentUri.equals(materialBsaUri)||materialDdsPaths.isEmpty()){
-            inspectionOutput.setText("Сначала выбери NIF и нажми «Пути текстур NIF · v2.8». "+
+            inspectionOutput.setText("Сначала выбери NIF и нажми «Пути текстур NIF · v2.9». "+
                 "После получения путей DDS можно искать их в папке Data.");return;
         }
         List<BsaCatalogReader.Entry> found=catalog==null?Collections.emptyList():
@@ -468,8 +607,19 @@ public final class BsaCatalogActivity extends Activity {
         if(found.isEmpty()||!found.get(0).path.equals(materialNifPath)){
             inspectionOutput.setText("Выбран другой NIF. Повтори «Пути текстур NIF», затем поиск DDS.");return;
         }
+        Uri remembered=savedSession.lastDataTree();
+        if(remembered!=null){
+            scanDdsInTree(remembered);
+            return;
+        }
+        chooseDataFolder();
+    }
+
+    /** Explicit replacement is always available, even with a saved Data URI. */
+    private void chooseDataFolder(){
         Intent intent=new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
-        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION |
+            Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
         startActivityForResult(intent,PICK_DATA);
     }
 
@@ -539,7 +689,7 @@ public final class BsaCatalogActivity extends Activity {
                     if(destroyed||!nifUri.equals(currentUri))return;
                     final int checked=read;
                     runOnUiThread(()->{if(!destroyed&&nifUri.equals(currentUri))
-                        inspectionOutput.setText("Поиск DDS v2.8: проверено "+checked+" из "+docs.size()+
+                        inspectionOutput.setText("Поиск DDS v2.9: проверено "+checked+" из "+docs.size()+
                             " BSA…\nТолько индексы имён, без распаковки.");});
                     try(InputStream in=getContentResolver().openInputStream(doc.uri)){
                         if(in==null)throw new IOException("Невозможно открыть архив");
@@ -554,7 +704,7 @@ public final class BsaCatalogActivity extends Activity {
                         if(failures.size()<10)failures.add(doc.name+": "+ex.getMessage());
                     }
                 }
-                StringBuilder out=new StringBuilder("Поиск DDS v2.8 · только каталоги BSA\n");
+                StringBuilder out=new StringBuilder("Поиск DDS v2.9 · только каталоги BSA\n");
                 out.append("Исходный NIF: ").append(nifName).append('\n');
                 out.append("BSA в Data: ").append(docs.size()).append(" · прочитано: ").append(read)
                    .append(" · ошибок: ").append(docs.size()-read).append(" · частичных индексов: ")
@@ -583,7 +733,7 @@ public final class BsaCatalogActivity extends Activity {
                     if(!destroyed&&nifUri.equals(currentUri)&&nifName.equals(materialNifPath)){
                         foundDds=Collections.unmodifiableList(new ArrayList<>(located));
                         lastDdsSearchReport=report;
-                        inspectionOutput.setText(report+"\n\nНажми «Заголовки найденных DDS · v2.8» для проверки формата изображений.");
+                        inspectionOutput.setText(report+"\n\nНажми «Заголовки найденных DDS · v2.9» для проверки формата изображений.");
                     }
                 });
             }catch(Exception e){
@@ -606,7 +756,7 @@ public final class BsaCatalogActivity extends Activity {
         inspectionOutput.setText("Проверяю заголовки "+entries.size()+" найденных DDS…\nТекстуры не декодируются и не записываются.");
         new Thread(()->{
             StringBuilder report=new StringBuilder(searchReport);
-            report.append("\n\nЗаголовки DDS v2.8 · только чтение выбранных записей BSA\n");
+            report.append("\n\nЗаголовки DDS v2.9 · только чтение выбранных записей BSA\n");
             int checked=0,failed=0;
             // Prefer the first matching BSA entry for each canonical texture path.
             java.util.HashSet<String> seen=new java.util.HashSet<>();
@@ -639,7 +789,7 @@ public final class BsaCatalogActivity extends Activity {
         },"dds-v17-single-header-reader").start();
     }
 
-    /** v2.8: CPU decode only the first mip of up to four explicitly matched DDS records. */
+    /** v2.9: CPU decode only the first mip of up to four explicitly matched DDS records. */
     private void previewFoundDds(){
         final Uri nifUri=currentUri;
         if(nifUri==null||materialBsaUri==null||!nifUri.equals(materialBsaUri)||foundDds.isEmpty()){
@@ -653,7 +803,7 @@ public final class BsaCatalogActivity extends Activity {
             ArrayList<DdsBcDecoder.Image> images=new ArrayList<>();
             ArrayList<String> names=new ArrayList<>();
             java.util.HashSet<String> used=new java.util.HashSet<>();
-            StringBuilder report=new StringBuilder("Предпросмотр DDS v2.8 · BC1/2/3/4/5\n");
+            StringBuilder report=new StringBuilder("Предпросмотр DDS v2.9 · BC1/2/3/4/5\n");
             for(LocatedDds item:matches){
                 if(destroyed||!nifUri.equals(currentUri))return;
                 String key;
@@ -704,7 +854,7 @@ public final class BsaCatalogActivity extends Activity {
     }
 
     /**
-     * v2.8 opt-in diffuse-only preview. Requires an explicitly selected NIF,
+     * v2.9 opt-in diffuse-only preview. Requires an explicitly selected NIF,
      * a single BSShaderTextureSet and a matched diffuse DDS in the granted Data tree.
      * All BSA reads are bounded and read-only; multi-material NIFs are refused.
      */
@@ -826,7 +976,7 @@ public final class BsaCatalogActivity extends Activity {
 
     private void copyReport(){
         ClipboardManager cb=(ClipboardManager)getSystemService(Context.CLIPBOARD_SERVICE);
-        if(cb!=null)cb.setPrimaryClip(ClipData.newPlainText("Skyrim SE BSA v2.8",summary.getText()+"\n\n"+results.getText()+"\n\n"+inspectionOutput.getText()));
+        if(cb!=null)cb.setPrimaryClip(ClipData.newPlainText("Skyrim SE BSA v2.9",summary.getText()+"\n\n"+results.getText()+"\n\n"+inspectionOutput.getText()));
     }
     @Override protected void onDestroy(){destroyed=true;super.onDestroy();}
 }
