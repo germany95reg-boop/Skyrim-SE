@@ -10,7 +10,12 @@ android {
         targetSdk 34
         versionCode 36
         versionName '2.13.0'
-        ndk { abiFilters 'arm64-v8a' }
+        testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
+        ndk {
+            // Real APK remains ARM64-only. CI emulator additionally needs x86_64.
+            abiFilters 'arm64-v8a'
+            if (project.hasProperty('ciEmulator')) abiFilters 'x86_64'
+        }
         externalNativeBuild {
             cmake { cppFlags '-std=c++17 -Wall -Wextra' }
         }
@@ -45,4 +50,8 @@ android {
 }
 
 // Skyrim SE BSA 105 uses LZ4 frame compression; use pure-Java decoder on ARM64.
-dependencies { implementation 'org.lz4:lz4-java:1.8.0' }
+dependencies {
+    implementation 'org.lz4:lz4-java:1.8.0'
+    androidTestImplementation 'androidx.test:core:1.6.1'
+    androidTestImplementation 'androidx.test.ext:junit:1.2.1'
+}
