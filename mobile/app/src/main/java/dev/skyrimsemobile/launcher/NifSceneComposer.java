@@ -5,14 +5,12 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * v2.7 diagnostic composite: join separately decoded static BSTriShape geometry
- * in one common coordinate system. This is geometry-only; the per-part local
- * NiAVObject transform was already applied by NifGeometryDecoder. Parent
- * NiNode/BSFadeNode transforms and per-shape materials are NOT interpreted.
+ * Read-only composite static SSE NIF scene: reconstruct shape-local geometry,
+ * apply the validated NiNode/BSFadeNode ancestor chain, and normalize ONCE.
+ * Vertex ordering stays unchanged for per-BSTriShape diffuse DDS atlas slots.
  */
 public final class NifSceneComposer {
     private NifSceneComposer(){}
-    /** Native Vulkan accepts at most 30,000 distinct wire edges and 30,000 faces. */
     public static final int MAX_EDGES=30000,MAX_TRIANGLES=30000;
 
     public static final class Combined {
@@ -26,13 +24,11 @@ public final class NifSceneComposer {
             this.skipped=skipped;triangleCount=faces;this.info=info;
         }
     }
-    /** Merge all valid parts. Invalid blocks are explicitly counted, not hidden.
-     * Never substitute the individual shape's normalization for the global one.
-     */
+
     public static Combined combine(NifGeometryDecoder.Parts parts)throws IOException{
         if(parts==null||parts.items==null||parts.items.isEmpty())
             throw new IOException("Нет частей NIF для объединения");
-        List<NifGeometryDecoder.Mesh> meshes=new ArrayList<>();
+        List<NifGeometryDecoder.Part> validParts=new ArrayList<>();
         int edges=0,triangles=0,vertices=0,skipped=0;
         StringBuilder ids=new StringBuilder();
         for(NifGeometryDecoder.Part part:parts.items){
@@ -46,22 +42,24 @@ public final class NifSceneComposer {
                 throw new IOException("Составная модель превышает предел Vulkan: "+
                     MAX_EDGES+" рёбер / "+MAX_TRIANGLES+" треугольников");
             edges+=e;triangles+=t;vertices+=mesh.lines.vertices;
-            meshes.add(mesh);
+            validParts.add(part);
             if(ids.length()>0)ids.append(", ");
             ids.append('#').append(part.blockIndex);
         }
-        if(meshes.isEmpty())throw new IOException("Все части NIF неподдерживаемые");
+        if(validParts.isEmpty())throw new IOException("Все части NIF неподдерживаемые");
 
         double[] lo={Double.POSITIVE_INFINITY,Double.POSITIVE_INFINITY,Double.POSITIVE_INFINITY};
         double[] hi={Double.NEGATIVE_INFINITY,Double.NEGATIVE_INFINITY,Double.NEGATIVE_INFINITY};
-        for(NifGeometryDecoder.Mesh m:meshes){
-            // Every face uses existing validated wire endpoints; preserve exact
-            // relative placement using original shape-local bounding box.
-            for(int i=0;i<m.lines.segments.length;i+=3)for(int k=0;k<3;k++){
-                double p=world(m,m.lines.segments[i+k],k);
-                if(!Double.isFinite(p))throw new IOException("Некорректная координата при объединении");
-                lo[k]=Math.min(lo[k],p);
-                hi[k]=Math.max(hi[k],p);
+        for(NifGeometryDecoder.Part part:validParts){
+            NifGeometryDecoder.Mesh m=part.mesh;
+            NifHierarchyTransforms.Transform parent=parts.parentTransforms.get(part.blockIndex);
+            // Bounds from actual used wire endpoints, not an approximate transformed AABB.
+            for(int i=0;i<m.lines.segments.length;i+=3){
+                double[] p=world(m,m.lines.segments,i,parent);
+                for(int k=0;k<3;k++){
+                    lo[k]=Math.min(lo[k],p[k]);
+                    hi[k]=Math.max(hi[k],p[k]);
+                }
             }
         }
         double span=Math.max(hi[0]-lo[0],Math.max(hi[1]-lo[1],hi[2]-lo[2]));
@@ -71,29 +69,37 @@ public final class NifSceneComposer {
         float[] combinedLines=new float[edges*6];
         float[] combinedTriangles=new float[triangles*9];
         int lp=0,tp=0;
-        for(NifGeometryDecoder.Mesh m:meshes){
-            for(int i=0;i<m.lines.segments.length;i++)
-                combinedLines[lp++]=normal(world(m,m.lines.segments[i],i%3),
-                                           lo[i%3],span);
-            for(int i=0;i<m.surfaceTriangles.length;i++)
-                combinedTriangles[tp++]=normal(world(m,m.surfaceTriangles[i],i%3),
-                                               lo[i%3],span);
+        for(NifGeometryDecoder.Part part:validParts){
+            NifGeometryDecoder.Mesh m=part.mesh;
+            NifHierarchyTransforms.Transform parent=parts.parentTransforms.get(part.blockIndex);
+            for(int i=0;i<m.lines.segments.length;i+=3){
+                double[] p=world(m,m.lines.segments,i,parent);
+                for(int k=0;k<3;k++)combinedLines[lp++]=normal(p[k],lo[k],span);
+            }
+            for(int i=0;i<m.surfaceTriangles.length;i+=3){
+                double[] p=world(m,m.surfaceTriangles,i,parent);
+                for(int k=0;k<3;k++)combinedTriangles[tp++]=normal(p[k],lo[k],span);
+            }
         }
-        String label="Частей: "+meshes.size()+" · пропущено: "+skipped+
+        String label="Частей: "+validParts.size()+" · пропущено: "+skipped+
             " · треугольников: "+triangles+" · рёбер: "+edges+
             "\nБлоки: "+ids+
-            "\nОдин общий масштаб с сохранением взаимного расположения "+
-            "локально преобразованных геометрических частей."+
-            "\nЭто диагностический просмотр БЕЗ DDS. Родительские "+
-            "NiNode/BSFadeNode-преобразования не учитываются; "+
-            "расположение в сложной сцене может отличаться от Skyrim."+
+            "\nОбщий масштаб с локальными преобразованиями BSTriShape"+
+            " и проверенными NiNode/BSFadeNode родительскими преобразованиями."+
+            "\n"+parts.hierarchyNote+
+            "\nДиагностический просмотр БЕЗ DDS на этом экране;"+
+            " анимация и скелет не интерпретируются."+
             "\nИгровой BSA не изменён.";
         return new Combined(new ObjWireParser.Model(combinedLines,vertices,edges),
-                            combinedTriangles,meshes.size(),skipped,triangles,label);
+                            combinedTriangles,validParts.size(),skipped,triangles,label);
     }
-    private static double world(NifGeometryDecoder.Mesh m,float normalized,int axis){
-        return m.localMin[axis]+
-            ((double)normalized*0.5+0.5)*m.localSpan;
+    private static double[] world(NifGeometryDecoder.Mesh mesh,float[] array,int offset,
+                                  NifHierarchyTransforms.Transform parent)throws IOException{
+        double x=mesh.localMin[0]+((double)array[offset]*0.5+0.5)*mesh.localSpan;
+        double y=mesh.localMin[1]+((double)array[offset+1]*0.5+0.5)*mesh.localSpan;
+        double z=mesh.localMin[2]+((double)array[offset+2]*0.5+0.5)*mesh.localSpan;
+        if(parent!=null)return parent.apply(x,y,z);
+        return new double[]{x,y,z};
     }
     private static float normal(double original,double minimum,double span)throws IOException{
         double n=(original-minimum)/span*2.0-1.0;
