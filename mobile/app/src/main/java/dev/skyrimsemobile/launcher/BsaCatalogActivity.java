@@ -682,16 +682,15 @@ public final class BsaCatalogActivity extends Activity {
                         LocatedDds normalHit=findLocatedDds(matches,link.normal);
                         if(normalHit==null)throw new IOException("не найдена в BSA");
                         DdsBcDecoder.Image candidate=readLocatedDds(normalHit);
-                        if(candidate.width!=image.width||candidate.height!=image.height)
-                            throw new IOException("отличается размер DDS");
                         if(!candidate.format.startsWith("BC3")&&
                            !candidate.format.startsWith("BC5")&&
                            !"RGBA8".equals(candidate.format)&&
                            !"BGRA8".equals(candidate.format))
                             throw new IOException("неподдерживаемый формат "+candidate.format);
-                        normal=candidate;
-                        normalInfo="Нормали: "+candidate.width+"×"+candidate.height+
-                            " · "+candidate.format;
+                        boolean resized=candidate.width!=image.width||candidate.height!=image.height;
+                        normal=DdsNormalResampler.match(candidate,image.width,image.height);
+                        normalInfo="Нормали: "+normal.width+"×"+normal.height+
+                            " · "+normal.format+(resized?" · масштабирована для просмотра":"");
                     }catch(Exception optional){
                         normalInfo="Карта нормалей пропущена: "+optional.getMessage();
                     }
@@ -1302,11 +1301,10 @@ public final class BsaCatalogActivity extends Activity {
                                    !"RGBA8".equals(candidate.format)&&
                                    !"BGRA8".equals(candidate.format))
                                     throw new IOException("Неподдерживаемый normal DDS: "+candidate.format);
-                                if(candidate.width!=pixels.width||candidate.height!=pixels.height)
-                                    throw new IOException("normal DDS отличается по размеру");
-                                normalImage=candidate;
-                                normalStatus="нормали: "+candidate.width+"×"+candidate.height+
-                                    " · "+candidate.format;
+                                boolean resized=candidate.width!=pixels.width||candidate.height!=pixels.height;
+                                normalImage=DdsNormalResampler.match(candidate,pixels.width,pixels.height);
+                                normalStatus="нормали: "+normalImage.width+"×"+normalImage.height+
+                                    " · "+normalImage.format+(resized?" · масштабирована для просмотра":"");
                             }
                         }else normalStatus="normal DDS не найдена в Data";
                     }catch(Exception normalError){
