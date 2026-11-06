@@ -1,7 +1,5 @@
-name: Skyrim SE Mobile Vulkan 3D APK v2.6 — NIF Parts
+name: Skyrim SE Mobile Vulkan 3D APK v2.6 (archived)
 on:
-  push:
-    branches: [main, development/v2.6-nif-parts]
   workflow_dispatch:
 
 jobs:
