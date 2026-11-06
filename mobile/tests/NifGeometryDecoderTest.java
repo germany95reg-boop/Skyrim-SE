@@ -123,6 +123,34 @@ public final class NifGeometryDecoderTest {
         ok(partial.items.get(1).mesh==null&&partial.items.get(1).problem!=null,
             "invalid part described without rendering");
         ok(partial.items.get(0).mesh!=null,"first part unaffected by second failure");
+        NifSceneComposer.Combined same=NifSceneComposer.combine(multi);
+        ok(same.included==2&&same.skipped==0,"two shapes compose");
+        ok(same.lines.edges==6&&same.triangleCount==2,"combined geometry counts");
+        ok(same.triangles.length==18&&same.lines.segments.length==36,
+            "one shared line and triangle buffers");
+        ok(same.info.contains("БЕЗ DDS"),"no invented material mapping");
+        // Translate the second shape +10 X; independent per-part normalization
+        // would overlap both copies. A correctly composed model must separate them.
+        byte[] moved=multiBytes.clone();
+        set32(moved,secondAt+16,Float.floatToIntBits(10f));
+        NifGeometryDecoder.Parts separated=NifGeometryDecoder.scan(moved);
+        NifSceneComposer.Combined all=NifSceneComposer.combine(separated);
+        ok(all.triangles[0]<all.triangles[9],"shared coordinates retain X separation");
+        ok(all.triangles[3]<all.triangles[12],"translated second part stays to the right");
+        for(float f:all.triangles)
+            ok(Float.isFinite(f)&&Math.abs(f)<=1.0001f,"bounded composite triangle");
+        for(float f:all.lines.segments)
+            ok(Float.isFinite(f)&&Math.abs(f)<=1.0001f,"bounded composite line");
+        NifSceneComposer.Combined salvage=NifSceneComposer.combine(partial);
+        ok(salvage.included==1&&salvage.skipped==1,"bad part reported as skipped");
+        ok(salvage.triangleCount==1,"valid first part remains visible");
+        try{
+            byte[] allBroken=multiBytes.clone();
+            set64(allBroken,multiTable.blocks.get(0).byteOffset+100,0);
+            set64(allBroken,multiTable.blocks.get(1).byteOffset+100,0);
+            NifSceneComposer.combine(NifGeometryDecoder.scan(allBroken));
+            throw new AssertionError("accepted zero valid meshes");
+        }catch(IOException expected){checks++;}
         byte[] uvBytes=validUv();
         NifGeometryDecoder.Mesh textured=NifGeometryDecoder.decode(uvBytes);
         ok(textured.stride==20 && textured.surfaceUVs.length==6,"UV stride and triangle count");
