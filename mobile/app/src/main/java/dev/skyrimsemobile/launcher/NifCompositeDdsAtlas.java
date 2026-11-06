@@ -31,6 +31,29 @@ public final class NifCompositeDdsAtlas {
 
     public static Result build(NifGeometryDecoder.Parts parts,NifSceneComposer.Combined scene,
                                Map<Integer,DdsBcDecoder.Image> perShape)throws IOException{
+        return buildInternal(parts,scene,perShape,null);
+    }
+
+    /**
+     * Paired-material atlas: two parts sharing ONE diffuse DDS can use DIFFERENT
+     * normal DDS without corrupting each other's shader material slot.
+     * Cache and dedup are per (diffuse identity, normal identity) pair, not
+     * diffuse alone. This keeps exact per-BSTriShape texture-set associations.
+     * The ordinary build() remains binary/visually compatible with v2.18.
+     */
+    public static Result buildPaired(NifGeometryDecoder.Parts parts,
+                                     NifSceneComposer.Combined scene,
+                                     Map<Integer,DdsBcDecoder.Image> perDiffuse,
+                                     Map<Integer,DdsBcDecoder.Image> perNormal)
+                                     throws IOException {
+        if(perNormal==null)throw new IOException("Нет карты normal DDS по частям NIF");
+        return buildInternal(parts,scene,perDiffuse,perNormal);
+    }
+
+    private static Result buildInternal(NifGeometryDecoder.Parts parts,
+                               NifSceneComposer.Combined scene,
+                               Map<Integer,DdsBcDecoder.Image> perShape,
+                               Map<Integer,DdsBcDecoder.Image> perNormal)throws IOException{
         if(parts==null||scene==null||scene.triangles==null||perShape==null)
             throw new IOException("Нет составной геометрии или материалов NIF");
         if(scene.triangleCount<1||scene.triangleCount>NifSceneComposer.MAX_TRIANGLES||
@@ -43,6 +66,8 @@ public final class NifCompositeDdsAtlas {
         List<DdsBcDecoder.Image> tiles=new ArrayList<>();
         tiles.add(null);
         IdentityHashMap<DdsBcDecoder.Image,Integer> slots=new IdentityHashMap<>();
+        IdentityHashMap<DdsBcDecoder.Image,
+            IdentityHashMap<DdsBcDecoder.Image,Integer>> pairs=new IdentityHashMap<>();
         float[] packed=new float[scene.triangleCount*9];
         int vertexOffset=0,neutralParts=0;
         for(NifGeometryDecoder.Part part:parts.items){
@@ -58,10 +83,28 @@ public final class NifCompositeDdsAtlas {
                 if(image.width<1||image.height<1||image.width>2048||image.height>2048||
                    image.argb==null||image.argb.length!=(long)image.width*image.height)
                     throw new IOException("Повреждённый первый mip DDS у части #"+part.blockIndex);
-                Integer previous=slots.get(image);
+                // Pair identity matters only in paired mode: otherwise
+                // retain the old exact diffuse-only material slot behavior.
+                DdsBcDecoder.Image normal=perNormal==null?null:
+                    perNormal.get(part.blockIndex);
+                if(perNormal!=null&&normal!=null &&
+                   (normal.width<1||normal.height<1||
+                    normal.width>2048||normal.height>2048||normal.argb==null||
+                    normal.argb.length!=(long)normal.width*normal.height))
+                    throw new IOException("Повреждённая normal DDS у #"+part.blockIndex);
+                IdentityHashMap<DdsBcDecoder.Image,Integer> normalSlots=
+                    perNormal==null?null:pairs.get(image);
+                if(perNormal!=null&&normalSlots==null){
+                    normalSlots=new IdentityHashMap<>();
+                    pairs.put(image,normalSlots);
+                }
+                Integer previous=perNormal==null?slots.get(image):normalSlots.get(normal);
                 if(previous!=null)slot=previous;
                 else if(tiles.size()<=MAX_TEXTURES){
-                    slot=tiles.size();tiles.add(image);slots.put(image,slot);
+                    slot=tiles.size();
+                    tiles.add(image);
+                    if(perNormal==null)slots.put(image,slot);
+                    else normalSlots.put(normal,slot);
                 }
             }
             if(slot==0)neutralParts++;
