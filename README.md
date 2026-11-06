@@ -1,17 +1,15 @@
-# Skyrim SE Mobile — Vulkan 3D v2.6
+# Skyrim SE Mobile — Vulkan 3D v2.7
 
-Android ARM64/Vulkan inspection of user-provided Skyrim Special Edition BSA/NIF/DDS assets; this is NOT a playable Skyrim engine.
+ARM64 Vulkan viewer of user-approved Skyrim Special Edition NIF/BSA/DDS resources, not a playable Skyrim game.
 
-## New in v2.6: inspect multiple separate static BSTriShape parts
+## v2.7: Composite static NIF preview
 
-- New catalog action **«Части NIF · выбрать BSTriShape · v2.6»** reads a single NIF from a user-approved BSA in memory and presents an ordered dialog of its static BSTriShape blocks.
-- Each part can be opened individually as a geometry-only wireframe/surface in the existing Vulkan viewer. Unsupported parts display a reason without preventing selection of valid parts.
-- Hard limits: 24 parts and 60,000 accepted triangle faces across the scan; the BSA extract retains its existing 8 MiB packed / 16 MiB decoded limits.
-- Existing single-shape preview and textured single-material preview are unchanged, including user-tested compact UI, diffuse/normal DDS, light and gloss controls.
-- **No incorrect DDS mapping**: parts selected via the new action are deliberately untextured because links from shapes to BSLightingShaderProperty / BSShaderTextureSet are not yet reliably resolved.
-- This is a building block toward multi-material NIF, not a completed multi-shape composite renderer. Shape-local transforms are applied, parent node transforms remain unsupported.
-- Existing applicationId `dev.skyrimsemobile.launcher` and persistent private test signing key are preserved; `versionCode 28`, `versionName 2.6.0`, upgrade over signed v2.5.
+- **«Показать все части NIF в Vulkan · v2.7»** combines the valid static `BSTriShape` blocks of one selected NIF into **a single untextured** 3D object.
+- Geometry is transformed by each shape's local matrix, then all parts use the **same shared bounding box and normalization**, preserving their relative position and size. Individual shapes are no longer separately normalized for the combined view.
+- Safe limits match the proven native Vulkan renderer: at most 30,000 distinct wireframe edges and 30,000 triangles; at most 24 scanned shape parts. Invalid parts are explicitly counted as skipped, and zero valid parts is an error.
+- **Scope limitation:** parent NiNode/BSFadeNode transforms, skinning, animations, and per-shape material binding are NOT resolved. This is an approximate diagnostic composite, not a complete reconstruction of Skyrim's scene graph.
+- The earlier individual-part dialog and the previously user-confirmed single-shape **textured diffuse/normal DDS** path are retained. Read-only BSA access; no game data modifications.
+- Tested on synthetic dual-shape files including a second part translated by 10 world units and a partially corrupt NIF; no copyrighted game assets bundled.
+- VersionCode 29 / versionName 2.7.0, unchanged applicationId and persistent private test signing certificate to upgrade on top of v2.6.
 
-Automated tests include synthetic single and double BSTriShape files, invalid second shape handling, CI's BSA/NIF/DDS/Vulkan tests, Android compilation and signing.
-
-[Пошаговая инструкция только внутри приложения](DEVICE_TEST_V26_RU.md)
+Full app-only test instructions: [DEVICE_TEST_V27_RU.md](DEVICE_TEST_V27_RU.md).

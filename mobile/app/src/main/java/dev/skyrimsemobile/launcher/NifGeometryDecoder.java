@@ -48,7 +48,7 @@ public final class NifGeometryDecoder {
             available=ready;
         }
         public String report(){
-            StringBuilder text=new StringBuilder("Части NIF v2.6 · BSTriShape (только чтение)\n");
+            StringBuilder text=new StringBuilder("Части NIF v2.7 · BSTriShape (только чтение)\n");
             text.append("Всего частей: ").append(items.size())
                 .append(" · доступны для Vulkan: ").append(available).append('\n');
             for(Part part:items){
@@ -105,14 +105,19 @@ public final class NifGeometryDecoder {
         public final String shapeType;
         public final float[] rawDimensions, localDimensions, translation;
         public final float localScale;
+        /** Bounds of the used, locally transformed geometry BEFORE per-part normalization. */
+        public final float[] localMin;
+        public final float localSpan;
         Mesh(ObjWireParser.Model lines,float[] surfaceTriangles,float[] surfaceUVs,int shapeIndex,int triangles,int stride,int flags,String type,
-             float[] rawDimensions,float[] localDimensions,float[] translation,float localScale) {
+             float[] rawDimensions,float[] localDimensions,float[] translation,float localScale,
+             float[] localMin,float localSpan) {
             this.lines=lines;this.surfaceTriangles=surfaceTriangles.clone();
             this.surfaceUVs=surfaceUVs.clone();
             this.shapeIndex=shapeIndex;this.triangles=triangles;
             this.stride=stride;this.vertexFlags=flags;this.shapeType=type;
             this.rawDimensions=rawDimensions.clone();this.localDimensions=localDimensions.clone();
             this.translation=translation.clone();this.localScale=localScale;
+            this.localMin=localMin.clone();this.localSpan=localSpan;
         }
         public String report() {
             return "NIF v1.4 · геометрия BSTriShape (каркас + поверхность)\n"+
@@ -276,7 +281,7 @@ public final class NifGeometryDecoder {
         }
         return new Mesh(new ObjWireParser.Model(segments,vertices,edges.size()),surfaceTriangles,surfaceUVs,
             block.index,triangles,stride,attributes,block.type,rawDimensions,localDimensions,
-            translation,localScale);
+            translation,localScale,low,span);
     }
     private static void edge(LinkedHashSet<Long> edges,int a,int b){
         if(a==b)return;int lo=Math.min(a,b),hi=Math.max(a,b);
