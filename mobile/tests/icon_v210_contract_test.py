@@ -24,13 +24,13 @@ for density in ('mdpi','hdpi','xhdpi','xxhdpi','xxxhdpi'):
     for name in ('ic_launcher.png','ic_launcher_round.png'):
         assert (res/('mipmap-'+density)/name).is_file()
 scene=(base/'app/src/main/java/dev/skyrimsemobile/launcher/VulkanSceneActivity.java').read_text()
-assert 'Vulkan 3D · v2.10' in scene
+assert 'Vulkan 3D · v2.10.1' in scene
 assert 'Vulkan 3D · v1.6' not in scene
 for n in ('BsaCatalogActivity.java','ResourceInspectorActivity.java'):
-    assert 'v2.10' in (base/'app/src/main/java/dev/skyrimsemobile/launcher'/n).read_text()
+    assert 'v2.10.1' in (base/'app/src/main/java/dev/skyrimsemobile/launcher'/n).read_text()
 html=(base/'app/src/main/assets/index.html').read_text()
-assert 'Ресурсы v2.10' in html
-assert '3D Vulkan · v2.10' in html
+assert 'Ресурсы v2.10.1' in html
+assert '3D Vulkan · v2.10.1' in html
 gradle=(base/'app/build.gradle').read_text()
-assert 'versionCode 32' in gradle and "versionName '2.10.0'" in gradle
-print('PASS: v2.10 foreground within 72dp adaptive mask, both round/square icons and UI versions')
+assert 'versionCode 33' in gradle and "versionName '2.10.1'" in gradle
+print('PASS: v2.10.1 foreground within 72dp adaptive mask, both round/square icons and UI versions')

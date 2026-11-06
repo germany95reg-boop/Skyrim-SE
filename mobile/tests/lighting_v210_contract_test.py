@@ -30,7 +30,7 @@ checks={
     'vk relights without rebuilding':'previewLightMode.store' in cpp and 'previewReliefStrength.store' in cpp,
     'unchanged selected texture atlas':'selectedNormalAtlas' in cpp,
     'package unchanged':"applicationId 'dev.skyrimsemobile.launcher'" in gradle,
-    'v2.10 version':"versionCode 32" in gradle and "versionName '2.10.0'" in gradle
+    'v2.10.1 version':"versionCode 33" in gradle and "versionName '2.10.1'" in gradle
 }
 assert all(checks.values()),[name for name,ok in checks.items() if not ok]
-print('PASS v2.10 Vulkan preview light and relief contracts:',len(checks),'checks')
+print('PASS v2.10.1 Vulkan preview light and relief contracts:',len(checks),'checks')

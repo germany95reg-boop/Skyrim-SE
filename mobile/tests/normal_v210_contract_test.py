@@ -26,8 +26,8 @@ checks=[
     "cross(dpdx,dpdy)" in frag and "dFdx(uv)" in frag,
     "sqrt(max(0.0,1.0-dot(xy,xy)))" in frag,
     "layout(offset=28) int atlasMode" in frag,
-    "versionCode 32" in gradle and "versionName '2.10.0'" in gradle,
+    "versionCode 33" in gradle and "versionName '2.10.1'" in gradle,
     "openOutputStream" not in cat
 ]
 assert all(checks),[i for i,c in enumerate(checks) if not c]
-print("PASS v2.10 normal map handoff and Vulkan GLSL:",len(checks),"checks")
+print("PASS v2.10.1 normal map handoff and Vulkan GLSL:",len(checks),"checks")
