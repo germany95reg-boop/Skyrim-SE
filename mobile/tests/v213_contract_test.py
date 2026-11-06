@@ -33,7 +33,8 @@ checks={
  "push constants match":"texRange.size=56" in native and "sizeof(TexturedParameters)==56" in native,
  "GLSL push constant grid":"layout(offset=52) int diffuseAtlasGrid" in frag,
  "GLSL flat shader input":"flat in int materialSlot" in frag and "flat out int materialSlot" in vert,
- "GLSL repeats UV inside tile":"diffuseUV=mix(tileMin,tileMax,tiled)" in frag,
+ "GLSL repeats UV inside tile":("diffuseUV=mix(tileMin,tileMax,tiled)" in frag or
+                                "diffuseUV=mix(tileMin+inset,tileMax-inset,tiled)" in frag),
  "normal DDS resize":"DdsNormalResampler.match(candidate,image.width,image.height)" in ui,
  "original single textured preserved":"private void previewTexturedNif()" in ui,
  "composite geometry-only preserved":"private void previewCombinedNif()" in ui,
