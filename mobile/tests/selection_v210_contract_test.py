@@ -7,7 +7,7 @@ gradle=read("app/build.gradle")
 checks={
   "tap paths":"new ClickableSpan()" in ui and "chooseNif(entry)" in ui,
   "clickable text":"LinkMovementMethod.getInstance()" in ui,
-  "chooser dialog":"Выбрать NIF из списка · v2.10" in ui and ".setItems(labels,(dialog,index)->chooseNif(options.get(index)))" in ui,
+  "chooser dialog":"Выбрать NIF из списка · v2.10.1" in ui and ".setItems(labels,(dialog,index)->chooseNif(options.get(index)))" in ui,
   "NIF only chooser":"filter.getText().toString(),true,60" in ui,
   "remember exact choice":"selectedNifPath=entry.path;selectedNifArchive=currentUri" in ui,
   "archive scope":"selectedNifArchive.equals(currentUri)" in ui,
@@ -25,7 +25,7 @@ checks={
   "old composite":"previewCombinedNif()" in ui,
   "old DDS":"previewTexturedNif()" in ui,
   "same app":"applicationId 'dev.skyrimsemobile.launcher'" in gradle,
-  "v2.10":"versionCode 32" in gradle and "versionName '2.10.0'" in gradle
+  "v2.10.1":"versionCode 33" in gradle and "versionName '2.10.1'" in gradle
 }
 assert all(checks.values()),[k for k,v in checks.items() if not v]
-print("PASS v2.10 exact NIF selection and invalidation:",len(checks),"checks")
+print("PASS v2.10.1 exact NIF selection and invalidation:",len(checks),"checks")

@@ -23,16 +23,16 @@ checks={
  "recovery starts materials":"if(valid)inspectNifMaterials();" in ui,
  "manual selection remembered":"savedSession.saveModel(currentUri,entry.path)" in ui,
  "Data tree reused for DDS":"Uri remembered=savedSession.lastDataTree();" in ui and "scanDdsInTree(remembered)" in ui,
- "folder override":"Изменить папку Data · v2.10" in ui and "private void chooseDataFolder()" in ui,
+ "folder override":"Изменить папку Data · v2.10.1" in ui and "private void chooseDataFolder()" in ui,
  "persistable document flags":"Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION" in ui,
  "user forgets paths and grants":"savedSession.forgetAll()" in ui and "releasePersistableUriPermission" in store,
  "bounded history":"public static final int LIMIT=8" in history,
- "history selector":"Недавние модели NIF · v2.10" in ui,
+ "history selector":"Недавние модели NIF · v2.10.1" in ui,
  "history exact match":"NifCatalogSelection.matches(" in ui,
  "old composite still available":"previewCombinedNif()" in ui,
  "old DDS still available":"previewTexturedNif()" in ui,
  "same package":"applicationId 'dev.skyrimsemobile.launcher'" in gradle,
- "version increment":"versionCode 32" in gradle and "versionName '2.10.0'" in gradle,
+ "version increment":"versionCode 33" in gradle and "versionName '2.10.1'" in gradle,
 }
 assert all(checks.values()),[k for k,ok in checks.items() if not ok]
-print("PASS v2.10 SAF path persistence, auto restoration, recent NIFs:",len(checks),"contracts")
+print("PASS v2.10.1 SAF path persistence, auto restoration, recent NIFs:",len(checks),"contracts")

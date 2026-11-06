@@ -25,12 +25,25 @@ public final class NifMaterialLinkInspectorTest {
         for(int i=0;i<4;i++)raw[pos+i]=(byte)(n>>>(i*8));
     }
     static byte[] shader(int textureSet){
-        byte[] b=new byte[64];
-        set(b,0,-1);set(b,4,0);set(b,8,-1); // NiObjectNET
-        set(b,36,textureSet);              // shader flags + UV offset/scale
+        return shader(textureSet,0);
+    }
+    /** Real SSE shader prefix: Shader Type (4 bytes), followed by NiObjectNET
+     * Name, Extra Count, Extra refs and Controller. This is the v2.10.1.1 fix.
+     */
+    static byte[] shader(int textureSet,int extraCount){
+        byte[] b=new byte[68+extraCount*4];
+        set(b,0,1); // shader type: Environment Map (a valid SSE shader type)
+        set(b,4,-1); // NiObjectNET Name (string-table reference)
+        set(b,8,extraCount); // the true extra-data count is at offset +8
+        for(int i=0;i<extraCount;i++)set(b,12+i*4,-1);
+        set(b,12+extraCount*4,-1); // NiObjectNET Controller
+        set(b,40+extraCount*4,textureSet); // set ref after flags + UVs
         return b;
     }
     static byte[] example(){
+        return example(false);
+    }
+    static byte[] example(boolean secondHasExtra){
         byte[] rawShape=NifGeometryDecoderTest.valid();
         byte[] shape=new byte[116+3*16+6];
         System.arraycopy(rawShape,NifGeometryDecoderTest.blockPos,shape,0,shape.length);
@@ -38,7 +51,7 @@ public final class NifMaterialLinkInspectorTest {
         set(a,92,2); // shape #0 -> shader #2
         set(b,92,3); // shape #1 -> shader #3
         byte[][] blocks={
-            a,b,shader(4),shader(5),
+            a,b,shader(4),shader(5,secondHasExtra?1:0),
             NifMaterialInspectorTest.textureSet("textures/a_d.dds","textures/a_n.dds"),
             NifMaterialInspectorTest.textureSet("textures/b_d.dds","textures/b_n.dds")
         };
@@ -73,6 +86,16 @@ public final class NifMaterialLinkInspectorTest {
         ok("textures/b_d.dds".equals(r.links.get(1).diffuse),"second diffuse");
         ok("textures/b_n.dds".equals(r.links.get(1).normal),"second normal");
         ok(r.report().contains("пока открывается без текстур"),"no false Vulkan claim");
+        // Regression for the user's real SSE #6 failure: name at offset +4
+        // is -1 (0xFFFFFFFF), not an invalid count of extra-data refs.
+        ok(r.resolved==2,"SSE shader Name -1 does not trigger extra-data error");
+        byte[] withShaderExtra=example(true);
+        NifMaterialLinkInspector.Result withExtra=
+            NifMaterialLinkInspector.inspect(withShaderExtra);
+        ok(withExtra.resolved==2&&withExtra.links.get(1).textureSet==5,
+            "SSE lighting shader with one real NiObjectNET extra ref");
+        ok(withExtra.report().contains("textures/b_n.dds"),
+            "texture-set slot remains correct after extra-data refs");
 
         byte[] shared=file.clone();
         set(shared,blocks.blocks.get(1).byteOffset+92,2);
@@ -92,14 +115,21 @@ public final class NifMaterialLinkInspectorTest {
             "shape referring to a texture set is not a shader");
 
         byte[] wrongSet=file.clone();
-        set(wrongSet,blocks.blocks.get(2).byteOffset+36,3);
+        set(wrongSet,blocks.blocks.get(2).byteOffset+40,3);
         ok(NifMaterialLinkInspector.inspect(wrongSet).resolved==1,
             "shader referring to another shader is not a texture set");
 
         byte[] outOfRange=file.clone();
-        set(outOfRange,blocks.blocks.get(3).byteOffset+36,100000);
+        set(outOfRange,blocks.blocks.get(3).byteOffset+40,100000);
         ok(NifMaterialLinkInspector.inspect(outOfRange).resolved==1,
             "out of range reference is rejected without crash");
+
+        byte[] invalidShaderExtras=file.clone();
+        set(invalidShaderExtras,blocks.blocks.get(3).byteOffset+8,999);
+        NifMaterialLinkInspector.Result brokenShader=
+            NifMaterialLinkInspector.inspect(invalidShaderExtras);
+        ok(brokenShader.resolved==1&&brokenShader.links.get(1).problem!=null,
+            "invalid shader extra-data count is reported for only one part");
 
         byte[] extraCount=file.clone();
         set(extraCount,blocks.blocks.get(0).byteOffset+4,999);
@@ -109,6 +139,6 @@ public final class NifMaterialLinkInspectorTest {
         byte[] truncated=file.clone();
         truncated=java.util.Arrays.copyOf(truncated,truncated.length-12);
         rejects(truncated,"truncated file rejected");
-        System.out.println("PASS v2.10 material part links: "+checks+" synthetic checks");
+        System.out.println("PASS v2.10.1 material part links: "+checks+" synthetic checks");
     }
 }

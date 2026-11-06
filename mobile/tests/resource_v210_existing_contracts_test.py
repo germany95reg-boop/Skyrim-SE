@@ -6,8 +6,8 @@ b=read('app/src/main/java/dev/skyrimsemobile/launcher/BsaDdsInspector.java')
 c=read('app/src/main/java/dev/skyrimsemobile/launcher/DdsHeaderInspector.java')
 d=read('app/src/main/java/dev/skyrimsemobile/launcher/BsaCatalogReader.java')
 g=read('app/build.gradle')
-assert 'versionCode 32' in g and "versionName '2.10.0'" in g
-assert 'Заголовки найденных DDS · v2.10' in a
+assert 'versionCode 33' in g and "versionName '2.10.1'" in g
+assert 'Заголовки найденных DDS · v2.10.1' in a
 assert 'BsaDdsInspector.inspect(in,entry,item.flags)' in a
 assert 'lastDdsSearchReport' in a and 'foundDds=Collections.unmodifiableList' in a
 assert 'MAX_BSA_ARCHIVES=48' in a and 'MAX_DATA_CHILDREN=4096' in a
@@ -22,4 +22,4 @@ assert 'openOutputStream' not in a+b+c+d
 assert 'TamrielVoice' not in a+b+c+d
 assert 'surfaceTriangles' in read('app/src/main/java/dev/skyrimsemobile/launcher/NifGeometryTransfer.java')
 assert 'solid.frag.spv' in read('app/src/main/cpp/vulkan_scene_test.cpp')
-print('PASS: DDS header inspector and SAFE BSA read-only Vulkan v2.10 contracts')
+print('PASS: DDS header inspector and SAFE BSA read-only Vulkan v2.10.1 contracts')
