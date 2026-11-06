@@ -22,6 +22,12 @@ public final class SceneFraming {
         }
         return Math.max(0.15f,(float)Math.sqrt(maxSquared));
     }
+    /** One bounded camera step towards the model; "Вписать" resets to safe fit. */
+    public static float closer(float distance){
+        if(!Float.isFinite(distance)||distance<=0)
+            throw new IllegalArgumentException("Неверная дистанция камеры");
+        return Math.max(2.7f,Math.min(40f,distance*0.82f));
+    }
     public static Frame compute(float radius,int width,int height,int titleHeight,int panelHeight) {
         if(!(radius>0) || !Float.isFinite(radius) || width<=0 || height<=0)
             throw new IllegalArgumentException("Неверный размер модели или экрана");
@@ -36,7 +42,7 @@ public final class SceneFraming {
         if(top+bottom>height*0.82f) offset=Math.max(-0.82f,Math.min(0.82f,offset));
         // The shader perspective scale is 3.2 / distance. Bound the entire rotating sphere.
         // Keep 15% padding and prevent vertices near the camera from escaping the frustum.
-        float safety=0.85f;
+        float safety=0.90f; // 10% sphere padding; preserves fit while enlarging the model.
         float vertical=radius+3.2f*radius/(visibleFraction*safety);
         float horizontal=radius+3.2f*radius/(aspect*safety);
         float fit=Math.max(vertical,horizontal);
