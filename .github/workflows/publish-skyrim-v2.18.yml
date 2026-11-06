@@ -1,0 +1,60 @@
+name: Publish Skyrim SE Mobile v2.18 APK to GitHub Releases
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/publish-skyrim-v2.18.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  publish:
+    name: Publish already-tested signed ARM64 APK
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Download the passing v2.18 APK from the verified CI run
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p verified-artifact
+          gh run download 42270633951 --repo "$GH_REPO" \
+            --name Skyrim-SE-v2.18-CI-ARM64-APK \
+            --dir verified-artifact
+          test -s verified-artifact/app-debug.apk
+          unzip -tqq verified-artifact/app-debug.apk
+          test "$(unzip -Z1 verified-artifact/app-debug.apk | grep -Fc 'lib/arm64-v8a/libskyrimse_scene.so')" = 1
+          test "$(unzip -Z1 verified-artifact/app-debug.apk | grep -Fc 'assets/textured_normal_safe.frag.spv')" = 1
+          mv verified-artifact/app-debug.apk Skyrim-SE-Mobile-v2.18.0.apk
+          sha256sum Skyrim-SE-Mobile-v2.18.0.apk > Skyrim-SE-Mobile-v2.18.0.apk.sha256
+
+      - name: Create or update versioned download in Releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if gh release view v2.18.0 --repo "$GH_REPO" >/dev/null 2>&1; then
+            gh release upload v2.18.0 \
+              Skyrim-SE-Mobile-v2.18.0.apk \
+              Skyrim-SE-Mobile-v2.18.0.apk.sha256 \
+              --clobber --repo "$GH_REPO"
+          else
+            gh release create v2.18.0 \
+              Skyrim-SE-Mobile-v2.18.0.apk \
+              Skyrim-SE-Mobile-v2.18.0.apk.sha256 \
+              --target main \
+              --title "Skyrim SE Mobile v2.18.0 — ARM64 Vulkan" \
+              --notes "Verified native Android ARM64 APK, versionCode 41. Installs over v2.17 without clearing app data. Composite NIF diffuse and normal DDS preview, a safe Adreno Vulkan shader fallback, and the one-button on-device BSA/NIF/DDS/FPS diagnostic. Built and signature-verified in GitHub Actions run 42270633951. This is a diagnostic viewer, not SkyrimSE.exe or a full game port." \
+              --repo "$GH_REPO"
+          fi
+          gh release view v2.18.0 --repo "$GH_REPO" --json url,assets \
+            --jq '{release: .url, files: [.assets[].name]}'
