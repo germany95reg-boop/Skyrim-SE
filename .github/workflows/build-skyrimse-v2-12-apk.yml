@@ -1,7 +1,5 @@
 name: Skyrim SE Mobile Vulkan 3D APK v2.12 — exact selected part DDS
 on:
-  push:
-    branches: [main, development/v2.12-textured-nif-parts]
   workflow_dispatch:
 
 jobs:
