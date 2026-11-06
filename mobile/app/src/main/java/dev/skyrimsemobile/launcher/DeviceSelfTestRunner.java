@@ -276,6 +276,17 @@ final class DeviceSelfTestRunner {
             report.pass("NIF / геометрия",sample.nif.path+" · "+
                 sample.parts.available+" частей · "+
                 sample.scene.triangleCount+" треугольников");
+            if(sample.parts.hierarchyNote.contains("ПРЕДУПРЕЖДЕНИЕ")||
+               (sample.parts.linkedParentShapes>0&&
+                sample.parts.linkedParentShapes<sample.parts.available)){
+                report.warn("Иерархия NIF",sample.parts.hierarchyNote);
+            }else if(sample.parts.linkedParentShapes>0){
+                report.pass("NiNode/BSFadeNode",
+                    sample.parts.linkedParentShapes+" BSTriShape получили родительские "+
+                    "повороты, масштабы и смещения");
+            }else{
+                report.warn("Иерархия NIF",sample.parts.hierarchyNote);
+            }
             int resolved=0;
             for(NifMaterialLinkInspector.Link link:sample.links.links)
                 if(link.resolved())resolved++;
