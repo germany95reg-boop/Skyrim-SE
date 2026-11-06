@@ -11,8 +11,8 @@ SIGNER="$ANDROID_HOME/build-tools/35.0.0/apksigner"
 INFO="$("$AAPT" dump badging "$APK" | head -1)"
 echo "$INFO"
 grep -Fq "name='dev.skyrimsemobile.launcher'" <<< "$INFO"
-grep -Fq "versionCode='40'" <<< "$INFO"
-grep -Fq "versionName='2.17.0'" <<< "$INFO"
+grep -Fq "versionCode='41'" <<< "$INFO"
+grep -Fq "versionName='2.18.0'" <<< "$INFO"
 
 FILES="$(unzip -Z1 "$APK")"
 for path in \
