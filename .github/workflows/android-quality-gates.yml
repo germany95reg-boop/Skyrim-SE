@@ -1,7 +1,7 @@
 name: Skyrim SE — automated quality gates (tests, Vulkan, APK, Android UI)
 on:
   push:
-    branches: [main, development/ci-quality-gates-v214]
+    branches: [main] # feature changes are validated once, through pull_request
   pull_request:
     branches: [main]
   workflow_dispatch:
