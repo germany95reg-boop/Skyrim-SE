@@ -84,6 +84,15 @@ public final class BsaEntryInspector {
         return NifGeometryDecoder.decode(d.bytes);
     }
 
+    /** v2.6: inspect individual static BSTriShape components in one bounded NIF.
+     * Kept separate from the existing single-part textured Vulkan path.
+     */
+    public static NifGeometryDecoder.Parts inspectNifParts(InputStream bsa,
+            BsaCatalogReader.Entry entry,long archiveFlags)throws IOException{
+        Decoded d=readDecoded(bsa,entry,archiveFlags);
+        return NifGeometryDecoder.scan(d.bytes);
+    }
+
     /** v1.5: bounded read-only material and DDS texture path list of one selected NIF. */
     public static String inspectMaterials(InputStream bsa,BsaCatalogReader.Entry entry,long archiveFlags)
             throws IOException {

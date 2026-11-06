@@ -2,6 +2,9 @@ package dev.skyrimsemobile.launcher;
 
 import java.io.IOException;
 import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Locale;
 
 /**
@@ -19,6 +22,78 @@ public final class NifGeometryDecoder {
     public static final int MAX_TRIANGLES = 30000;
     private static final int SHAPE_HEADER_BYTES = 116;
     private static final int MAX_VERTEX_STRIDE = 60;
+    /** No more than 24 individually decodable parts and 60k total triangles. */
+    public static final int MAX_PARTS=24,MAX_PART_TRIANGLES=60000;
+
+    /** A single selectable static BSTriShape, or a reason it cannot be previewed. */
+    public static final class Part {
+        public final int blockIndex;
+        public final Mesh mesh;
+        public final String problem;
+        Part(int index,Mesh mesh,String problem){
+            blockIndex=index;this.mesh=mesh;this.problem=problem;
+        }
+        public String label(){
+            return mesh!=null?"#"+blockIndex+" · "+mesh.lines.vertices+
+                " вершин · "+mesh.triangles+" треугольников"+
+                (mesh.surfaceUVs.length>0?" · UV":""):
+                "#"+blockIndex+" · неподдерживаемая часть";
+        }
+    }
+    public static final class Parts {
+        public final List<Part> items;
+        public final int available;
+        Parts(List<Part> list,int ready){
+            items=Collections.unmodifiableList(new ArrayList<>(list));
+            available=ready;
+        }
+        public String report(){
+            StringBuilder text=new StringBuilder("Части NIF v2.6 · BSTriShape (только чтение)\n");
+            text.append("Всего частей: ").append(items.size())
+                .append(" · доступны для Vulkan: ").append(available).append('\n');
+            for(Part part:items){
+                text.append("• ").append(part.label());
+                if(part.problem!=null)text.append(" · ").append(part.problem);
+                text.append('\n');
+            }
+            text.append("\nВыбирай отдельную часть для просмотра без материалов. "+
+                "Объединение всех частей, связи шейдеров с DDS и "+
+                "родительские трансформации пока не поддерживаются. "+
+                "Файл BSA не изменён.");
+            return text.toString();
+        }
+    }
+
+    /** Inspect at most 24 static shapes in one bounded NIF, without touching files.
+     * Broken blocks stay visible as errors, never replacing a previously valid one.
+     */
+    public static Parts scan(byte[] bytes)throws IOException{
+        NifBlockInspector.Result nif=NifBlockInspector.inspect(bytes);
+        if(nif.streamVersion!=100||nif.userVersion!=12)
+            throw new IOException("Поддерживаются BSTriShape только Skyrim SE stream 100");
+        List<Part> list=new ArrayList<>();
+        int accepted=0,totalTriangles=0;
+        for(NifBlockInspector.Block block:nif.blocks){
+            if(!"BSTriShape".equals(block.type))continue;
+            if(list.size()>=MAX_PARTS)
+                throw new IOException("Превышен безопасный предел "+MAX_PARTS+" BSTriShape в NIF");
+            try{
+                Mesh m=parseShape(bytes,block);
+                if((long)totalTriangles+m.triangles>MAX_PART_TRIANGLES)
+                    throw new IOException("Превышен общий предел "+MAX_PART_TRIANGLES+" треугольников");
+                list.add(new Part(block.index,m,null));
+                totalTriangles+=m.triangles;accepted++;
+            }catch(IOException e){
+                String problem=e.getMessage();
+                if(problem==null)problem="Некорректная геометрия";
+                list.add(new Part(block.index,null,
+                    problem.length()>180?problem.substring(0,180)+"…":problem));
+            }
+        }
+        if(list.isEmpty())
+            throw new IOException("В выбранном NIF нет статических BSTriShape");
+        return new Parts(list,accepted);
+    }
 
     public static final class Mesh {
         public final ObjWireParser.Model lines;
