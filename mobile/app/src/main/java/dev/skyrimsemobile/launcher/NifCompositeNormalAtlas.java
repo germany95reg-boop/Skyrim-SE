@@ -35,9 +35,10 @@ public final class NifCompositeNormalAtlas {
         if(parts==null||diffuse==null||perShapeNormals==null||diffuse.argb==null)
             throw new IOException("Нет данных NIF или diffuse atlas");
         int width=diffuse.width,height=diffuse.height,grid=diffuse.grid;
-        if(width<2||height<2||width>2048||height>2048||
+        if(grid<1||grid>4||width<2||height<2||width>2048||height>2048||
            height%2!=0||width%grid!=0||(height/2)%grid!=0||
-           (long)width*height!=diffuse.argb.length||grid<1||grid>4)
+           (long)width*height!=diffuse.argb.length||diffuse.uvAndSlot==null||
+           parts.items==null)
             throw new IOException("Некорректный размер DDS-атласа для normal mapping");
         int halfHeight=height/2;
         DdsBcDecoder.Image[] slotNormals=new DdsBcDecoder.Image[grid*grid];
