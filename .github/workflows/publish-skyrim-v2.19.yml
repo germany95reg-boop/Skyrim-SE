@@ -1,0 +1,64 @@
+name: Publish Skyrim SE Mobile v2.19 APK to GitHub Releases
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/publish-skyrim-v2.19.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  publish:
+    name: Publish verified signed Android ARM64 APK (v2.19)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Download the passing v2.19 signed APK from verified CI
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p verified-artifact
+          gh run download 42275131792 --repo "$GH_REPO" \
+            --name Skyrim-SE-v2.19-CI-ARM64-APK \
+            --dir verified-artifact
+          test -s verified-artifact/app-debug.apk
+          unzip -tqq verified-artifact/app-debug.apk
+          test "$(unzip -Z1 verified-artifact/app-debug.apk | grep -Fc 'lib/arm64-v8a/libskyrimse_scene.so')" = 1
+          test "$(unzip -Z1 verified-artifact/app-debug.apk | grep -Fc 'assets/textured_normal_safe.frag.spv')" = 1
+          if unzip -Z1 verified-artifact/app-debug.apk | grep -Eq '^lib/x86_64/'; then
+            echo 'ERROR: unexpected emulator ABI in user APK' >&2
+            exit 1
+          fi
+          mv verified-artifact/app-debug.apk Skyrim-SE-Mobile-v2.19.0.apk
+          sha256sum Skyrim-SE-Mobile-v2.19.0.apk > Skyrim-SE-Mobile-v2.19.0.apk.sha256
+
+      - name: Create or update permanent GitHub Release APK
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if gh release view v2.19.0 --repo "$GH_REPO" >/dev/null 2>&1; then
+            gh release upload v2.19.0 \
+              Skyrim-SE-Mobile-v2.19.0.apk \
+              Skyrim-SE-Mobile-v2.19.0.apk.sha256 \
+              --clobber --repo "$GH_REPO"
+          else
+            gh release create v2.19.0 \
+              Skyrim-SE-Mobile-v2.19.0.apk \
+              Skyrim-SE-Mobile-v2.19.0.apk.sha256 \
+              --target main \
+              --title "Skyrim SE Mobile v2.19.0 — ARM64 Vulkan" \
+              --notes "Signed development Android ARM64 APK, versionCode 42. Install over v2.18 without clearing app data. User-requested removal of the final auto-send disclaimer from on-phone test reports. Paired diffuse+normal DDS slots preserve different normal maps even when BSTriShape objects share a diffuse image; other BSA/NIF/Vulkan/normal-safe/30-60-unlimited FPS diagnostics are retained. JVM and Android CI passed in workflow run 42275131792. Native Android diagnostic NIF viewer, not a playable SkyrimSE.exe port. The user's hardware report confirming 19 PASS was for v2.18; v2.19 needs a new phone test." \
+              --repo "$GH_REPO"
+          fi
+          gh release view v2.19.0 --repo "$GH_REPO" --json url,assets \
+            --jq '{release: .url, files: [.assets[].name]}'
