@@ -15,7 +15,7 @@ checks={
  "versionName >=2.13":("versionName '2.13.0'" in gradle or "versionName '2.14.0'" in gradle or "versionName '2.15.0'" in gradle or "versionName '2.16.0'" in gradle or "versionName '2.17.0'" in gradle or "versionName '2.18.0'" in gradle),
  "same Android package":"applicationId 'dev.skyrimsemobile.launcher'" in gradle,
  "persistent signed upgrades":"signingConfig signingConfigs.stableDebug" in gradle,
- "composite DDS button":"Показать ВСЕ части NIF с DDS · v2.13" in ui,
+ "composite DDS button":"Показать ВСЕ части NIF с DDS · v2.18" in ui,
  "composite scene geometry":"NifSceneComposer.combine(parts)" in ui,
  "exact shape material links":"NifPartTextureSelection.require(links,part.blockIndex)" in ui,
  "no DDS guess":"findLocatedDds(matches,link.diffuse)" in ui,
