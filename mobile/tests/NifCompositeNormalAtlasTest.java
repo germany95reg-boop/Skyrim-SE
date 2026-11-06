@@ -75,6 +75,43 @@ public final class NifCompositeNormalAtlasTest {
             NifCompositeDdsAtlas.build(parts,scene,diffuse);
         normals.put(5,image(0xff1122dd));normals.put(8,image(0xff445566));
         reject(parts,shared,normals,"shared diffuse slot with conflicting normals");
+        NifCompositeDdsAtlas.Result paired=
+            NifCompositeDdsAtlas.buildPaired(parts,scene,diffuse,normals);
+        ok(paired.textureCount==2,"different normal DDS make distinct pairs");
+        ok(paired.uvAndSlot[2]==1f&&paired.uvAndSlot[11]==2f,
+            "material pair maps each BSTriShape to its own slot");
+        ok(paired.argb[1024]==0xffff0000&&
+           paired.argb[1024*2048]==0xffff0000,
+           "different material pairs can share the same diffuse pixels");
+        NifCompositeNormalAtlas.Result mapped=
+            NifCompositeNormalAtlas.build(parts,paired,normals);
+        ok(mapped.normalParts==2&&mapped.uniqueNormals==2,
+            "both distinct normal maps survive without fallback");
+        ok(mapped.stackedArgb[1024*2048+1024]==0xff1122dd,
+            "first normal map bound by paired material ID");
+        ok(mapped.stackedArgb[1536*2048]==0xff445566,
+            "second normal map remains distinct in the same diffuse material");
+        // Paired slot dedup only when BOTH images are identical.
+        normals.put(8,normals.get(5));
+        NifCompositeDdsAtlas.Result deduplicated=
+            NifCompositeDdsAtlas.buildPaired(parts,scene,diffuse,normals);
+        ok(deduplicated.textureCount==1,"identical diffuse+normal pair reuses tile");
+        ok(deduplicated.uvAndSlot[2]==deduplicated.uvAndSlot[11],
+            "identical materials use same exact shader ID");
+        NifCompositeNormalAtlas.Result reusedPairs=
+            NifCompositeNormalAtlas.build(parts,deduplicated,normals);
+        ok(reusedPairs.uniqueNormals==1&&reusedPairs.normalParts==2,
+            "identical normal images remain shared without aliasing");
+        // Missing normal must make a new pair, not inherit another part's bump.
+        normals.remove(8);
+        NifCompositeDdsAtlas.Result partialPair=
+            NifCompositeDdsAtlas.buildPaired(parts,scene,diffuse,normals);
+        ok(partialPair.textureCount==2,
+            "normal missing on one shape still gets its own safe pair");
+        NifCompositeNormalAtlas.Result partialNormal=
+            NifCompositeNormalAtlas.build(parts,partialPair,normals);
+        ok(partialNormal.neutralNormalParts==1,
+            "missing normal uses neutral tile but keeps same diffuse");
         normals.put(8,normals.get(5));
         NifCompositeNormalAtlas.Result reused=
             NifCompositeNormalAtlas.build(parts,shared,normals);
@@ -82,6 +119,6 @@ public final class NifCompositeNormalAtlasTest {
             "shared diffuse and normal DDS decoded once, correctly reused");
         normals.put(8,new DdsBcDecoder.Image(4,4,new int[2],"broken"));
         reject(parts,atlas,normals,"normal DDS pixel dimensions mismatch");
-        System.out.println("PASS v2.18 composite NIF normal atlas: "+checks+" checks");
+        System.out.println("PASS v2.19 composite NIF paired normal atlas: "+checks+" checks");
     }
 }

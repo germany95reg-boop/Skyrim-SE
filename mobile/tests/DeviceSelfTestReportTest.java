@@ -20,10 +20,15 @@ public final class DeviceSelfTestReportTest {
         ok(text.contains("Длительность: 2.5 с"),"duration");
         ok(text.contains("Проверка проведена на настоящем Android-устройстве"),"hardware scope");
         ok(text.contains("не доказывает правильность всех пикселей"),"no false GPU claims");
+        ok(!text.contains("Отчёт не отправлялся автоматически"),
+            "user-requested footer removed completely");
+        ok(!text.contains("пользователь решает, кому его передать"),
+            "user-requested trailing phrase removed");
+        ok(text.endsWith("SkyrimSE.exe."),"report ends after actual test limitations");
         result.warn("User controlled\\nname", "line 1\nline 2\rline 3");
         String safe=result.finish(500);
         ok(!safe.contains("line 1\nline 2"),"report is line-safe");
         ok(safe.contains("line 1 line 2 line 3"),"message preserved in one line");
-        System.out.println("PASS on-device self-test report: 10 checks");
+        System.out.println("PASS on-device self-test report: 13 checks");
     }
 }

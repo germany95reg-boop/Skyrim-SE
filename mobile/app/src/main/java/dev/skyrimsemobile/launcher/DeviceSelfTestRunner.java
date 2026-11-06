@@ -375,10 +375,12 @@ final class DeviceSelfTestRunner {
                 if(failures>0)report.warn("Материалы","Пропущено частей: "+failures+
                     " (невалидная или неподдерживаемая DDS)");
                 try{
-                    NifCompositeDdsAtlas.Result atlas=NifCompositeDdsAtlas.build(
-                        sample.parts,sample.scene,perShape);
+                    NifCompositeDdsAtlas.Result atlas=perNormal.isEmpty()?
+                        NifCompositeDdsAtlas.build(sample.parts,sample.scene,perShape):
+                        NifCompositeDdsAtlas.buildPaired(
+                            sample.parts,sample.scene,perShape,perNormal);
                     report.pass("Vulkan DDS-атлас",atlas.width+"×"+atlas.height+
-                        " · текстур "+atlas.textureCount+" · серых частей "+atlas.neutralParts);
+                        " · слотов (diffuse/normal) "+atlas.textureCount+" · серых частей "+atlas.neutralParts);
                     if(!perNormal.isEmpty()){
                         try {
                             NifCompositeNormalAtlas.Result combined=
