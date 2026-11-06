@@ -16,6 +16,7 @@ ui = read("app/src/androidTest/java/dev/skyrimsemobile/launcher/AndroidUiSmokeTe
 assert "abiFilters 'arm64-v8a'" in gradle
 assert "if (project.hasProperty('ciEmulator')) abiFilters 'x86_64'" in gradle
 assert "androidx.test.runner.AndroidJUnitRunner" in gradle
+assert "androidTestImplementation 'androidx.test:runner:1.6.2'" in gradle
 assert "applicationId 'dev.skyrimsemobile.launcher'" in gradle
 assert "versionCode 37" in gradle and "versionName '2.14.0'" in gradle
 assert "android:exported=\"false\"" in manifest
