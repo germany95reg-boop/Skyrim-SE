@@ -1028,11 +1028,13 @@ std::string statsJson() {
     std::string activeGeometry;
     uint32_t activeEdges=0;
     uint32_t activeTriangles=0;
+    bool activeNormalAtlas=false;
     {
         std::lock_guard<std::mutex> geometryLock(geometryMutex);
         activeGeometry=geometryLabel;
         activeEdges=geometryEdgeCount;
         activeTriangles=geometryTriangleCount;
+        activeNormalAtlas=selectedNormalAtlas;
     }
     out << "{\"running\":" << (rendering?"true":"false")
         << ",\"error\":" << (failed?"true":"false")
@@ -1050,10 +1052,10 @@ std::string statsJson() {
         << ",\"triangles\":" << activeTriangles
         << ",\"solidMode\":" << (solidMode.load(std::memory_order_relaxed)?"true":"false")
         << ",\"textureMode\":\"" << esc(activeTextureMode) << "\""
-        << ",\"normalMapApplied\":" << ((selectedNormalAtlas &&
+        << ",\"normalMapApplied\":" << ((activeNormalAtlas &&
             (activeTextureMode=="full"||activeTextureMode=="normal-safe") &&
             useNormalMap.load(std::memory_order_relaxed))?"true":"false")
-        << ",\"normalAtlasPresent\":" << (selectedNormalAtlas?"true":"false")
+        << ",\"normalAtlasPresent\":" << (activeNormalAtlas?"true":"false")
         << ",\"message\":\"" << esc(stage) << "\"}";
     return out.str();
 }
