@@ -71,7 +71,7 @@ public final class BsaCatalogActivity extends Activity {
         ScrollView scroll=new ScrollView(this);scroll.setBackgroundColor(0xff101116);scroll.setFillViewport(true);
         LinearLayout root=new LinearLayout(this);root.setOrientation(LinearLayout.VERTICAL);
         root.setPadding(dp(16),dp(14),dp(16),dp(18));scroll.addView(root);
-        TextView title=text("Skyrim SE · NIF v2.11",22,0xffdbc5fb);title.setGravity(Gravity.CENTER);root.addView(title);
+        TextView title=text("Skyrim SE · NIF v2.12",22,0xffdbc5fb);title.setGravity(Gravity.CENTER);root.addView(title);
         root.addView(text("BSA 105: каталог, NIF и Vulkan. Последний разрешённый архив, модель и папка Data восстанавливаются автоматически. Содержимое файлов Skyrim не копируется и не изменяется.",13,0xffd5d3dd));
         button(root,"Выбрать архив BSA",this::pick);
         button(root,"Забыть сохранённые пути · v2.11",this::forgetSavedPaths);
@@ -105,6 +105,7 @@ public final class BsaCatalogActivity extends Activity {
         button(root,"Показать все части NIF в Vulkan · v2.11",this::previewCombinedNif);
         button(root,"Связи материалов частей NIF · v2.11",this::inspectPartMaterialLinks);
         button(root,"Найти DDS каждой части NIF · v2.11",this::findPartDds);
+        button(root,"Показать выбранную часть NIF с её DDS · v2.12",this::previewTexturedPart);
         button(root,"Пути текстур NIF · v2.11",this::inspectNifMaterials);
         button(root,"Найти DDS в папке Data · v2.11",this::pickDataForDds);
         button(root,"Изменить папку Data · v2.11",this::chooseDataFolder);
@@ -554,6 +555,171 @@ public final class BsaCatalogActivity extends Activity {
                 });
             }
         },"nif-v27-composite").start();
+    }
+
+
+    /**
+     * v2.12: textured preview of a chosen part from a MULTI-shape NIF.
+     * The shader and DDS are selected by the shape's actual NIF block index.
+     * Composite geometry and the proven single-shape preview are unchanged.
+     */
+    private void previewTexturedPart(){
+        final Uri uri=currentUri;
+        if(uri==null||catalog==null||materialBsaUri==null||
+           !uri.equals(materialBsaUri)||foundDds.isEmpty()){
+            inspectionOutput.setText("Сначала выбери NIF и нажми «Найти DDS каждой части NIF».");
+            return;
+        }
+        List<BsaCatalogReader.Entry> entries=selectedNifMatches();
+        if(entries.isEmpty()||!entries.get(0).path.equals(materialNifPath)){
+            inspectionOutput.setText("NIF изменился. Повтори поиск DDS каждой части.");
+            return;
+        }
+        final BsaCatalogReader.Entry entry=entries.get(0);
+        final long flags=catalog.flags;
+        final List<LocatedDds> locations=new ArrayList<>(foundDds);
+        inspectionOutput.setText("Проверяю геометрию и точные связи каждой части NIF…");
+        new Thread(()->{
+            try{
+                NifGeometryDecoder.Parts parts;
+                NifMaterialLinkInspector.Result links;
+                try(InputStream in=getContentResolver().openInputStream(uri)){
+                    if(in==null)throw new IOException("Нет доступа к NIF BSA");
+                    parts=BsaEntryInspector.inspectNifParts(in,entry,flags);
+                }
+                try(InputStream in=getContentResolver().openInputStream(uri)){
+                    if(in==null)throw new IOException("Нет доступа к NIF BSA");
+                    links=BsaEntryInspector.readPartMaterialLinks(in,entry,flags);
+                }
+                String[] choices=new String[parts.items.size()];
+                for(int i=0;i<choices.length;i++){
+                    NifGeometryDecoder.Part part=parts.items.get(i);
+                    String state;
+                    try{
+                        if(part.mesh==null)throw new IOException(part.problem);
+                        if(part.mesh.surfaceUVs.length!=part.mesh.triangles*6)
+                            throw new IOException("Нет корректных UV");
+                        NifMaterialLinkInspector.Link link=
+                            NifPartTextureSelection.require(links,part.blockIndex);
+                        if(findLocatedDds(locations,link.diffuse)==null)
+                            throw new IOException("Диффузная DDS не найдена");
+                        state="DDS: "+link.diffuse;
+                    }catch(Exception error){state="Недоступно: "+error.getMessage();}
+                    choices[i]="#"+part.blockIndex+" · "+state;
+                }
+                runOnUiThread(()->{
+                    if(!isCurrentNif(uri,entry)||!entry.path.equals(materialNifPath))return;
+                    new AlertDialog.Builder(this)
+                        .setTitle("Vulkan · DDS отдельной части NIF")
+                        .setItems(choices,(dialog,index)->{
+                            if(!isCurrentNif(uri,entry)||!entry.path.equals(materialNifPath))return;
+                            NifGeometryDecoder.Part selected=parts.items.get(index);
+                            if(selected.mesh==null){
+                                inspectionOutput.setText("Часть #"+selected.blockIndex+
+                                    " не поддерживается: "+selected.problem);
+                                return;
+                            }
+                            try{
+                                NifMaterialLinkInspector.Link link=
+                                    NifPartTextureSelection.require(links,selected.blockIndex);
+                                if(selected.mesh.surfaceUVs.length!=selected.mesh.triangles*6)
+                                    throw new IOException("У части #"+selected.blockIndex+" отсутствуют UV");
+                                previewOnePartDds(uri,entry,selected.mesh,link,locations);
+                            }catch(IOException invalid){
+                                inspectionOutput.setText("Материал части #"+selected.blockIndex+
+                                    ": "+invalid.getMessage());
+                            }
+                        })
+                        .setNegativeButton("Закрыть",null).show();
+                });
+            }catch(Exception error){
+                runOnUiThread(()->{
+                    if(isCurrentNif(uri,entry))
+                        inspectionOutput.setText("Невозможно выбрать часть NIF: "+
+                            error.getMessage()+"\nИсходные BSA не изменены.");
+                });
+            }
+        },"nif-v212-part-chooser").start();
+    }
+
+    /** Resolve a matched BSA entry by canonical DDS path. No guessing by filename. */
+    private static LocatedDds findLocatedDds(List<LocatedDds> matches,String path)
+            throws IOException{
+        String key=DdsArchiveFinder.normalizeDds(path);
+        for(LocatedDds item:matches){
+            try{
+                if(key.equals(DdsArchiveFinder.normalizeDds(item.hit.declaredPath)))
+                    return item;
+            }catch(IOException ignored){}
+        }
+        return null;
+    }
+
+    private DdsBcDecoder.Image readLocatedDds(LocatedDds hit)throws IOException{
+        try(InputStream in=getContentResolver().openInputStream(hit.uri)){
+            if(in==null)throw new IOException("Нет доступа к DDS BSA: "+hit.archive);
+            BsaCatalogReader.Entry entry=new BsaCatalogReader.Entry(
+                hit.hit.entryPath,hit.hit.storedBytes,hit.hit.offset,hit.hit.compressed);
+            return BsaDdsPixelReader.preview(in,entry,hit.flags);
+        }
+    }
+
+    /** Decode only the selected diffuse and its optional normal, in a worker. */
+    private void previewOnePartDds(Uri uri,BsaCatalogReader.Entry entry,
+            NifGeometryDecoder.Mesh mesh,NifMaterialLinkInspector.Link link,
+            List<LocatedDds> matches){
+        inspectionOutput.setText("Декодирую DDS для BSTriShape #"+link.shape+"…");
+        new Thread(()->{
+            try{
+                LocatedDds diffuse=findLocatedDds(matches,link.diffuse);
+                if(diffuse==null)throw new IOException("DDS [0] не найдена: "+link.diffuse);
+                DdsBcDecoder.Image image=readLocatedDds(diffuse);
+                DdsBcDecoder.Image normal=null;
+                String normalInfo="Без карты нормалей";
+                if(link.normal!=null&&!link.normal.isEmpty()){
+                    try{
+                        LocatedDds normalHit=findLocatedDds(matches,link.normal);
+                        if(normalHit==null)throw new IOException("не найдена в BSA");
+                        DdsBcDecoder.Image candidate=readLocatedDds(normalHit);
+                        if(candidate.width!=image.width||candidate.height!=image.height)
+                            throw new IOException("отличается размер DDS");
+                        if(!candidate.format.startsWith("BC3")&&
+                           !candidate.format.startsWith("BC5")&&
+                           !"RGBA8".equals(candidate.format)&&
+                           !"BGRA8".equals(candidate.format))
+                            throw new IOException("неподдерживаемый формат "+candidate.format);
+                        normal=candidate;
+                        normalInfo="Нормали: "+candidate.width+"×"+candidate.height+
+                            " · "+candidate.format;
+                    }catch(Exception optional){
+                        normalInfo="Карта нормалей пропущена: "+optional.getMessage();
+                    }
+                }
+                final DdsBcDecoder.Image normalImage=normal;
+                final String detail=normalInfo;
+                runOnUiThread(()->{
+                    if(!isCurrentNif(uri,entry)||!entry.path.equals(materialNifPath))return;
+                    NifGeometryTransfer.offerTextured(mesh.lines,mesh.surfaceTriangles,
+                        mesh.surfaceUVs,image,normalImage,
+                        "NIF: "+entry.path.substring(entry.path.lastIndexOf('/')+1)+
+                            " · #"+link.shape,
+                        mesh.compactInfo()+"\nBSTriShape #"+link.shape+
+                            " → shader #"+link.shader+" → texture set #"+link.textureSet+
+                            "\nDDS: "+link.diffuse+" · "+image.width+"×"+image.height+
+                            "\n"+detail+"\nДругие части этой NIF не отображаются.");
+                    inspectionOutput.setText("Текстура BSTriShape #"+link.shape+
+                        " готова для Vulkan.\n"+detail+
+                        "\nПолная составная модель пока открывается отдельно без DDS.");
+                    startActivity(new Intent(this,VulkanSceneActivity.class));
+                });
+            }catch(Exception error){
+                runOnUiThread(()->{
+                    if(isCurrentNif(uri,entry))
+                        inspectionOutput.setText("DDS части #"+link.shape+" не открыта: "+
+                            error.getMessage()+"\nИгровые файлы не изменены.");
+                });
+            }
+        },"nif-v212-part-dds").start();
     }
 
     /** Diagnostic: resolve exact BSTriShape -> shader -> texture-set links.
