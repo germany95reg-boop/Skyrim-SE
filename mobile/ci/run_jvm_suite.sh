@@ -33,7 +33,7 @@ sources=(
   NifMaterialLinkInspector NifPartDdsAvailability NifPartTextureSelection
   NifSceneComposer ObjWireParser PeHeaderInspector PreviewLighting
   PreviewMaterial RecentNifPaths ResourceHeaderInspector SceneFraming
-  DeviceSelfTestReport
+  DeviceSelfTestReport FpsAutotestSequence
 )
 args=()
 for name in "${sources[@]}"; do
