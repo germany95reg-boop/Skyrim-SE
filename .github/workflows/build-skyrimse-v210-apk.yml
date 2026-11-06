@@ -165,6 +165,7 @@ jobs:
             app/src/main/java/dev/skyrimsemobile/launcher/NifMaterialLinkInspector.java \
             app/src/main/java/dev/skyrimsemobile/launcher/ObjWireParser.java \
             app/src/main/java/dev/skyrimsemobile/launcher/NifGeometryDecoder.java \
+            app/src/main/java/dev/skyrimsemobile/launcher/NifSceneComposer.java \
             tests/NifGeometryDecoderTest.java \
             tests/NifMaterialInspectorTest.java \
             tests/NifMaterialLinkInspectorTest.java
