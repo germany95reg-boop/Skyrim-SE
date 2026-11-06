@@ -13,8 +13,8 @@ manifest=get("app/src/main/AndroidManifest.xml")
 gradle=get("app/build.gradle")
 ci=get("../.github/workflows/android-quality-gates.yml")
 checks={
-"upgradeable APK versionCode 38":"versionCode 38" in gradle,
-"installed versionName":"versionName '2.15.0'" in gradle,
+"upgradeable APK versionCode 39":"versionCode 39" in gradle,
+"installed versionName":"versionName '2.16.0'" in gradle,
 "stable app package":"applicationId 'dev.skyrimsemobile.launcher'" in gradle,
 "stable signing":"signingConfig signingConfigs.stableDebug" in gradle,
 "launcher WebView bridge":'public void openDeviceSelfTest()' in launcher,
@@ -40,7 +40,7 @@ checks={
     "EXTRA_DEVICE_AUTOTEST" in scene,
 "verified actual GPU frames":"frames>=45" in scene and
     "SystemClock.elapsedRealtime()" in scene,
-"GPU test timeout":"deviceAutotestTimeout,20000" in scene,
+"GPU test timeout":"deviceAutotestTimeout,FpsAutotestSequence.MAX_TOTAL_MS" in scene,
 "GPU result delivered to UI":"setResult(success?RESULT_OK:RESULT_CANCELED,result)" in scene,
 "cancel on Activity destruction":"runner.cancel()" in activity,
 "explicit PASS WARN FAIL SKIP":all(s in report for s in
