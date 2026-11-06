@@ -80,6 +80,7 @@ public final class BsaCatalogActivity extends Activity {
         selectedLabel.setTextIsSelectable(true);
         root.addView(selectedLabel);
         button(root,"Выбрать NIF из списка · v2.9",this::showNifChooser);
+        button(root,"Недавние модели NIF · v2.9",this::showRecentNif);
         filter.addTextChangedListener(new TextWatcher(){
             public void beforeTextChanged(CharSequence s,int st,int cnt,int after){}
             public void onTextChanged(CharSequence s,int st,int before,int count){
@@ -176,8 +177,33 @@ public final class BsaCatalogActivity extends Activity {
             .setItems(labels,(dialog,index)->chooseNif(options.get(index)))
             .setNegativeButton("Отмена",null).show();
     }
+    /** Last eight exact NIF paths within the currently open BSA. */
+    private void showRecentNif(){
+        if(catalog==null||currentUri==null){
+            inspectionOutput.setText("Сначала открой архив BSA.");return;
+        }
+        List<String> recent=savedSession.recentModels(currentUri);
+        if(recent.isEmpty()){
+            inspectionOutput.setText("Недавних моделей пока нет. Выбери NIF из каталога.");
+            return;
+        }
+        String[] names=recent.toArray(new String[0]);
+        new AlertDialog.Builder(this)
+            .setTitle("Недавние NIF · до 8 моделей")
+            .setItems(names,(dialog,index)->{
+                List<BsaCatalogReader.Entry> found=NifCatalogSelection.matches(
+                    catalog,names[index],"");
+                if(found.isEmpty()){
+                    inspectionOutput.setText("Модель больше не найдена в BSA: "+names[index]);
+                    return;
+                }
+                chooseNif(found.get(0));
+            })
+            .setNegativeButton("Закрыть",null).show();
+    }
+
     /** Auto-reopen the last archive only when the Android SAF read grant survives
-     * a process restart. Earlier (v2.9) selections need to be chosen once again. */
+     * a process restart. Earlier (v2.8) selections need to be chosen once again. */
     private void restoreSavedSession(){
         Uri savedArchive=savedSession.lastArchive();
         Uri savedTree=savedSession.lastDataTree();
@@ -237,7 +263,7 @@ public final class BsaCatalogActivity extends Activity {
                     renderResults();
                     // Reading only one selected NIF is bounded; DDS discovery is
                     // deliberately not started until the user requests it.
-                    if(restored&&valid)inspectNifMaterials();
+                    if(valid)inspectNifMaterials();
                 });
             }catch(Exception ex){
                 runOnUiThread(()->{
@@ -257,12 +283,17 @@ public final class BsaCatalogActivity extends Activity {
 
     /** Clear remembered paths; does not delete the BSA, NIF or DDS files. */
     private void forgetSavedPaths(){
-        savedSession.clearArchive();
-        savedSession.clearDataTree();
-        selectedLabel.setText("Сохранённые пути очищены. Текущая модель "+
-            "доступна до выхода из каталога.");
-        inspectionOutput.setText("Архив и Data больше не будут восстановлены "+
-            "автоматически. Содержимое Skyrim не изменено.");
+        savedSession.forgetAll();
+        ++archiveLoadSequence;
+        currentUri=null;catalog=null;currentName="";
+        selectedNifPath="";selectedNifArchive=null;
+        clearMaterialSelection();
+        filter.setText("");
+        results.setText("");
+        summary.setText("Сохранённые пути и разрешения очищены. Выбери BSA снова.");
+        selectedLabel.setText("NIF не выбрана.");
+        inspectionOutput.setText("Автовосстановление очищено. "+
+            "Файлы Skyrim не изменены.");
     }
 
     private void pick(){
