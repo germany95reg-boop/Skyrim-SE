@@ -1,21 +1,18 @@
-# Skyrim SE Mobile — Vulkan 3D v2.10.1
+# Skyrim SE Mobile — Vulkan 3D v2.11
 
-Read-only ARM64 Vulkan inspector for user-selected Skyrim Special Edition BSA/NIF/DDS assets; not a playable game engine.
+Android ARM64 read-only Skyrim SE BSA/NIF/DDS diagnostic Vulkan viewer, not a complete game engine.
 
-## New: per-part material references
+## v2.11: Verify which DDS belong to every BSTriShape, inside Data
 
-- Button **Связи материалов частей NIF · v2.10.1** traces exact `BSTriShape` → `BSLightingShaderProperty` → `BSShaderTextureSet` index references. Lists diffuse `[0]` and normal `[1]` paths for each supported part.
-- Invalid/missing/unsupported links are shown explicitly. Material association is not guessed by block order or filename.
-- Safe bounds and Skyrim SE 100/12 restrictions; synthetic unit tests cover multiple parts with different or shared materials, missing references, wrong block types and corrupt indices.
-- Existing read-only BSA inspection, selected NIF recovery, 8 recent models, DDS, Vulkan shading and composite geometry remain preserved.
-- **Composite Vulkan is still untextured**. This is a diagnostic dependency for the upcoming actual multi-material render, not completion of it.
-- versionCode 33 / versionName 2.10.0, original package identity and persistent private test signing certificate.
+- The new one-tap **«Найти DDS каждой части NIF · v2.11»** action resolves the exact `BSTriShape` -> `BSLightingShaderProperty` -> `BSShaderTextureSet` indices demonstrated on the real `lureargonian01.nif`, and collects only its linked diffuse DDS [0] / normal DDS [1].
+- Uses the stored Android SAF read-only `Data` directory and scans at most 48 BSA indexes through the already tested read-only path (<= 4,096 Data children). No repeat folder selection when the permanent grant remains valid.
+- Reports **for every separate BSTriShape**: its NIF block index, shader and texture-set index, and per-slot DDS found/not found (only in scanned BSA indexes), plus a clear warning if any archive scan was partial, incomplete or failed.
+- Reused DDS referenced by several parts are searched once but associated with each relevant geometry part. Unresolvable shader links do not get guessed materials.
+- The exact NIF path is protected against asynchronous stale lookups and changing model resets all cached DDS and link status.
+- No commercial Skyrim DDS are copied into the APK; BSA/NIF/DDS files remain unchanged.
+- Existing last-used BSA/NIF/Data restoration, recent NIFs, Vulkan composite and single-model textured DDS/normal preview, camera, FPS and all UI controls remain intact.
+- VersionCode **34**, versionName **2.11.0**, stable Android appId and persistent private **test** signature for update over v2.10.1.
 
-App-only test guide: [DEVICE_TEST_V210_RU.md](DEVICE_TEST_V210_RU.md).
-## v2.10.1 — SSE material-link parser hotfix
+**Limitation:** this stage verifies DDS availability per shape, but **does not yet render multiple DDS simultaneously** in the composite Vulkan model; parent node transforms and full Skyrim shading remain unsupported.
 
-- Fixed Skyrim SE stream 100 `BSLightingShaderProperty` layout: the 4-byte `Shader Type` precedes the inherited `NiObjectNET` fields. Extra-data count is at +8, not +4, and the BSShaderTextureSet reference is at +40+4*n, not +36+4*n.
-- Original v2.10 gave a false diagnostic on `lureargonian01.nif`, `BSTriShape #5` / shader `#6` (“Некорректное количество extra-data ссылок в #6”). That could arise from reading the shader Name as the number of extra-data refs.
-- Added synthetic regressions with a real SSE shader prefix (Name=-1 and Shader Type), with variable extra-data list lengths, invalid references and independent materials.
-- **Real game-file confirmation pending**: run **«Связи материалов частей NIF · v2.10.1»** on lureargonian01.nif and fishinggear_cluster01.nif and send the results.
-- No change to Vulkan rendering logic or game assets. Same package ID and signing key; versionCode 33 supports in-place update from v2.10.
+See [DEVICE_TEST_V211_RU.md](DEVICE_TEST_V211_RU.md) for app-only testing.
