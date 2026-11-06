@@ -96,7 +96,14 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
                         info.optDouble("distance"), info.optString("geometry","Куб"), info.optInt("edges")) : "") +
                         (nifDimensions.isEmpty() ? "" : "\n"+nifDimensions) +
                         "\nРежим: " + (info.optBoolean("solidMode") ?
-                          (hasTexture&&useTexture?"Поверхность · DDS":"Поверхность") : "Каркас") +
+                          (hasTexture&&useTexture ?
+                              ("off".equals(info.optString("textureMode","off")) ?
+                                  "Поверхность · DDS недоступна" :
+                              "atlas-safe".equals(info.optString("textureMode","off")) ?
+                                  "Поверхность · DDS (совместимый атлас)" :
+                              "basic".equals(info.optString("textureMode","off")) ?
+                                  "Поверхность · DDS (базовый)" : "Поверхность · DDS")
+                              : "Поверхность") : "Каркас") +
                         " · Треугольников: " + info.optInt("triangles") + "\nВид: "+viewPreset +
                         (framingInfo.isEmpty()?"":"\n"+framingInfo));
                     status.setTextColor(error ? 0xffffabab : 0xffb4d8fd);
@@ -140,7 +147,7 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
         root.addView(viewport, new FrameLayout.LayoutParams(-1, -1));
 
         TextView title = new TextView(this);
-        title.setText("SKYRIM SE MOBILE\nVulkan 3D · v2.13");
+        title.setText("SKYRIM SE MOBILE\nVulkan 3D · v2.14");
         sceneTitle=title;
         title.setTypeface(Typeface.SERIF, Typeface.BOLD);
         title.setTextSize(20);
