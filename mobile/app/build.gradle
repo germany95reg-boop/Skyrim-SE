@@ -56,3 +56,13 @@ dependencies {
     androidTestImplementation 'androidx.test:runner:1.6.2'
     androidTestImplementation 'androidx.test.ext:junit:1.2.1'
 }
+
+
+// Download actual dependency JAR files, not just Gradle metadata (JVM CI needs LZ4).
+tasks.register('resolveRuntimeJars') {
+    doLast {
+        configurations.debugRuntimeClasspath.resolve().each { file ->
+            println("Runtime JAR: " + file.getName())
+        }
+    }
+}
