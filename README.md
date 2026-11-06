@@ -1,18 +1,17 @@
-# Skyrim SE Mobile — Vulkan 3D v2.5
+# Skyrim SE Mobile — Vulkan 3D v2.6
 
-Android ARM64 Vulkan preview of user-selected Skyrim SE NIF, DDS and BSA resources; **not a playable Skyrim game port**.
+Android ARM64/Vulkan inspection of user-provided Skyrim Special Edition BSA/NIF/DDS assets; this is NOT a playable Skyrim engine.
 
-## v2.5 — more room for the 3D model
+## New in v2.6: inspect multiple separate static BSTriShape parts
 
-- The **Параметры ▾** control collapses the advanced OBJ examples, lighting, relief and material controls by default. They remain fully accessible and do not reset the GPU, the mesh or the chosen DDS.
-- The **Крупнее** button moves the camera 18% closer per tap, within the renderer's 2.7–40 distance bounds, and disables auto-rotation. **Вписать** restores safe auto-fitting.
-- Automatic framing increases the viewport padding efficiency from 85% to 90%, retaining a conservative 10% rotating-mesh margin. Collapsing the control rows also expands the actual visible viewport and automatically reframes the model.
-- A short **← Назад** button occupies its own footer half; it cannot wrap as the previous multi-line launcher label did.
-- All BSA/NIF/DDS, Vulkan material, light and normal-map features from the user-tested v2.4 are retained without native renderer or shader changes.
-- Same application ID and persistent private **test-only** signing certificate; versionCode 27, versionName 2.5.0, upgrades over v2.4.
+- New catalog action **«Части NIF · выбрать BSTriShape · v2.6»** reads a single NIF from a user-approved BSA in memory and presents an ordered dialog of its static BSTriShape blocks.
+- Each part can be opened individually as a geometry-only wireframe/surface in the existing Vulkan viewer. Unsupported parts display a reason without preventing selection of valid parts.
+- Hard limits: 24 parts and 60,000 accepted triangle faces across the scan; the BSA extract retains its existing 8 MiB packed / 16 MiB decoded limits.
+- Existing single-shape preview and textured single-material preview are unchanged, including user-tested compact UI, diffuse/normal DDS, light and gloss controls.
+- **No incorrect DDS mapping**: parts selected via the new action are deliberately untextured because links from shapes to BSLightingShaderProperty / BSShaderTextureSet are not yet reliably resolved.
+- This is a building block toward multi-material NIF, not a completed multi-shape composite renderer. Shape-local transforms are applied, parent node transforms remain unsupported.
+- Existing applicationId `dev.skyrimsemobile.launcher` and persistent private test signing key are preserved; `versionCode 28`, `versionName 2.6.0`, upgrade over signed v2.5.
 
-## App-only testing
+Automated tests include synthetic single and double BSTriShape files, invalid second shape handling, CI's BSA/NIF/DDS/Vulkan tests, Android compilation and signing.
 
-See [DEVICE_TEST_V25_RU.md](DEVICE_TEST_V25_RU.md).
-
-**Limitations:** one static NIF BSTriShape, one texture set, first DDS mip; the UI and model scale must be visually confirmed on a Samsung phone.
+[Пошаговая инструкция только внутри приложения](DEVICE_TEST_V26_RU.md)
