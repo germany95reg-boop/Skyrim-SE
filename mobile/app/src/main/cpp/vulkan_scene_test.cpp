@@ -83,6 +83,7 @@ double measuredFps = 0;
 uint32_t frameWidth = 0, frameHeight = 0;
 bool rendering = false;
 bool failed = false;
+std::string activeTextureMode = "off";
 
 void setStats(const std::string& msg, bool error = false) {
     std::lock_guard<std::mutex> guard(statsMutex);
@@ -132,6 +133,8 @@ struct Renderer {
     VkDescriptorSetLayout textureSetLayout=VK_NULL_HANDLE;
     VkDescriptorPool textureDescriptorPool=VK_NULL_HANDLE;
     VkDescriptorSet textureDescriptor=VK_NULL_HANDLE;
+    std::string textureMode="off";
+    std::string textureCompatibility;
     bool hasNormalAtlas=false;
     int diffuseAtlasGrid=0; // persistent renderer state, accessed by frame()
     VkImage sampledImage=VK_NULL_HANDLE;
@@ -650,8 +653,83 @@ struct Renderer {
             stages[1].module=textureFragmentModule;
             pipelineInfo.pVertexInputState=&uvInput;
             pipelineInfo.layout=textureLayout;
-            ck(vkCreateGraphicsPipelines(device,VK_NULL_HANDLE,1,&pipelineInfo,nullptr,&texturePipeline),
-               "vkCreateGraphicsPipelines(textured)");
+            // v2.14: a driver may reject the full fragment program with
+            // VK_ERROR_UNKNOWN (-13), even when line and solid pipelines work.
+            // Never let an optional DDS shader blank the entire 3D scene.
+            const VkResult fullResult=vkCreateGraphicsPipelines(
+                device,VK_NULL_HANDLE,1,&pipelineInfo,nullptr,&texturePipeline);
+            if(fullResult==VK_SUCCESS){
+                textureMode="full";
+            }else{
+                __android_log_print(ANDROID_LOG_WARN,TAG,
+                    "Full DDS pipeline failed VkResult=%d; trying compatible shader",
+                    static_cast<int>(fullResult));
+                if(texturePipeline){
+                    vkDestroyPipeline(device,texturePipeline,nullptr);
+                    texturePipeline=VK_NULL_HANDLE;
+                }
+                // Each alternate pipeline is compiled independently. A failure
+                // in one Vulkan shader module or graphics pipeline is nonfatal.
+                auto tryAlternate=[&](const char* vertexAsset,const char* fragmentAsset)->VkResult{
+                    VkShaderModule vs=VK_NULL_HANDLE,fs=VK_NULL_HANDLE;
+                    VkResult result=VK_ERROR_UNKNOWN;
+                    try{
+                        auto vertexWords=loadSpirv(assets,vertexAsset);
+                        auto fragmentWords=loadSpirv(assets,fragmentAsset);
+                        VkShaderModuleCreateInfo altInfo{VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO};
+                        altInfo.codeSize=vertexWords.size()*sizeof(uint32_t);
+                        altInfo.pCode=vertexWords.data();
+                        result=vkCreateShaderModule(device,&altInfo,nullptr,&vs);
+                        if(result==VK_SUCCESS){
+                            altInfo.codeSize=fragmentWords.size()*sizeof(uint32_t);
+                            altInfo.pCode=fragmentWords.data();
+                            result=vkCreateShaderModule(device,&altInfo,nullptr,&fs);
+                        }
+                        if(result==VK_SUCCESS){
+                            stages[0].module=vs;
+                            stages[1].module=fs;
+                            result=vkCreateGraphicsPipelines(
+                                device,VK_NULL_HANDLE,1,&pipelineInfo,nullptr,&texturePipeline);
+                        }
+                    }catch(const std::exception& error){
+                        __android_log_print(ANDROID_LOG_WARN,TAG,
+                            "DDS fallback shader unavailable: %s",error.what());
+                        result=VK_ERROR_UNKNOWN;
+                    }
+                    if(fs)vkDestroyShaderModule(device,fs,nullptr);
+                    if(vs)vkDestroyShaderModule(device,vs,nullptr);
+                    if(result!=VK_SUCCESS&&texturePipeline){
+                        vkDestroyPipeline(device,texturePipeline,nullptr);
+                        texturePipeline=VK_NULL_HANDLE;
+                    }
+                    return result;
+                };
+                const VkResult safeResult=tryAlternate(
+                    "textured_safe.vert.spv","textured_safe.frag.spv");
+                if(safeResult==VK_SUCCESS){
+                    textureMode="atlas-safe";
+                    textureCompatibility=" · DDS: совместимый атлас (без сложного освещения)";
+                }else{
+                    __android_log_print(ANDROID_LOG_WARN,TAG,
+                        "Safe DDS pipeline failed VkResult=%d; trying basic sampler",
+                        static_cast<int>(safeResult));
+                    const VkResult basicResult=tryAlternate(
+                        "textured_safe.vert.spv","textured_legacy.frag.spv");
+                    if(basicResult==VK_SUCCESS){
+                        textureMode="basic";
+                        textureCompatibility=" · DDS: базовый режим (одна текстура)";
+                    }else{
+                        __android_log_print(ANDROID_LOG_ERROR,TAG,
+                            "All DDS pipelines failed: full=%d safe=%d basic=%d; solid remains available",
+                            static_cast<int>(fullResult),static_cast<int>(safeResult),
+                            static_cast<int>(basicResult));
+                        textureReady=false; // Skip texture upload/descriptor if no sampler pipeline.
+                        hasNormalAtlas=false;
+                        textureMode="off";
+                        textureCompatibility=" · DDS недоступна: каркас и поверхность работают";
+                    }
+                }
+            }
         }
         VkCommandPoolCreateInfo poolInfo{VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO};
         poolInfo.queueFamilyIndex = family;
@@ -794,7 +872,8 @@ struct Renderer {
             gpuName = gpu;
             frameWidth = size.width;
             frameHeight = size.height;
-            stage = "3D-сцена работает";
+            stage = "3D-сцена работает" + textureCompatibility;
+            activeTextureMode = textureMode;
             rendering = true;
         }
     }
@@ -960,6 +1039,7 @@ std::string statsJson() {
         << ",\"edges\":" << activeEdges
         << ",\"triangles\":" << activeTriangles
         << ",\"solidMode\":" << (solidMode.load(std::memory_order_relaxed)?"true":"false")
+        << ",\"textureMode\":\"" << esc(activeTextureMode) << "\""
         << ",\"message\":\"" << esc(stage) << "\"}";
     return out.str();
 }
@@ -975,6 +1055,7 @@ Java_dev_skyrimsemobile_launcher_VulkanSceneActivity_nativeResetScene(JNIEnv*, j
     std::lock_guard<std::mutex> guard(statsMutex);
     stage = "Ожидание Vulkan pipeline…";
     gpuName.clear();
+    activeTextureMode = "off";
     renderedFrames = 0;
     measuredFps = 0;
     frameWidth = frameHeight = 0;

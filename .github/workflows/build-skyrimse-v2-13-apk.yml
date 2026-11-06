@@ -1,7 +1,7 @@
-name: Skyrim SE Mobile Vulkan 3D APK v2.13 — composite diffuse DDS atlas
+name: Skyrim SE Mobile Vulkan 3D APK v2.14 — driver fallback for DDS
 on:
   push:
-    branches: [main, development/v2.13-composite-dds-atlas]
+    branches: [main, development/v2.14-vulkan-fallback]
   workflow_dispatch:
 
 jobs:
@@ -25,6 +25,7 @@ jobs:
         run: |
           python3 mobile/tests/release_signing_contract_test.py
           python3 mobile/tests/v213_contract_test.py
+          python3 mobile/tests/v214_vulkan_fallback_contract_test.py
           test -s .ci/skyrimse-mobile-test.jks
           keytool -list -v -keystore .ci/skyrimse-mobile-test.jks -storepass android -alias androiddebugkey | grep -F '16:B9:F1:0C:71:FE:29:0E:44:55:DF:39:B9:34:4B:9B:8B:28:24:79:F5:B0:A1:35:F3:58:49:7E:59:3B:B2:D7'
       - name: JVM regression — exact NIF part to DDS references and composite atlas
@@ -84,7 +85,7 @@ jobs:
           fi
           test -x "$ANDROID_HOME/cmake/3.22.1/bin/cmake"
           sudo apt-get update -qq
-          sudo apt-get install -y glslang-tools
+          sudo apt-get install -y glslang-tools spirv-tools
       - name: Compile Vulkan GLSL to SPIR-V
         run: |
           glslangValidator -V --target-env vulkan1.0 -S vert \
@@ -102,6 +103,18 @@ jobs:
           glslangValidator -V --target-env vulkan1.0 -S frag \
             mobile/app/src/main/shaders/textured.frag \
             -o mobile/app/src/main/assets/textured.frag.spv
+          glslangValidator -V --target-env vulkan1.0 -S vert \
+            mobile/app/src/main/shaders/textured_safe.vert \
+            -o mobile/app/src/main/assets/textured_safe.vert.spv
+          glslangValidator -V --target-env vulkan1.0 -S frag \
+            mobile/app/src/main/shaders/textured_safe.frag \
+            -o mobile/app/src/main/assets/textured_safe.frag.spv
+          glslangValidator -V --target-env vulkan1.0 -S frag \
+            mobile/app/src/main/shaders/textured_legacy.frag \
+            -o mobile/app/src/main/assets/textured_legacy.frag.spv
+          for spv in mobile/app/src/main/assets/*.spv; do
+            spirv-val --target-env vulkan1.0 "$spv"
+          done
       - name: Build signed debug APK
         working-directory: mobile
         run: gradle --no-daemon --stacktrace :app:assembleDebug
@@ -113,6 +126,6 @@ jobs:
       - name: Upload signed Android test APK
         uses: actions/upload-artifact@v4
         with:
-          name: Skyrim-SE-Vulkan-3D-v2.13-APK
+          name: Skyrim-SE-Vulkan-3D-v2.14-APK
           path: mobile/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
