@@ -5,6 +5,9 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.content.UriPermission;
 import android.net.Uri;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
 /**
  * v2.9: only metadata/SAF URIs and NIF paths are saved privately.
@@ -15,6 +18,7 @@ final class BsaSessionStore {
     private static final String PREFS="skyrim_bsa_session_v29";
     private static final String ARCHIVE="archive_uri", ARCHIVE_NAME="archive_name";
     private static final String MODEL="model_path", DATA_TREE="data_tree_uri";
+    private static final String RECENT="recent_nif_paths";
     private final SharedPreferences prefs;
     private final ContentResolver resolver;
 
@@ -64,7 +68,7 @@ final class BsaSessionStore {
         if(!hasReadPermission(uri))return;
         String prior=prefs.getString(ARCHIVE,"");
         SharedPreferences.Editor e=prefs.edit();
-        if(!uri.toString().equals(prior))e.remove(MODEL);
+        if(!uri.toString().equals(prior))e.remove(MODEL).remove(RECENT);
         e.putString(ARCHIVE,uri.toString())
          .putString(ARCHIVE_NAME,name==null?"Последний BSA":name)
          .apply();
@@ -72,13 +76,32 @@ final class BsaSessionStore {
 
     void clearArchive(){
         prefs.edit().remove(ARCHIVE).remove(ARCHIVE_NAME)
-            .remove(MODEL).apply();
+            .remove(MODEL).remove(RECENT).apply();
     }
 
     void saveModel(Uri archiveUri,String nifPath){
-        if(archiveUri==null||nifPath==null||nifPath.isEmpty())return;
-        if(archiveUri.toString().equals(prefs.getString(ARCHIVE,"")))
-            prefs.edit().putString(MODEL,nifPath).apply();
+        if(archiveUri==null||nifPath==null||nifPath.isEmpty()||
+            nifPath.length()>512||nifPath.indexOf('\n')>=0)return;
+        if(!archiveUri.toString().equals(prefs.getString(ARCHIVE,"")))return;
+        List<String> recent=new ArrayList<>(recentModels(archiveUri));
+        recent.remove(nifPath);
+        recent.add(0,nifPath);
+        if(recent.size()>8)recent=recent.subList(0,8);
+        prefs.edit().putString(MODEL,nifPath)
+            .putString(RECENT,String.join("\n",recent)).apply();
+    }
+
+    List<String> recentModels(Uri archiveUri){
+        if(archiveUri==null||
+            !archiveUri.toString().equals(prefs.getString(ARCHIVE,"")))
+            return Collections.emptyList();
+        String raw=prefs.getString(RECENT,"");
+        if(raw.isEmpty())return Collections.emptyList();
+        List<String> out=new ArrayList<>();
+        for(String value:raw.split("\n")){
+            if(!value.isEmpty()&&out.size()<8)out.add(value);
+        }
+        return out;
     }
 
     String lastModel(Uri archiveUri){
@@ -104,5 +127,23 @@ final class BsaSessionStore {
 
     void clearDataTree(){
         prefs.edit().remove(DATA_TREE).apply();
+    }
+
+    /** Clear metadata and explicitly release the application's retained grants. */
+    void forgetAll(){
+        Uri archive=lastArchive(), tree=lastDataTree();
+        prefs.edit().clear().apply();
+        releaseRead(archive);
+        if(tree!=null&&!tree.equals(archive))releaseRead(tree);
+    }
+
+    private void releaseRead(Uri uri){
+        if(uri==null)return;
+        try{
+            resolver.releasePersistableUriPermission(uri,
+                android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        }catch(SecurityException | IllegalArgumentException ignored){
+            // The Android provider may already have revoked this permission.
+        }
     }
 }
