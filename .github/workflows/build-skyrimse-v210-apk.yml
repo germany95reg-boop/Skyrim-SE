@@ -231,6 +231,7 @@ jobs:
             app/src/main/java/dev/skyrimsemobile/launcher/BsaCatalogReader.java \
             app/src/main/java/dev/skyrimsemobile/launcher/ResourceHeaderInspector.java \
             app/src/main/java/dev/skyrimsemobile/launcher/BsaEntryInspector.java \
+            app/src/main/java/dev/skyrimsemobile/launcher/NifMaterialLinkInspector.java \
             app/src/main/java/dev/skyrimsemobile/launcher/NifBlockInspector.java \
             app/src/main/java/dev/skyrimsemobile/launcher/NifMaterialInspector.java \
             app/src/main/java/dev/skyrimsemobile/launcher/NifGeometryDecoder.java \
