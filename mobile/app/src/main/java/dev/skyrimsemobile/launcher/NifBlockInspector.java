@@ -30,12 +30,14 @@ public final class NifBlockInspector {
         public final int fileVersion,userVersion,streamVersion,blockCount,blockTypeCount,stringCount;
         public final int blockSectionOffset,meshCandidateCount,rootCount;
         public final List<Block> blocks;
+        public final int[] rootIndices;
         public final Map<String,Integer> counts;
         Result(int fv,int uv,int sv,int num,int typeCount,int strings,int start,int shapes,
-               int roots,List<Block> blocks,Map<String,Integer> counts){
+               int[] rootIds,List<Block> blocks,Map<String,Integer> counts){
             fileVersion=fv;userVersion=uv;streamVersion=sv;blockCount=num;
             blockTypeCount=typeCount;stringCount=strings;blockSectionOffset=start;
-            meshCandidateCount=shapes;rootCount=roots;this.blocks=blocks;this.counts=counts;
+            meshCandidateCount=shapes;rootCount=rootIds.length;rootIndices=rootIds.clone();
+            this.blocks=blocks;this.counts=counts;
         }
         public String report() {
             StringBuilder sb=new StringBuilder("NIF v1.0 · таблица блоков (без декодирования геометрии)\n");
@@ -132,11 +134,14 @@ public final class NifBlockInspector {
         }
         long roots=r.u32();
         if(roots>num)throw new IOException("Число корневых блоков NIF превышает общее число блоков");
+        int[] rootRefs=new int[(int)roots];
         for(int i=0;i<roots;i++){
             long blockIndex=r.u32();
             if(blockIndex>=num)throw new IOException("Некорректная ссылка на корневой блок NIF");
+            rootRefs[i]=(int)blockIndex;
         }
-        return new Result(ver,user,stream,(int)num,typeCount,(int)ns,blocksStart,shapes,(int)roots,blocks,counts);
+        return new Result(ver,user,stream,(int)num,typeCount,(int)ns,
+            blocksStart,shapes,rootRefs,blocks,counts);
     }
     private static final class Reader {
         private final byte[] b;private int p;

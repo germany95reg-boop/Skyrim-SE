@@ -29,6 +29,7 @@ sources=(
   BsaCatalogReader BsaDdsInspector BsaDdsPixelReader BsaEntryInspector
   DdsArchiveFinder DdsBcDecoder DdsHeaderInspector DdsNormalResampler
   NifBlockInspector NifCatalogSelection NifCompositeDdsAtlas
+  NifHierarchyTransforms
   NifGeometryDecoder NifGeometryTransfer NifMaterialInspector
   NifMaterialLinkInspector NifPartDdsAvailability NifPartTextureSelection
   NifSceneComposer ObjWireParser PeHeaderInspector PreviewLighting

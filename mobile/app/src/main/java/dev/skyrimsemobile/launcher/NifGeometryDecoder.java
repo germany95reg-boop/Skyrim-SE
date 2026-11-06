@@ -5,6 +5,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Map;
 import java.util.Locale;
 
 /**
@@ -43,9 +44,21 @@ public final class NifGeometryDecoder {
     public static final class Parts {
         public final List<Part> items;
         public final int available;
+        public final Map<Integer,NifHierarchyTransforms.Transform> parentTransforms;
+        public final String hierarchyNote;
+        public final int linkedParentShapes;
         Parts(List<Part> list,int ready){
+            this(list,ready,Collections.emptyMap(),
+                 "Иерархия не исследована; только локальные BSTriShape",0);
+        }
+        Parts(List<Part> list,int ready,
+              Map<Integer,NifHierarchyTransforms.Transform> parents,
+              String hierarchyNote,int linked){
             items=Collections.unmodifiableList(new ArrayList<>(list));
             available=ready;
+            parentTransforms=Collections.unmodifiableMap(new java.util.HashMap<>(parents));
+            this.hierarchyNote=hierarchyNote;
+            linkedParentShapes=linked;
         }
         public String report(){
             StringBuilder text=new StringBuilder("Части NIF v2.11 · BSTriShape (только чтение)\n");
@@ -56,9 +69,9 @@ public final class NifGeometryDecoder {
                 if(part.problem!=null)text.append(" · ").append(part.problem);
                 text.append('\n');
             }
-            text.append("\nВыбирай отдельную часть для просмотра без материалов. "+
-                "Объединение всех частей, связи шейдеров с DDS и "+
-                "родительские трансформации пока не поддерживаются. "+
+            text.append("\n").append(hierarchyNote).append("\n");
+            text.append("Составной просмотр учитывает проверенные связи родительских узлов; "+
+                "отдельные части показывают только локальное преобразование. "+
                 "Файл BSA не изменён.");
             return text.toString();
         }
@@ -92,7 +105,16 @@ public final class NifGeometryDecoder {
         }
         if(list.isEmpty())
             throw new IOException("В выбранном NIF нет статических BSTriShape");
-        return new Parts(list,accepted);
+        NifHierarchyTransforms.Result hierarchy;
+        try{
+            hierarchy=NifHierarchyTransforms.read(bytes,nif);
+        }catch(IOException malformed){
+            return new Parts(list,accepted,Collections.emptyMap(),
+                "ПРЕДУПРЕЖДЕНИЕ: иерархия NIF повреждена или неподдерживаема: "+
+                malformed.getMessage()+"; только локальные преобразования",0);
+        }
+        return new Parts(list,accepted,hierarchy.parentWorld,
+            hierarchy.status,hierarchy.connectedShapes);
     }
 
     public static final class Mesh {
@@ -131,8 +153,9 @@ public final class NifGeometryDecoder {
                 "После локального преобразования XYZ: "+fmt3(localDimensions)+"\n"+
                 String.format(Locale.US,"Локальный масштаб: %.3f · смещение: %s\n",localScale,fmt3(translation))+
                 "Геометрия нормализована для режимов каркаса и закрашенных треугольников. " +
-                "Локальное преобразование BSTriShape применено; преобразования родительских узлов, " +
-                "текстуры, шейдеры Skyrim и анимация пока не применяются. " +
+                "После локального преобразования BSTriShape координаты учтены. "+
+                "Родительская иерархия учитывается только в составной сцене. "+
+                "Текстуры, шейдеры Skyrim и анимация не применяются к отдельной части. " +
                 "Исходный BSA не изменён.";
         }
         public String compactInfo(){ return "NIF XYZ: "+fmt3(localDimensions)+" · лок. масштаб: "+
