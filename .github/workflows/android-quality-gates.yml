@@ -103,6 +103,9 @@ jobs:
           target: google_apis
           arch: x86_64
           profile: pixel_5
+          # Override AVD config itself, as well as the emulator boot flag below.
+          disk-size: 2048M
+          ram-size: 2048M
           disable-animations: true
           # Default API 35 userdata >7 GB fails on stock hosted runners.
           # A 2 GB userdata partition is sufficient for our no-game-asset UI tests.
