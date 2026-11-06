@@ -104,7 +104,9 @@ jobs:
           arch: x86_64
           profile: pixel_5
           disable-animations: true
-          emulator-options: -no-window -no-snapshot -noaudio -no-boot-anim -gpu swiftshader_indirect
+          # Default API 35 userdata >7 GB fails on stock hosted runners.
+          # A 2 GB userdata partition is sufficient for our no-game-asset UI tests.
+          emulator-options: -no-window -no-snapshot -noaudio -no-boot-anim -no-metrics -gpu swiftshader_indirect -partition-size 2048
           script: cd mobile && gradle --no-daemon --stacktrace -PciEmulator=true :app:connectedDebugAndroidTest
       - name: Keep Android test results for failure analysis
         if: always()
