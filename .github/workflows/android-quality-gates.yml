@@ -89,6 +89,17 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
+      - name: Free runner disk for Android system image and userdata
+        run: |
+          # Stock GitHub runner preinstalls .NET and Haskell, unused by this Android project.
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL
+          df -h .
+          # Emulator needs ~7.4 GB to create the AVD userdata partition.
+          available_kb=$(df -Pk . | awk 'NR==2 {print $4}')
+          if (( available_kb < 8500000 )); then
+            echo "Insufficient free space for Android emulator: ${available_kb} KB" >&2
+            exit 1
+          fi
       - name: Allow Linux KVM acceleration for Android emulator
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
