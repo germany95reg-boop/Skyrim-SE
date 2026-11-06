@@ -73,6 +73,8 @@ public final class BsaCatalogActivity extends Activity {
         root.setPadding(dp(16),dp(14),dp(16),dp(18));scroll.addView(root);
         TextView title=text("Skyrim SE · NIF v2.13",22,0xffdbc5fb);title.setGravity(Gravity.CENTER);root.addView(title);
         root.addView(text("BSA 105: каталог, NIF и Vulkan. Последний разрешённый архив, модель и папка Data восстанавливаются автоматически. Содержимое файлов Skyrim не копируется и не изменяется.",13,0xffd5d3dd));
+        button(root,"Запустить полный автотест на телефоне · v2.15",()->
+            startActivity(new Intent(this,DeviceSelfTestActivity.class)));
         button(root,"Выбрать архив BSA",this::pick);
         button(root,"Забыть сохранённые пути · v2.11",this::forgetSavedPaths);
         filter=new EditText(this);filter.setSingleLine(true);filter.setHint("Поиск: meshes, .nif, fish...");

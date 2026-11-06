@@ -8,8 +8,8 @@ android {
         applicationId 'dev.skyrimsemobile.launcher'
         minSdk 26
         targetSdk 34
-        versionCode 37
-        versionName '2.14.0'
+        versionCode 38
+        versionName '2.15.0'
         testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
         ndk {
             // Release APK is ARM64-only; x86_64 is added only for emulator CI.
@@ -55,4 +55,14 @@ dependencies {
     androidTestImplementation 'androidx.test:core:1.6.1'
     androidTestImplementation 'androidx.test:runner:1.6.2'
     androidTestImplementation 'androidx.test.ext:junit:1.2.1'
+}
+
+
+// Download actual dependency JAR files, not just Gradle metadata (JVM CI needs LZ4).
+tasks.register('resolveRuntimeJars') {
+    doLast {
+        configurations.debugRuntimeClasspath.resolve().each { file ->
+            println("Runtime JAR: " + file.getName())
+        }
+    }
 }

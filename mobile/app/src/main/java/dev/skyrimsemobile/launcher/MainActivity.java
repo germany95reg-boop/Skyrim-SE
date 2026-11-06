@@ -120,6 +120,8 @@ public final class MainActivity extends Activity {
             startActivity(new Intent(MainActivity.this, VulkanTestActivity.class));
         }); }
         @JavascriptInterface public void openResourceInspector() { runOnUiThread(() -> startActivity(new Intent(MainActivity.this, ResourceInspectorActivity.class))); }
+        @JavascriptInterface public void openDeviceSelfTest() { runOnUiThread(() ->
+            startActivity(new Intent(MainActivity.this, DeviceSelfTestActivity.class))); }
         @JavascriptInterface public void openVulkan3DTest() { runOnUiThread(() -> {
             startActivity(new Intent(MainActivity.this, VulkanSceneActivity.class));
         }); }
