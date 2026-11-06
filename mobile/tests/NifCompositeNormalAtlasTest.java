@@ -24,7 +24,11 @@ public final class NifCompositeNormalAtlasTest {
         }catch(IOException ex){checks++;}
     }
     public static void main(String[] args)throws Exception{
-        NifGeometryDecoder.Parts parts=NifCompositeDdsAtlasTest.fixture();
+        NifGeometryDecoder.Mesh mesh=
+            NifGeometryDecoder.decode(NifGeometryDecoderTest.validUv());
+        NifGeometryDecoder.Parts parts=new NifGeometryDecoder.Parts(Arrays.asList(
+            new NifGeometryDecoder.Part(5,mesh,null),
+            new NifGeometryDecoder.Part(8,mesh,null)),2);
         NifSceneComposer.Combined scene=NifSceneComposer.combine(parts);
         DdsBcDecoder.Image red=image(0xffff0000),green=image(0xff00ff00);
         Map<Integer,DdsBcDecoder.Image> diffuse=new HashMap<>();
