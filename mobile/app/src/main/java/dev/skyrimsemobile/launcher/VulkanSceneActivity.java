@@ -25,6 +25,7 @@ import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import org.json.JSONObject;
+import org.json.JSONArray;
 
 /** A real animated Vulkan cube test. It does not load a Skyrim executable or any game assets. */
 public final class VulkanSceneActivity extends Activity implements SurfaceHolder.Callback {
@@ -33,18 +34,47 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
     public static final String EXTRA_DEVICE_AUTOTEST_RESULT = "deviceAutotestVulkanJson";
     public static final String EXTRA_DEVICE_AUTOTEST_ERROR = "deviceAutotestError";
     private boolean deviceAutotest=false,deviceAutotestFinished=false;
+    private final FpsAutotestSequence fpsSequence=new FpsAutotestSequence();
     private long deviceAutotestStarted;
     private final Runnable deviceAutotestTimeout=()->{
         if(deviceAutotest&&!deviceAutotestFinished)
-            completeDeviceAutotest(false,null,"Vulkan не отрисовал достаточно кадров за 20 секунд");
+            completeDeviceAutotest(false,null,
+                "Тайм-аут 30 секунд: не удалось завершить FPS-режим "+
+                fpsSequence.requestedCap());
     };
+    private String attachFpsMeasurements(String rawStats){
+        try {
+            JSONObject output=new JSONObject(rawStats==null?"{}":rawStats);
+            JSONArray stages=new JSONArray();
+            for(FpsAutotestSequence.Result r:fpsSequence.results()){
+                JSONObject stage=new JSONObject();
+                stage.put("cap",r.cap);
+                stage.put("frames",r.frames);
+                stage.put("sampleMillis",r.elapsedMs);
+                stage.put("fps",r.fps);
+                stage.put("nativeFps",r.nativeWindowFps);
+                stage.put("capConfirmed",r.capConfirmed);
+                stage.put("passed",r.passed());
+                stages.put(stage);
+            }
+            output.put("fpsStages",stages);
+            output.put("fpsExpectedStages",fpsSequence.stageCount());
+            return output.toString();
+        } catch(Exception ignored){return rawStats==null?"{}":rawStats;}
+    }
     private void completeDeviceAutotest(boolean success,String stats,String error){
         if(!deviceAutotest||deviceAutotestFinished)return;
         deviceAutotestFinished=true;
         ui.removeCallbacks(deviceAutotestTimeout);
         Intent result=new Intent();
-        if(success)result.putExtra(EXTRA_DEVICE_AUTOTEST_RESULT,stats);
-        else result.putExtra(EXTRA_DEVICE_AUTOTEST_ERROR,error);
+        String snapshot=stats;
+        if(snapshot==null && loadingError==null){
+            try{snapshot=nativeGetStats();}
+            catch(Throwable ignored){snapshot="{}";}
+        }
+        result.putExtra(EXTRA_DEVICE_AUTOTEST_RESULT,
+            attachFpsMeasurements(snapshot));
+        if(!success)result.putExtra(EXTRA_DEVICE_AUTOTEST_ERROR,error);
         setResult(success?RESULT_OK:RESULT_CANCELED,result);
         finish();
     }
@@ -110,7 +140,12 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
                     int w = info.optInt("width"), h = info.optInt("height");
                     double fps = info.optDouble("fps");
                     long frames = info.optLong("frames");
-                    status.setText(message + "\n" + (running ? String.format(java.util.Locale.US,
+                    status.setText(message +
+                        (deviceAutotest?"\nАвтотест FPS: этап "+
+                            fpsSequence.stageNumber()+"/"+fpsSequence.stageCount()+
+                            " · лимит "+(fpsSequence.requestedCap()==0?
+                                "Без ограничения":fpsSequence.requestedCap()):"") +
+                        "\n" + (running ? String.format(java.util.Locale.US,
                         "FPS: %.1f · Кадров: %d · %d×%d\nУгол: %.1f · Наклон: %.1f · Дистанция: %.1f\nГеометрия: %s · Рёбер: %d",
                         fps, frames, w, h, info.optDouble("yaw"), info.optDouble("pitch"),
                         info.optDouble("distance"), info.optString("geometry","Куб"), info.optInt("edges")) : "") +
@@ -131,9 +166,19 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
                     // must reach the GPU before we return a test result.
                     if(deviceAutotest&&!deviceAutotestFinished){
                         if(error)completeDeviceAutotest(false,json,message);
-                        else if(running&&frames>=45&&
-                            SystemClock.elapsedRealtime()-deviceAutotestStarted>=2300)
-                            completeDeviceAutotest(true,json,null);
+                        else {
+                            FpsAutotestSequence.Result measured=fpsSequence.sample(
+                                SystemClock.elapsedRealtime(),frames,
+                                info.optInt("fpsCap",-1),fps,running);
+                            if(measured!=null){
+                                if(fpsSequence.complete()&&frames>=45){
+                                    completeDeviceAutotest(true,json,null);
+                                }else if(!fpsSequence.complete()){
+                                    fpsCap=fpsSequence.requestedCap();
+                                    updateControls(); // sets real native FPS cap
+                                }
+                            }
+                        }
                     }
                     if (frames > 0 && !error) {
                         getSharedPreferences("launcher_state", MODE_PRIVATE).edit()
@@ -165,7 +210,10 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
         super.onCreate(savedInstanceState);
         deviceAutotest=getIntent().getBooleanExtra(EXTRA_DEVICE_AUTOTEST,false);
         deviceAutotestStarted=SystemClock.elapsedRealtime();
-        if(deviceAutotest)ui.postDelayed(deviceAutotestTimeout,20000);
+        if(deviceAutotest){
+            fpsCap=FpsAutotestSequence.CAPS[0];
+            ui.postDelayed(deviceAutotestTimeout,FpsAutotestSequence.MAX_TOTAL_MS);
+        }
         getWindow().setStatusBarColor(0xff101115);
         getWindow().setNavigationBarColor(0xff101115);
         FrameLayout root = new FrameLayout(this);
@@ -178,7 +226,7 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
         root.addView(viewport, new FrameLayout.LayoutParams(-1, -1));
 
         TextView title = new TextView(this);
-        title.setText("SKYRIM SE MOBILE\nVulkan 3D · v2.15");
+        title.setText("SKYRIM SE MOBILE\nVulkan 3D · v2.16");
         sceneTitle=title;
         title.setTypeface(Typeface.SERIF, Typeface.BOLD);
         title.setTextSize(20);
@@ -209,7 +257,7 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
         autoButton = controlButton("Авто: Вкл");
         autoButton.setOnClickListener(v -> { autoSpin = !autoSpin; updateControls(); });
         controls.addView(autoButton, new LinearLayout.LayoutParams(0, dp(46), 1));
-        fpsButton = controlButton("FPS: 60");
+        fpsButton = controlButton(deviceAutotest?"FPS: 30":"FPS: 60");
         fpsButton.setOnClickListener(v -> { fpsCap = fpsCap == 30 ? 60 : fpsCap == 60 ? 0 : 30; updateControls(); });
         controls.addView(fpsButton, new LinearLayout.LayoutParams(0, dp(46), 1));
         Button reset = controlButton("Сброс");

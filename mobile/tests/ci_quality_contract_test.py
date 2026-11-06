@@ -17,7 +17,7 @@ shaders=read("ci/compile_shaders.sh")
 
 assert "abiFilters 'arm64-v8a'" in gradle
 assert "applicationId 'dev.skyrimsemobile.launcher'" in gradle
-assert "versionCode 38" in gradle and "versionName '2.15.0'" in gradle
+assert "versionCode 39" in gradle and "versionName '2.16.0'" in gradle
 assert "android:exported=\"false\"" in manifest
 assert "pull_request:" in workflow and "branches: [main]" in workflow
 assert "needs: jvm-regressions" in workflow
@@ -25,13 +25,15 @@ assert "android-emulator-ui:" not in workflow, "Use the real device's in-app tes
 assert "bash mobile/ci/run_jvm_suite.sh" in workflow
 assert "bash mobile/ci/verify_apk.sh" in workflow
 assert "v215_device_autotest_contract_test.py" in workflow
-assert "Skyrim-SE-v2.15-CI-ARM64-APK" in workflow
+assert "Skyrim-SE-v2.16-CI-ARM64-APK" in workflow
 assert "*Test.java" in jvm and "java -ea" in jvm
 assert "DeviceSelfTestReport" in jvm
+assert "FpsAutotestSequence" in jvm
+assert "v216_fps_matrix_contract_test.py" in workflow
 assert "lib/arm64-v8a/libskyrimse_scene.so" in verify
 assert "grep -Eq '^lib/x86_64/'" in verify
 assert "apksigner" in verify
-assert "versionCode='38'" in verify
+assert "versionCode='39'" in verify
 assert "textured.frag:frag" in shaders
 assert "textured_safe.vert:vert" in shaders
 assert "textured_safe.frag:frag" in shaders
@@ -40,7 +42,7 @@ assert "spirv-val --target-env vulkan1.0" in shaders
 assert "python3 mobile/tests/v214_vulkan_fallback_contract_test.py" in workflow
 
 tests=sorted((root/"tests").glob("*Test.java"))
-assert len(tests)>=25, f"Expected 25 JVM programs, got {len(tests)}"
+assert len(tests)>=26, f"Expected 25 JVM programs, got {len(tests)}"
 for test in tests:
     assert re.search(r"\bstatic\s+void\s+main\s*\(",test.read_text(encoding="utf-8")),test
 print(f"PASS CI checks: {len(tests)} JVM tests, signed ARM64 APK and in-app phone runner")
