@@ -67,8 +67,13 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
         deviceAutotestFinished=true;
         ui.removeCallbacks(deviceAutotestTimeout);
         Intent result=new Intent();
+        String snapshot=stats;
+        if(snapshot==null && loadingError==null){
+            try{snapshot=nativeGetStats();}
+            catch(Throwable ignored){snapshot="{}";}
+        }
         result.putExtra(EXTRA_DEVICE_AUTOTEST_RESULT,
-            attachFpsMeasurements(stats==null?nativeGetStats():stats));
+            attachFpsMeasurements(snapshot));
         if(!success)result.putExtra(EXTRA_DEVICE_AUTOTEST_ERROR,error);
         setResult(success?RESULT_OK:RESULT_CANCELED,result);
         finish();
