@@ -1,7 +1,5 @@
-name: Skyrim SE Mobile Vulkan 3D APK v2.10 — NIF Material Links
+name: Skyrim SE Mobile Vulkan 3D APK v2.10 (archived)
 on:
-  push:
-    branches: [main, development/v2.10-nif-material-links]
   workflow_dispatch:
 
 jobs:
