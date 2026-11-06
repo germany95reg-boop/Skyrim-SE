@@ -133,6 +133,7 @@ struct Renderer {
     VkDescriptorPool textureDescriptorPool=VK_NULL_HANDLE;
     VkDescriptorSet textureDescriptor=VK_NULL_HANDLE;
     bool hasNormalAtlas=false;
+    int diffuseAtlasGrid=0; // persistent renderer state, accessed by frame()
     VkImage sampledImage=VK_NULL_HANDLE;
     VkDeviceMemory sampledMemory=VK_NULL_HANDLE;
     VkImageView sampledView=VK_NULL_HANDLE;
@@ -280,7 +281,6 @@ struct Renderer {
         std::vector<uint8_t> rgbaData;
         uint32_t texWidth=0,texHeight=0;
         bool normalAtlas=false;
-        int diffuseAtlasGrid=0;
         {
             std::lock_guard<std::mutex> lock(geometryMutex);
             vertexData = selectedGeometry.empty() ? defaultCube() : selectedGeometry;
