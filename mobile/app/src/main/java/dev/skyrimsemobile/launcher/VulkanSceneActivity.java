@@ -377,6 +377,11 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
                     nif.normalArgb,nif.normalWidth,nif.normalHeight,
                     nif.materialSlots,nif.diffuseAtlasGrid);
             }
+            else if(deviceAutotest){
+                // Deterministic GPU probe when no saved BSA/NIF was available.
+                nativeClearGeometry();
+                meshLabel="Автотест: встроенный куб";
+            }
             else restoreModel();
             if(deviceAutotest&&hasSurface){
                 // Real diffuse/surface test rather than counting wireframe-only frames.
