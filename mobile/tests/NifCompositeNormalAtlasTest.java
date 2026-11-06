@@ -81,7 +81,7 @@ public final class NifCompositeNormalAtlasTest {
         ok(paired.uvAndSlot[2]==1f&&paired.uvAndSlot[11]==2f,
             "material pair maps each BSTriShape to its own slot");
         ok(paired.argb[1024]==0xffff0000&&
-           paired.argb[512*2048]==0xffff0000,
+           paired.argb[1024*2048]==0xffff0000,
            "different material pairs can share the same diffuse pixels");
         NifCompositeNormalAtlas.Result mapped=
             NifCompositeNormalAtlas.build(parts,paired,normals);
