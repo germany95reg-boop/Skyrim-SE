@@ -1,7 +1,5 @@
-name: Skyrim SE Mobile Vulkan 3D APK v2.10.1 — NIF Material Links
+name: Skyrim SE Mobile Vulkan 3D APK v2.10.1 (archived)
 on:
-  push:
-    branches: [main, hotfix/v2.10.1-sse-shader-type]
   workflow_dispatch:
 
 jobs:
