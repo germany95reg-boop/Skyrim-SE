@@ -12,11 +12,11 @@ checks={
     "decode all candidate blocks":'if(!"BSTriShape".equals(block.type))continue' in decoder,
     "keep unsupported blocks visible":"new Part(block.index,null" in decoder,
     "surface geometry checked":"Mesh m=parseShape(bytes,block)" in decoder,
-    "noneditable shape report":"Части NIF v2.10" in decoder,
+    "noneditable shape report":"Части NIF v2.10.1" in decoder,
     "no false material association":"связи шейдеров с DDS" in decoder,
     "bounded extraction reused":"Decoded d=readDecoded(bsa,entry,archiveFlags)" in entry,
     "activity read via SAF":"getContentResolver().openInputStream(uri)" in ui,
-    "visible button":"Части NIF · выбрать BSTriShape · v2.10" in ui,
+    "visible button":"Части NIF · выбрать BSTriShape · v2.10.1" in ui,
     "dialog list":"setItems(options,(dialog,index)->" in ui,
     "choice only loads selected mesh":"NifGeometryDecoder.Part part=parts.items.get(index)" in ui,
     "bad part never launches":"if(part.mesh==null)" in ui,
@@ -26,7 +26,7 @@ checks={
     "NIF game files read-only":"openOutputStream" not in ui and "openOutputStream" not in entry,
     "no unnecessary changes to texture handoff":"offerTextured" in transfer,
     "APK identity":"applicationId 'dev.skyrimsemobile.launcher'" in gradle,
-    "next version":"versionCode 32" in gradle and "versionName '2.10.0'" in gradle
+    "next version":"versionCode 33" in gradle and "versionName '2.10.1'" in gradle
 }
 assert all(checks.values()),[k for k,v in checks.items() if not v]
-print("PASS v2.10 read-only NIF part browser:",len(checks),"contracts")
+print("PASS v2.10.1 read-only NIF part browser:",len(checks),"contracts")

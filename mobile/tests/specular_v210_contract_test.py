@@ -31,8 +31,8 @@ check={
  "v2.3 camera remains":"sizeof(Parameters) == 28" in cpp,
  "v2.3 normals remain":"selectedNormalAtlas" in cpp and "normalEnabled" in frag,
  "same app id":"applicationId 'dev.skyrimsemobile.launcher'" in gradle,
- "new code and name":"versionCode 32" in gradle and "versionName '2.10.0'" in gradle,
+ "new code and name":"versionCode 33" in gradle and "versionName '2.10.1'" in gradle,
  "pure JVM helper":"android." not in helper and "static float specularStrength" in helper,
 }
 assert all(check.values()),[key for key,value in check.items() if not value]
-print("PASS v2.10 specular UI → JNI → Vulkan alpha preview:",len(check),"contracts")
+print("PASS v2.10.1 specular UI → JNI → Vulkan alpha preview:",len(check),"contracts")

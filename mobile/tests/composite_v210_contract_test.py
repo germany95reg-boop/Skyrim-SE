@@ -19,16 +19,16 @@ checks={
  "parent graph not falsely supported":"NiNode/BSFadeNode" in comp,
  "original min and span retained":"this.localMin=localMin.clone();this.localSpan=localSpan" in geom,
  "bounded single BSA read":"BsaEntryInspector.inspectNifParts" in ui,
- "composite control in Android":"Показать все части NIF в Vulkan · v2.10" in ui,
+ "composite control in Android":"Показать все части NIF в Vulkan · v2.10.1" in ui,
  "UI composite actually used":"NifSceneComposer.combine(parts)" in ui,
  "surface data handed off":"NifGeometryTransfer.offer(scene.lines,scene.triangles" in ui,
  "original single part picker preserved":"selectNifPart()" in ui,
  "diffuse preview preserved":"previewTexturedNif()" in ui,
  "shader controls still present":"nativeSetSpecularStrength" in scene,
  "BSA read only":"openOutputStream" not in ui and "openOutputStream" not in entry,
- "versionCode increment":"versionCode 32" in gradle,
- "versionName increment":"versionName '2.10.0'" in gradle,
+ "versionCode increment":"versionCode 33" in gradle,
+ "versionName increment":"versionName '2.10.1'" in gradle,
  "same Android applicationId":"applicationId 'dev.skyrimsemobile.launcher'" in gradle,
 }
 assert all(checks.values()),[k for k,ok in checks.items() if not ok]
-print("PASS v2.10 composite NIF preview:",len(checks),"contract checks")
+print("PASS v2.10.1 composite NIF preview:",len(checks),"contract checks")

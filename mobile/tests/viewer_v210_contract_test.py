@@ -6,7 +6,7 @@ frame=read('app/src/main/java/dev/skyrimsemobile/launcher/SceneFraming.java')
 cpp=read('app/src/main/cpp/vulkan_scene_test.cpp')
 gradle=read('app/build.gradle')
 checks={
- 'v2.10 heading':'Vulkan 3D · v2.10' in scene,
+ 'v2.10.1 heading':'Vulkan 3D · v2.10.1' in scene,
  'compact by default':'advancedControls.setVisibility(View.GONE)' in scene,
  'advanced row contains OBJ':'advancedControls.addView(meshControls)' in scene,
  'advanced row contains lighting':'advancedControls.addView(lightingControls)' in scene,
@@ -32,7 +32,7 @@ checks={
  'gloss intact':'nativeSetSpecularStrength(PreviewMaterial.specularStrength(specularPreset))' in scene,
  'shader intact':'texRange.size=52' in cpp,
  'same identity':"applicationId 'dev.skyrimsemobile.launcher'" in gradle,
- 'version upgraded':"versionCode 32" in gradle and "versionName '2.10.0'" in gradle,
+ 'version upgraded':"versionCode 33" in gradle and "versionName '2.10.1'" in gradle,
 }
 assert all(checks.values()),[k for k,ok in checks.items() if not ok]
-print('PASS v2.10: compact panel, model zoom and stable rendering:',len(checks),'checks')
+print('PASS v2.10.1: compact panel, model zoom and stable rendering:',len(checks),'checks')
