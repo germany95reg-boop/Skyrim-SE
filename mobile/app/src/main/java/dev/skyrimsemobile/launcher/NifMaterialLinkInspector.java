@@ -7,7 +7,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-/** v2.10.1, strictly bounded shape -> lighting shader -> texture set references.
+/** v2.11, strictly bounded shape -> lighting shader -> texture set references.
  * Read-only diagnostic; no guesses from block order or texture filenames.
  * Supports the standard Skyrim SE stream-100 NiAVObject/BSLightingShaderProperty
  * layout, and explicitly reports unsupported links.
@@ -18,7 +18,7 @@ public final class NifMaterialLinkInspector {
     private static final int MAX_EXTRAS=128;
     /** Skyrim SE BSLightingShaderProperty begins with an additional 4-byte
      * Shader Type field before NiObjectNET (niftools nif.xml, stream 100).
-     * The previous v2.10.1 parser wrongly read NiObjectNET Name as Extra Count.
+     * The previous v2.10 parser wrongly read NiObjectNET Name as Extra Count.
      */
     private static final int LIGHTING_SHADER_TYPE_BYTES=4;
 
@@ -40,7 +40,7 @@ public final class NifMaterialLinkInspector {
             resolved=count;
         }
         public String report(){
-            StringBuilder b=new StringBuilder("Материалы частей NIF · v2.10.1 (диагностика)\n");
+            StringBuilder b=new StringBuilder("Материалы частей NIF · v2.11 (диагностика)\n");
             b.append("Частей BSTriShape: ").append(links.size())
                 .append(" · подтверждённых связей: ").append(resolved).append("\n");
             for(Link l:links){
