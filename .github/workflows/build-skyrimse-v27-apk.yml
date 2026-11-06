@@ -1,7 +1,5 @@
-name: Skyrim SE Mobile Vulkan 3D APK v2.7 — Composite NIF
+name: Skyrim SE Mobile Vulkan 3D APK v2.7 (archived)
 on:
-  push:
-    branches: [main, development/v2.7-composite-nif]
   workflow_dispatch:
 
 jobs:

@@ -15,6 +15,12 @@ import android.provider.OpenableColumns;
 import android.provider.DocumentsContract;
 import android.text.Editable;
 import android.text.TextWatcher;
+import android.text.SpannableStringBuilder;
+import android.text.Spanned;
+import android.text.TextPaint;
+import android.text.method.LinkMovementMethod;
+import android.text.style.ClickableSpan;
+import android.view.View;
 import android.view.Gravity;
 import android.widget.Button;
 import android.widget.CheckBox;
@@ -44,7 +50,9 @@ public final class BsaCatalogActivity extends Activity {
     private List<LocatedDds> foundDds=Collections.emptyList();
     private String lastDdsSearchReport="";
     private BsaCatalogReader.Catalog catalog;
-    private TextView summary,results,inspectionOutput;
+    private TextView summary,results,inspectionOutput,selectedLabel;
+    private String selectedNifPath="";
+    private Uri selectedNifArchive;
     private Uri currentUri;
     private EditText filter;
     private CheckBox nifOnly;
@@ -57,36 +65,52 @@ public final class BsaCatalogActivity extends Activity {
         ScrollView scroll=new ScrollView(this);scroll.setBackgroundColor(0xff101116);scroll.setFillViewport(true);
         LinearLayout root=new LinearLayout(this);root.setOrientation(LinearLayout.VERTICAL);
         root.setPadding(dp(16),dp(14),dp(16),dp(18));scroll.addView(root);
-        TextView title=text("Skyrim SE · NIF v2.7",22,0xffdbc5fb);title.setGravity(Gravity.CENTER);root.addView(title);
+        TextView title=text("Skyrim SE · NIF v2.8",22,0xffdbc5fb);title.setGravity(Gravity.CENTER);root.addView(title);
         root.addView(text("BSA 105: каталог, заголовок NIF и таблица блоков. Выбирай конкретный файл через строку поиска; читаться будет только первая найденная NIF-запись. Без сохранения на диск и изменения игры.",13,0xffd5d3dd));
         button(root,"Выбрать архив BSA",this::pick);
         filter=new EditText(this);filter.setSingleLine(true);filter.setHint("Поиск: meshes, .nif, fish...");
         filter.setTextColor(0xffeeeeee);filter.setHintTextColor(0xffaaa4b8);root.addView(filter);
         nifOnly=new CheckBox(this);nifOnly.setText("Только модели .nif");nifOnly.setTextColor(0xffeeeeee);
         root.addView(nifOnly);
+        selectedLabel=text("NIF не выбрана. Можно нажать имя в результатах или открыть список.",13,0xffd9c1ff);
+        selectedLabel.setTextIsSelectable(true);
+        root.addView(selectedLabel);
+        button(root,"Выбрать NIF из списка · v2.8",this::showNifChooser);
         filter.addTextChangedListener(new TextWatcher(){
             public void beforeTextChanged(CharSequence s,int st,int cnt,int after){}
-            public void onTextChanged(CharSequence s,int st,int before,int count){renderResults();}
+            public void onTextChanged(CharSequence s,int st,int before,int count){
+                // Manual edits invalidate the explicit choice and DDS cache.
+                if(!selectedNifPath.isEmpty()&&!selectedNifPath.equals(s.toString())){
+                    selectedNifPath="";selectedNifArchive=null;
+                    clearMaterialSelection();
+                    selectedLabel.setText("NIF не выбрана. Выбери модель в списке.");
+                }
+                renderResults();
+            }
             public void afterTextChanged(Editable e){}
         });
         nifOnly.setOnCheckedChangeListener((b,value)->renderResults());
         button(root,"Прочитать первый найденный NIF (только заголовок)",this::inspectFirstNif);
         button(root,"Исследовать блоки выбранного NIF · v1.0",this::inspectNifBlocks);
-        button(root,"Показать BSTriShape в Vulkan · v2.7",this::previewNifGeometry);
-        button(root,"Части NIF · выбрать BSTriShape · v2.7",this::selectNifPart);
-        button(root,"Показать все части NIF в Vulkan · v2.7",this::previewCombinedNif);
-        button(root,"Пути текстур NIF · v2.7",this::inspectNifMaterials);
-        button(root,"Найти DDS в папке Data · v2.7",this::pickDataForDds);
-        button(root,"Заголовки найденных DDS · v2.7",this::inspectFoundDdsHeaders);
-        button(root,"Показать текстуры DDS · BC1/2/3/4/5 · v2.7",this::previewFoundDds);
-        button(root,"Показать NIF с DDS в Vulkan · v2.7",this::previewTexturedNif);
+        button(root,"Показать BSTriShape в Vulkan · v2.8",this::previewNifGeometry);
+        button(root,"Части NIF · выбрать BSTriShape · v2.8",this::selectNifPart);
+        button(root,"Показать все части NIF в Vulkan · v2.8",this::previewCombinedNif);
+        button(root,"Пути текстур NIF · v2.8",this::inspectNifMaterials);
+        button(root,"Найти DDS в папке Data · v2.8",this::pickDataForDds);
+        button(root,"Заголовки найденных DDS · v2.8",this::inspectFoundDdsHeaders);
+        button(root,"Показать текстуры DDS · BC1/2/3/4/5 · v2.8",this::previewFoundDds);
+        button(root,"Показать NIF с DDS в Vulkan · v2.8",this::previewTexturedNif);
         button(root,"Скопировать список и отчёт",this::copyReport);
         button(root,"Назад",this::finish);
         summary=text("Выбери BSA-файл из памяти телефона. Архив будет открыт только на чтение.",14,0xffeeeeee);
         summary.setTextIsSelectable(true);summary.setPadding(dp(8),dp(10),dp(8),dp(10));
         root.addView(summary);
-        results=text("",12,0xffe6e2ed);results.setTextIsSelectable(true);
-        results.setPadding(dp(8),dp(10),dp(8),dp(10));root.addView(results);
+        results=text("",12,0xffe6e2ed);
+        results.setPadding(dp(8),dp(10),dp(8),dp(10));
+        results.setTextIsSelectable(false);
+        results.setLinksClickable(true);
+        results.setMovementMethod(LinkMovementMethod.getInstance());
+        root.addView(results);
         inspectionOutput=text("Выбранный NIF ещё не проверялся.",13,0xffd9c1ff);
         inspectionOutput.setTextIsSelectable(true);root.addView(inspectionOutput);
         setContentView(scroll);
@@ -95,6 +119,55 @@ public final class BsaCatalogActivity extends Activity {
     private TextView text(String s,int sp,int color){TextView t=new TextView(this);t.setText(s);t.setTextColor(color);t.setTextSize(sp);t.setPadding(0,dp(9),0,dp(9));return t;}
     private void button(LinearLayout root,String caption,Runnable action){
         Button b=new Button(this);b.setText(caption);b.setAllCaps(false);b.setOnClickListener(v->action.run());root.addView(b);
+    }
+    /** Clear only the derived DDS lookup state; never touch the game archive. */
+    private void clearMaterialSelection(){
+        materialDdsPaths=Collections.emptyList();materialNifPath="";materialBsaUri=null;
+        foundDds=Collections.emptyList();lastDdsSearchReport="";
+    }
+    /** Explicitly selected entry wins over a substring search; the exact path
+     * is retained so identically named models in different folders stay distinct. */
+    private List<BsaCatalogReader.Entry> selectedNifMatches(){
+        String path=selectedNifArchive!=null&&selectedNifArchive.equals(currentUri)
+            ?selectedNifPath:"";
+        return NifCatalogSelection.matches(catalog,path,filter.getText().toString());
+    }
+    private boolean isCurrentNif(Uri uri,BsaCatalogReader.Entry entry){
+        if(destroyed||!uri.equals(currentUri))return false;
+        List<BsaCatalogReader.Entry> chosen=selectedNifMatches();
+        return !chosen.isEmpty()&&chosen.get(0).path.equals(entry.path);
+    }
+    private void chooseNif(BsaCatalogReader.Entry entry){
+        if(entry==null||!entry.nif()||catalog==null||currentUri==null||
+            !catalog.entries.contains(entry))return;
+        clearMaterialSelection();
+        selectedNifPath=entry.path;selectedNifArchive=currentUri;
+        if(!nifOnly.isChecked())nifOnly.setChecked(true);
+        filter.setText(entry.path);
+        filter.setSelection(filter.length());
+        selectedLabel.setText("Выбрана NIF: "+entry.path+
+            "\nТеперь кнопки частей, общей сцены и DDS используют именно этот файл.");
+        inspectionOutput.setText("Выбрана модель: "+entry.path+
+            "\nДля составной геометрии нажми «Показать все части NIF в Vulkan». "+
+            "Для DDS сначала прочитай «Пути текстур NIF».");
+        renderResults();
+    }
+    private void showNifChooser(){
+        if(catalog==null||currentUri==null){
+            inspectionOutput.setText("Сначала выбери BSA и дождись чтения каталога.");return;
+        }
+        List<BsaCatalogReader.Entry> options=catalog.find(
+            filter.getText().toString(),true,60);
+        if(options.isEmpty()){
+            inspectionOutput.setText("По этому запросу NIF не найдены. "+
+                "Очисти поиск или введи часть имени файла.");return;
+        }
+        String[] labels=new String[options.size()];
+        for(int i=0;i<labels.length;i++)labels[i]=options.get(i).path;
+        new AlertDialog.Builder(this)
+            .setTitle("Выбери NIF · "+options.size()+" совпадений")
+            .setItems(labels,(dialog,index)->chooseNif(options.get(index)))
+            .setNegativeButton("Отмена",null).show();
     }
     private void pick(){
         Intent i=new Intent(Intent.ACTION_OPEN_DOCUMENT);
@@ -114,8 +187,9 @@ public final class BsaCatalogActivity extends Activity {
         }catch(Exception ignored){}
         final String chosen=name;
         summary.setText("Читаю метаданные: "+chosen+"…");results.setText("");catalog=null;currentUri=null;
-        materialDdsPaths=Collections.emptyList();materialNifPath="";materialBsaUri=null;
-        foundDds=Collections.emptyList();lastDdsSearchReport="";
+        selectedNifPath="";selectedNifArchive=null;
+        clearMaterialSelection();
+        selectedLabel.setText("NIF не выбрана. Нажми имя в результатах или «Выбрать NIF из списка».");
         inspectionOutput.setText("Выбранный NIF ещё не проверялся.");
         new Thread(()->{
             try(InputStream in=getContentResolver().openInputStream(uri)){
@@ -136,21 +210,36 @@ public final class BsaCatalogActivity extends Activity {
             "\nЧтение только каталога; данные файлов не распакованы и не изменены.";
         summary.setText(info);
         List<BsaCatalogReader.Entry> found=c.find(filter.getText().toString(),nifOnly.isChecked(),60);
-        StringBuilder b=new StringBuilder("Совпадения (до 60): "+found.size()+"\n\n");
+        SpannableStringBuilder b=new SpannableStringBuilder(
+            "Совпадения (до 60): "+found.size()+
+            "\nНажми на название NIF, чтобы выбрать её.\n\n");
         for(BsaCatalogReader.Entry entry:found){
-            b.append("• ").append(entry.path).append("\n  ")
-             .append(entry.storedBytes).append(" байт · 0x")
-             .append(Long.toHexString(entry.offset)).append(" · ")
-             .append(entry.compressed?"сжат":"без сжатия").append("\n");
+            b.append("• ");
+            int first=b.length();
+            b.append(entry.path);
+            int last=b.length();
+            if(entry.nif()){
+                final boolean active=entry.path.equals(selectedNifPath);
+                b.setSpan(new ClickableSpan(){
+                    @Override public void onClick(View widget){chooseNif(entry);}
+                    @Override public void updateDrawState(TextPaint paint){
+                        paint.setColor(active?0xffb9f6ca:0xffd5bbff);
+                        paint.setUnderlineText(!active);
+                    }
+                },first,last,Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+            }
+            b.append("\n  ").append(String.valueOf(entry.storedBytes))
+             .append(" байт · 0x").append(Long.toHexString(entry.offset))
+             .append(entry.compressed?" · сжат\n":" · без сжатия\n");
         }
         if(found.isEmpty())b.append("В индексированной части архива совпадений нет.");
-        results.setText(b.toString());
+        results.setText(b,TextView.BufferType.SPANNABLE);
     }
     private void inspectFirstNif(){
         if(catalog==null || currentUri==null){
             inspectionOutput.setText("Сначала выбери BSA и дождись загрузки каталога.");return;
         }
-        List<BsaCatalogReader.Entry> found=catalog.find(filter.getText().toString(),true,1);
+        List<BsaCatalogReader.Entry> found=selectedNifMatches();
         if(found.isEmpty()){
             inspectionOutput.setText("NIF по текущему фильтру не найден. Введи, например, lureargonian01.nif");return;
         }
@@ -173,7 +262,7 @@ public final class BsaCatalogActivity extends Activity {
         if(catalog==null || currentUri==null){
             inspectionOutput.setText("Сначала выбери BSA и дождись загрузки каталога.");return;
         }
-        List<BsaCatalogReader.Entry> found=catalog.find(filter.getText().toString(),true,1);
+        List<BsaCatalogReader.Entry> found=selectedNifMatches();
         if(found.isEmpty()){
             inspectionOutput.setText("NIF не найден. Введи точное имя: lureargonian01.nif");return;
         }
@@ -197,7 +286,7 @@ public final class BsaCatalogActivity extends Activity {
         if(catalog==null||currentUri==null){
             inspectionOutput.setText("Сначала выбери архив BSA.");return;
         }
-        List<BsaCatalogReader.Entry> found=catalog.find(filter.getText().toString(),true,1);
+        List<BsaCatalogReader.Entry> found=selectedNifMatches();
         if(found.isEmpty()){
             inspectionOutput.setText("NIF не найден. Введи lureargonian01.nif");return;
         }
@@ -209,7 +298,7 @@ public final class BsaCatalogActivity extends Activity {
             try(InputStream in=getContentResolver().openInputStream(uri)){
                 NifGeometryDecoder.Mesh mesh=BsaEntryInspector.decodeNifGeometry(in,entry,flags);
                 runOnUiThread(()->{
-                    if(destroyed||!uri.equals(currentUri))return;
+                    if(!isCurrentNif(uri,entry))return;
                     inspectionOutput.setText("Ресурс: "+entry.path+"\n"+mesh.report());
                     NifGeometryTransfer.offer(mesh.lines,mesh.surfaceTriangles,"NIF: "+entry.path.substring(entry.path.lastIndexOf('/')+1),mesh.compactInfo());
                     startActivity(new Intent(this,VulkanSceneActivity.class));
@@ -222,14 +311,14 @@ public final class BsaCatalogActivity extends Activity {
         },"nif-v13-geometry").start();
     }
 
-    /** v2.7: choose among static BSTriShape blocks without assuming material links.
+    /** v2.8: choose among static BSTriShape blocks without assuming material links.
      * Reads one bounded NIF entry on a worker thread. Mesh bytes stay in memory.
      */
     private void selectNifPart(){
         if(catalog==null||currentUri==null){
             inspectionOutput.setText("Сначала выбери архив BSA.");return;
         }
-        List<BsaCatalogReader.Entry> found=catalog.find(filter.getText().toString(),true,1);
+        List<BsaCatalogReader.Entry> found=selectedNifMatches();
         if(found.isEmpty()){
             inspectionOutput.setText("NIF не найден. Введи имя модели в поиск.");return;
         }
@@ -242,17 +331,14 @@ public final class BsaCatalogActivity extends Activity {
                 if(in==null)throw new IOException("Нет доступа к архиву BSA");
                 NifGeometryDecoder.Parts parts=BsaEntryInspector.inspectNifParts(in,entry,flags);
                 runOnUiThread(()->{
-                    if(destroyed||!uri.equals(currentUri)||
-                        catalog==null||!entry.path.equals(
-                            catalog.find(filter.getText().toString(),true,1)
-                                .stream().findFirst().map(e->e.path).orElse("")))return;
+                    if(!isCurrentNif(uri,entry))return;
                     inspectionOutput.setText("Ресурс: "+entry.path+"\n"+parts.report());
                     String[] options=new String[parts.items.size()];
                     for(int i=0;i<options.length;i++)options[i]=parts.items.get(i).label();
                     new AlertDialog.Builder(this)
                         .setTitle("Части NIF · "+parts.available+" доступны")
                         .setItems(options,(dialog,index)->{
-                            if(destroyed||!uri.equals(currentUri))return;
+                            if(!isCurrentNif(uri,entry))return;
                             NifGeometryDecoder.Part part=parts.items.get(index);
                             if(part.mesh==null){
                                 inspectionOutput.setText("BSTriShape #"+part.blockIndex+
@@ -282,15 +368,14 @@ public final class BsaCatalogActivity extends Activity {
         },"nif-v26-part-selector").start();
     }
 
-    /** v2.7: read a single BSA NIF once and preview all VALID static BSTriShape
+    /** v2.8: read a single BSA NIF once and preview all VALID static BSTriShape
      * blocks together with a common normalization. Deliberately no DDS.
      */
     private void previewCombinedNif(){
         if(catalog==null||currentUri==null){
             inspectionOutput.setText("Сначала выбери BSA.");return;
         }
-        List<BsaCatalogReader.Entry> candidates=catalog.find(
-            filter.getText().toString(),true,1);
+        List<BsaCatalogReader.Entry> candidates=selectedNifMatches();
         if(candidates.isEmpty()){
             inspectionOutput.setText("NIF не найден. Введи имя файла в поиск.");return;
         }
@@ -306,10 +391,7 @@ public final class BsaCatalogActivity extends Activity {
                     in,entry,flags);
                 NifSceneComposer.Combined scene=NifSceneComposer.combine(parts);
                 runOnUiThread(()->{
-                    if(destroyed||!uri.equals(currentUri)||catalog==null)return;
-                    List<BsaCatalogReader.Entry> now=catalog.find(
-                        filter.getText().toString(),true,1);
-                    if(now.isEmpty()||!entry.path.equals(now.get(0).path))return;
+                    if(!isCurrentNif(uri,entry))return;
                     inspectionOutput.setText("Ресурс: "+entry.path+"\n"+scene.info);
                     NifGeometryTransfer.offer(scene.lines,scene.triangles,
                         "NIF: "+entry.path.substring(entry.path.lastIndexOf('/')+1)+
@@ -332,7 +414,7 @@ public final class BsaCatalogActivity extends Activity {
     /** Read only one NIF and remember its declared DDS paths for a separate Data scan. */
     private void inspectNifMaterials(){
         if(catalog==null||currentUri==null){inspectionOutput.setText("Сначала выбери архив BSA.");return;}
-        List<BsaCatalogReader.Entry> found=catalog.find(filter.getText().toString(),true,1);
+        List<BsaCatalogReader.Entry> found=selectedNifMatches();
         if(found.isEmpty()){inspectionOutput.setText("NIF не найден. Введи lureargonian01.nif");return;}
         final BsaCatalogReader.Entry entry=found.get(0);
         final Uri uri=currentUri;
@@ -359,11 +441,11 @@ public final class BsaCatalogActivity extends Activity {
                 final List<String> safeTargets=candidates.isEmpty()?Collections.emptyList():
                     new ArrayList<>(DdsArchiveFinder.targets(candidates).values());
                 final String report="Ресурс: "+entry.path+"\n"+m.report()+
-                    "\n\nПоиск v2.7: "+safeTargets.size()+" подходящих путей DDS"+
+                    "\n\nПоиск v2.8: "+safeTargets.size()+" подходящих путей DDS"+
                     (unsupported>0?" · неподдерживаемых или сверх лимита: "+unsupported:"")+". "+
                     "Нажми «Найти DDS в папке Data» и выбери каталог игры Data.";
                 runOnUiThread(()->{
-                    if(destroyed||!uri.equals(currentUri))return;
+                    if(!isCurrentNif(uri,entry))return;
                     materialDdsPaths=safeTargets;materialNifPath=entry.path;materialBsaUri=uri;
                     inspectionOutput.setText(report);
                 });
@@ -378,11 +460,11 @@ public final class BsaCatalogActivity extends Activity {
     /** User grants read-only access to the containing Data directory via SAF. */
     private void pickDataForDds(){
         if(currentUri==null||materialBsaUri==null||!currentUri.equals(materialBsaUri)||materialDdsPaths.isEmpty()){
-            inspectionOutput.setText("Сначала выбери NIF и нажми «Пути текстур NIF · v2.7». "+
+            inspectionOutput.setText("Сначала выбери NIF и нажми «Пути текстур NIF · v2.8». "+
                 "После получения путей DDS можно искать их в папке Data.");return;
         }
         List<BsaCatalogReader.Entry> found=catalog==null?Collections.emptyList():
-            catalog.find(filter.getText().toString(),true,1);
+            selectedNifMatches();
         if(found.isEmpty()||!found.get(0).path.equals(materialNifPath)){
             inspectionOutput.setText("Выбран другой NIF. Повтори «Пути текстур NIF», затем поиск DDS.");return;
         }
@@ -457,7 +539,7 @@ public final class BsaCatalogActivity extends Activity {
                     if(destroyed||!nifUri.equals(currentUri))return;
                     final int checked=read;
                     runOnUiThread(()->{if(!destroyed&&nifUri.equals(currentUri))
-                        inspectionOutput.setText("Поиск DDS v2.7: проверено "+checked+" из "+docs.size()+
+                        inspectionOutput.setText("Поиск DDS v2.8: проверено "+checked+" из "+docs.size()+
                             " BSA…\nТолько индексы имён, без распаковки.");});
                     try(InputStream in=getContentResolver().openInputStream(doc.uri)){
                         if(in==null)throw new IOException("Невозможно открыть архив");
@@ -472,7 +554,7 @@ public final class BsaCatalogActivity extends Activity {
                         if(failures.size()<10)failures.add(doc.name+": "+ex.getMessage());
                     }
                 }
-                StringBuilder out=new StringBuilder("Поиск DDS v2.7 · только каталоги BSA\n");
+                StringBuilder out=new StringBuilder("Поиск DDS v2.8 · только каталоги BSA\n");
                 out.append("Исходный NIF: ").append(nifName).append('\n');
                 out.append("BSA в Data: ").append(docs.size()).append(" · прочитано: ").append(read)
                    .append(" · ошибок: ").append(docs.size()-read).append(" · частичных индексов: ")
@@ -501,7 +583,7 @@ public final class BsaCatalogActivity extends Activity {
                     if(!destroyed&&nifUri.equals(currentUri)&&nifName.equals(materialNifPath)){
                         foundDds=Collections.unmodifiableList(new ArrayList<>(located));
                         lastDdsSearchReport=report;
-                        inspectionOutput.setText(report+"\n\nНажми «Заголовки найденных DDS · v2.7» для проверки формата изображений.");
+                        inspectionOutput.setText(report+"\n\nНажми «Заголовки найденных DDS · v2.8» для проверки формата изображений.");
                     }
                 });
             }catch(Exception e){
@@ -524,7 +606,7 @@ public final class BsaCatalogActivity extends Activity {
         inspectionOutput.setText("Проверяю заголовки "+entries.size()+" найденных DDS…\nТекстуры не декодируются и не записываются.");
         new Thread(()->{
             StringBuilder report=new StringBuilder(searchReport);
-            report.append("\n\nЗаголовки DDS v2.7 · только чтение выбранных записей BSA\n");
+            report.append("\n\nЗаголовки DDS v2.8 · только чтение выбранных записей BSA\n");
             int checked=0,failed=0;
             // Prefer the first matching BSA entry for each canonical texture path.
             java.util.HashSet<String> seen=new java.util.HashSet<>();
@@ -557,7 +639,7 @@ public final class BsaCatalogActivity extends Activity {
         },"dds-v17-single-header-reader").start();
     }
 
-    /** v2.7: CPU decode only the first mip of up to four explicitly matched DDS records. */
+    /** v2.8: CPU decode only the first mip of up to four explicitly matched DDS records. */
     private void previewFoundDds(){
         final Uri nifUri=currentUri;
         if(nifUri==null||materialBsaUri==null||!nifUri.equals(materialBsaUri)||foundDds.isEmpty()){
@@ -571,7 +653,7 @@ public final class BsaCatalogActivity extends Activity {
             ArrayList<DdsBcDecoder.Image> images=new ArrayList<>();
             ArrayList<String> names=new ArrayList<>();
             java.util.HashSet<String> used=new java.util.HashSet<>();
-            StringBuilder report=new StringBuilder("Предпросмотр DDS v2.7 · BC1/2/3/4/5\n");
+            StringBuilder report=new StringBuilder("Предпросмотр DDS v2.8 · BC1/2/3/4/5\n");
             for(LocatedDds item:matches){
                 if(destroyed||!nifUri.equals(currentUri))return;
                 String key;
@@ -622,7 +704,7 @@ public final class BsaCatalogActivity extends Activity {
     }
 
     /**
-     * v2.7 opt-in diffuse-only preview. Requires an explicitly selected NIF,
+     * v2.8 opt-in diffuse-only preview. Requires an explicitly selected NIF,
      * a single BSShaderTextureSet and a matched diffuse DDS in the granted Data tree.
      * All BSA reads are bounded and read-only; multi-material NIFs are refused.
      */
@@ -633,7 +715,7 @@ public final class BsaCatalogActivity extends Activity {
             inspectionOutput.setText("Сначала выбери NIF, прочитай пути текстур и найди DDS в Data.");
             return;
         }
-        List<BsaCatalogReader.Entry> candidates=catalog.find(filter.getText().toString(),true,1);
+        List<BsaCatalogReader.Entry> candidates=selectedNifMatches();
         if(candidates.isEmpty()||!candidates.get(0).path.equals(materialNifPath)){
             inspectionOutput.setText("NIF изменился. Повтори анализ путей текстур и поиск DDS.");
             return;
@@ -744,7 +826,7 @@ public final class BsaCatalogActivity extends Activity {
 
     private void copyReport(){
         ClipboardManager cb=(ClipboardManager)getSystemService(Context.CLIPBOARD_SERVICE);
-        if(cb!=null)cb.setPrimaryClip(ClipData.newPlainText("Skyrim SE BSA v2.7",summary.getText()+"\n\n"+results.getText()+"\n\n"+inspectionOutput.getText()));
+        if(cb!=null)cb.setPrimaryClip(ClipData.newPlainText("Skyrim SE BSA v2.8",summary.getText()+"\n\n"+results.getText()+"\n\n"+inspectionOutput.getText()));
     }
     @Override protected void onDestroy(){destroyed=true;super.onDestroy();}
 }
