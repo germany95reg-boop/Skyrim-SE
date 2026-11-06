@@ -25,6 +25,7 @@ assert "needs: android-arm64-apk" in workflow
 assert "bash mobile/ci/run_jvm_suite.sh" in workflow
 assert "bash mobile/ci/verify_apk.sh" in workflow
 assert "-PciEmulator=true :app:connectedDebugAndroidTest" in workflow
+assert "-partition-size 2048" in workflow, "Emulator must fit hosted-runner disk budget"
 assert "if: always()" in workflow and "test-results" in workflow
 assert "*Test.java" in jvm and "java -ea" in jvm
 assert 'lib/arm64-v8a/libskyrimse_scene.so' in verify
