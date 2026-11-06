@@ -24,10 +24,18 @@ public final class NifMaterialLinkInspectorTest {
     static void set(byte[] raw,int pos,int n){
         for(int i=0;i<4;i++)raw[pos+i]=(byte)(n>>>(i*8));
     }
-    static byte[] shader(int textureSet){
-        byte[] b=new byte[64];
-        set(b,0,-1);set(b,4,0);set(b,8,-1); // NiObjectNET
-        set(b,36,textureSet);              // shader flags + UV offset/scale
+    /** Real Skyrim SE shader layout: SkyrimShaderType is the FIRST uint32.
+     * The variable NiObjectNET extra refs follow the name and precede controller.
+     * A value of -1 for Name makes v2.10's old bug reproduce immediately.
+     */
+    static byte[] shader(int textureSet,int shaderType,int extras){
+        byte[] b=new byte[68+extras*4];
+        set(b,0,shaderType); // SSE extra header before NiObjectNET!
+        set(b,4,-1);        // Name = no string
+        set(b,8,extras);    // Num Extra Data List
+        for(int i=0;i<extras;i++)set(b,12+i*4,-1);
+        set(b,12+extras*4,-1); // Controller
+        set(b,40+extras*4,textureSet); // shader flags + UV offset + scale
         return b;
     }
     static byte[] example(){
@@ -38,7 +46,7 @@ public final class NifMaterialLinkInspectorTest {
         set(a,92,2); // shape #0 -> shader #2
         set(b,92,3); // shape #1 -> shader #3
         byte[][] blocks={
-            a,b,shader(4),shader(5),
+            a,b,shader(4,0,0),shader(5,14,1),
             NifMaterialInspectorTest.textureSet("textures/a_d.dds","textures/a_n.dds"),
             NifMaterialInspectorTest.textureSet("textures/b_d.dds","textures/b_n.dds")
         };
@@ -69,6 +77,12 @@ public final class NifMaterialLinkInspectorTest {
         ok(r.links.get(0).shader==2&&r.links.get(1).shader==3,"shader indexes");
         ok(r.links.get(0).textureSet==4&&r.links.get(1).textureSet==5,
             "texture set indexes not guessed by order");
+        ok(r.links.get(0).resolved()&&r.links.get(1).resolved(),
+            "SSE shader type prefix and extra-data count parsed correctly");
+        ok((file[blocks.blocks.get(3).byteOffset+8]&255)==1,
+            "extra-data count at offset 8, not offset 4");
+        ok((file[blocks.blocks.get(3).byteOffset+4]&255)==255,
+            "no-name index at offset 4 reproduces broken v2.10 path");
         ok("textures/a_d.dds".equals(r.links.get(0).diffuse),"first diffuse");
         ok("textures/b_d.dds".equals(r.links.get(1).diffuse),"second diffuse");
         ok("textures/b_n.dds".equals(r.links.get(1).normal),"second normal");
@@ -92,12 +106,12 @@ public final class NifMaterialLinkInspectorTest {
             "shape referring to a texture set is not a shader");
 
         byte[] wrongSet=file.clone();
-        set(wrongSet,blocks.blocks.get(2).byteOffset+36,3);
+        set(wrongSet,blocks.blocks.get(2).byteOffset+40,3);
         ok(NifMaterialLinkInspector.inspect(wrongSet).resolved==1,
             "shader referring to another shader is not a texture set");
 
         byte[] outOfRange=file.clone();
-        set(outOfRange,blocks.blocks.get(3).byteOffset+36,100000);
+        set(outOfRange,blocks.blocks.get(3).byteOffset+44,100000);
         ok(NifMaterialLinkInspector.inspect(outOfRange).resolved==1,
             "out of range reference is rejected without crash");
 
@@ -106,9 +120,24 @@ public final class NifMaterialLinkInspectorTest {
         ok(NifMaterialLinkInspector.inspect(extraCount).resolved==1,
             "malformed shape extra-list does not hide second part");
 
+        byte[] shaderExtraCount=file.clone();
+        set(shaderExtraCount,blocks.blocks.get(3).byteOffset+8,999);
+        ok(NifMaterialLinkInspector.inspect(shaderExtraCount).resolved==1,
+            "malformed shader extra count isolated to its own shape");
+
+        byte[] wrongName=file.clone();
+        set(wrongName,blocks.blocks.get(2).byteOffset+4,123456);
+        ok(NifMaterialLinkInspector.inspect(wrongName).resolved==2,
+            "shader Name index must never be parsed as extra-data count");
+
+        byte[] missingSet=file.clone();
+        set(missingSet,blocks.blocks.get(2).byteOffset+40,-1);
+        ok(NifMaterialLinkInspector.inspect(missingSet).resolved==1,
+            "missing texture reference leaves other part intact");
+
         byte[] truncated=file.clone();
         truncated=java.util.Arrays.copyOf(truncated,truncated.length-12);
         rejects(truncated,"truncated file rejected");
-        System.out.println("PASS v2.10 material part links: "+checks+" synthetic checks");
+        System.out.println("PASS v2.10.1 material part links: "+checks+" synthetic checks");
     }
 }

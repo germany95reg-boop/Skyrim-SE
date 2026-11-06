@@ -7,7 +7,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-/** v2.10, strictly bounded shape -> lighting shader -> texture set references.
+/** v2.10.1, strictly bounded shape -> lighting shader -> texture set references.
  * Read-only diagnostic; no guesses from block order or texture filenames.
  * Supports the standard Skyrim SE stream-100 NiAVObject/BSLightingShaderProperty
  * layout, and explicitly reports unsupported links.
@@ -35,7 +35,7 @@ public final class NifMaterialLinkInspector {
             resolved=count;
         }
         public String report(){
-            StringBuilder b=new StringBuilder("Материалы частей NIF · v2.10 (диагностика)\n");
+            StringBuilder b=new StringBuilder("Материалы частей NIF · v2.10.1 (диагностика)\n");
             b.append("Частей BSTriShape: ").append(links.size())
                 .append(" · подтверждённых связей: ").append(resolved).append("\n");
             for(Link l:links){
@@ -86,7 +86,7 @@ public final class NifMaterialLinkInspector {
             throws IOException{
         // BSTriShape: NiObjectNET variable extra refs; validated NiAVObject
         // fields and bounding sphere, then skin/shader/alpha references.
-        int extra=extras(data,shape);
+        int extra=extras(data,shape,4);
         int shaderId=ref(data,shape,92+4*extra);
         if(shaderId<0)return new Link(shape.index,-1,-1,"","",
             "Нет ссылки на шейдер у BSTriShape");
@@ -94,11 +94,16 @@ public final class NifMaterialLinkInspector {
         if(shader==null)return new Link(shape.index,shaderId,-1,"","",
             "Шейдер не является BSLightingShaderProperty или индекс недопустим");
 
-        // NiProperty inherits NiObjectNET (name, extra-data refs, controller).
-        // SSE lighting property: 8 bytes shader flags, 8 UV offset, 8 UV scale,
-        // then 4-byte BSShaderTextureSet block reference.
-        int shaderExtras=extras(data,shader);
-        int setId=ref(data,shader,36+4*shaderExtras);
+        // Skyrim SE NiObjectNET serialization adds a 4-byte Skyrim Shader Type
+        // BEFORE the Name field for BSLightingShaderProperty. Consequently:
+        //   [0..3] Skyrim Shader Type, [4..7] Name, [8..11] Extra Data Count,
+        //   [12+4*n] Controller, [16+4*n] Shader Flags 1/2 (8 bytes),
+        //   [24+4*n] UV Offset, [32+4*n] UV Scale,
+        //   [40+4*n] BSShaderTextureSet reference.
+        // v2.10 accidentally parsed Name as Extra Data Count, rejecting real
+        // fishing/lure models although the NIF and DDS were valid.
+        int shaderExtras=extras(data,shader,8);
+        int setId=ref(data,shader,40+4*shaderExtras);
         if(setId<0)return new Link(shape.index,shaderId,-1,"","",
             "У шейдера нет ссылки на BSShaderTextureSet");
         NifBlockInspector.Block texture=expect(blocks,setId,"BSShaderTextureSet");
@@ -120,8 +125,9 @@ public final class NifMaterialLinkInspector {
             ?blocks.get(ref):null;
     }
 
-    private static int extras(byte[] data,NifBlockInspector.Block block)throws IOException{
-        long n=unsignedInt(data,block,4);
+    private static int extras(byte[] data,NifBlockInspector.Block block,int countOffset)
+            throws IOException{
+        long n=unsignedInt(data,block,countOffset);
         if(n>MAX_EXTRAS)throw new IOException("Некорректное количество extra-data ссылок в #"+block.index);
         return (int)n;
     }
