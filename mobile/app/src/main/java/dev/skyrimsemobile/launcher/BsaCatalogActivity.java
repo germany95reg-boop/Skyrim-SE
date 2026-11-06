@@ -105,7 +105,7 @@ public final class BsaCatalogActivity extends Activity {
         summary=text("Выбери BSA-файл из памяти телефона. Архив будет открыт только на чтение.",14,0xffeeeeee);
         summary.setTextIsSelectable(true);summary.setPadding(dp(8),dp(10),dp(8),dp(10));
         root.addView(summary);
-        results=text("",12,0xffe6e2ed);results.setTextIsSelectable(true);
+        results=text("",12,0xffe6e2ed);
         results.setPadding(dp(8),dp(10),dp(8),dp(10));
         results.setTextIsSelectable(false);
         results.setLinksClickable(true);
@@ -122,9 +122,8 @@ public final class BsaCatalogActivity extends Activity {
     }
     /** Clear only the derived DDS lookup state; never touch the game archive. */
     private void clearMaterialSelection(){
-        selectedNifPath="";selectedNifArchive=null;
-        clearMaterialSelection();
-        selectedLabel.setText("NIF не выбрана. Нажми имя в результатах или «Выбрать NIF из списка».");
+        materialDdsPaths=Collections.emptyList();materialNifPath="";materialBsaUri=null;
+        foundDds=Collections.emptyList();lastDdsSearchReport="";
     }
     /** Explicitly selected entry wins over a substring search; the exact path
      * is retained so identically named models in different folders stay distinct. */
@@ -188,8 +187,9 @@ public final class BsaCatalogActivity extends Activity {
         }catch(Exception ignored){}
         final String chosen=name;
         summary.setText("Читаю метаданные: "+chosen+"…");results.setText("");catalog=null;currentUri=null;
-        materialDdsPaths=Collections.emptyList();materialNifPath="";materialBsaUri=null;
-        foundDds=Collections.emptyList();lastDdsSearchReport="";
+        selectedNifPath="";selectedNifArchive=null;
+        clearMaterialSelection();
+        selectedLabel.setText("NIF не выбрана. Нажми имя в результатах или «Выбрать NIF из списка».");
         inspectionOutput.setText("Выбранный NIF ещё не проверялся.");
         new Thread(()->{
             try(InputStream in=getContentResolver().openInputStream(uri)){
@@ -298,7 +298,7 @@ public final class BsaCatalogActivity extends Activity {
             try(InputStream in=getContentResolver().openInputStream(uri)){
                 NifGeometryDecoder.Mesh mesh=BsaEntryInspector.decodeNifGeometry(in,entry,flags);
                 runOnUiThread(()->{
-                    if(destroyed||!uri.equals(currentUri))return;
+                    if(!isCurrentNif(uri,entry))return;
                     inspectionOutput.setText("Ресурс: "+entry.path+"\n"+mesh.report());
                     NifGeometryTransfer.offer(mesh.lines,mesh.surfaceTriangles,"NIF: "+entry.path.substring(entry.path.lastIndexOf('/')+1),mesh.compactInfo());
                     startActivity(new Intent(this,VulkanSceneActivity.class));
@@ -331,17 +331,14 @@ public final class BsaCatalogActivity extends Activity {
                 if(in==null)throw new IOException("Нет доступа к архиву BSA");
                 NifGeometryDecoder.Parts parts=BsaEntryInspector.inspectNifParts(in,entry,flags);
                 runOnUiThread(()->{
-                    if(destroyed||!uri.equals(currentUri)||
-                        catalog==null||!entry.path.equals(
-                            selectedNifMatches()
-                                .stream().findFirst().map(e->e.path).orElse("")))return;
+                    if(!isCurrentNif(uri,entry))return;
                     inspectionOutput.setText("Ресурс: "+entry.path+"\n"+parts.report());
                     String[] options=new String[parts.items.size()];
                     for(int i=0;i<options.length;i++)options[i]=parts.items.get(i).label();
                     new AlertDialog.Builder(this)
                         .setTitle("Части NIF · "+parts.available+" доступны")
                         .setItems(options,(dialog,index)->{
-                            if(destroyed||!uri.equals(currentUri))return;
+                            if(!isCurrentNif(uri,entry))return;
                             NifGeometryDecoder.Part part=parts.items.get(index);
                             if(part.mesh==null){
                                 inspectionOutput.setText("BSTriShape #"+part.blockIndex+
@@ -394,9 +391,7 @@ public final class BsaCatalogActivity extends Activity {
                     in,entry,flags);
                 NifSceneComposer.Combined scene=NifSceneComposer.combine(parts);
                 runOnUiThread(()->{
-                    if(destroyed||!uri.equals(currentUri)||catalog==null)return;
-                    List<BsaCatalogReader.Entry> now=selectedNifMatches();
-                    if(now.isEmpty()||!entry.path.equals(now.get(0).path))return;
+                    if(!isCurrentNif(uri,entry))return;
                     inspectionOutput.setText("Ресурс: "+entry.path+"\n"+scene.info);
                     NifGeometryTransfer.offer(scene.lines,scene.triangles,
                         "NIF: "+entry.path.substring(entry.path.lastIndexOf('/')+1)+
@@ -450,7 +445,7 @@ public final class BsaCatalogActivity extends Activity {
                     (unsupported>0?" · неподдерживаемых или сверх лимита: "+unsupported:"")+". "+
                     "Нажми «Найти DDS в папке Data» и выбери каталог игры Data.";
                 runOnUiThread(()->{
-                    if(destroyed||!uri.equals(currentUri))return;
+                    if(!isCurrentNif(uri,entry))return;
                     materialDdsPaths=safeTargets;materialNifPath=entry.path;materialBsaUri=uri;
                     inspectionOutput.setText(report);
                 });
