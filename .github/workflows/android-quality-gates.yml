@@ -32,7 +32,7 @@ jobs:
         with:
           gradle-version: '8.9'
       - name: Download project's pinned LZ4 dependency through Gradle
-        run: gradle --no-daemon -p mobile :app:dependencies --configuration debugRuntimeClasspath > /tmp/skyrim-gradle-dependencies.log
+        run: gradle --no-daemon -p mobile :app:resolveRuntimeJars
       - name: Run ALL pure-Java regression programs, fail fast
         run: bash mobile/ci/run_jvm_suite.sh
       - name: Validate current UI, Vulkan source, assets and upgrade identity
