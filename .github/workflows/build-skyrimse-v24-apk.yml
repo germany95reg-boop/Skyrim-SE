@@ -1,7 +1,5 @@
-name: Skyrim SE Mobile Vulkan 3D APK v2.4 — Material Highlights
+name: Skyrim SE Mobile Vulkan 3D APK v2.4 (archived)
 on:
-  push:
-    branches: [main, development/v2.4-specular-preview]
   workflow_dispatch:
 
 jobs:

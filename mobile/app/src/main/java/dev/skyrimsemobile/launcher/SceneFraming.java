@@ -22,8 +22,36 @@ public final class SceneFraming {
         }
         return Math.max(0.15f,(float)Math.sqrt(maxSquared));
     }
-    public static Frame compute(float radius,int width,int height,int titleHeight,int panelHeight) {
-        if(!(radius>0) || !Float.isFinite(radius) || width<=0 || height<=0)
+    /** One bounded camera step towards the model; "Вписать" resets to safe fit. */
+    public static float closer(float distance){
+        if(!Float.isFinite(distance)||distance<=0)
+            throw new IllegalArgumentException("Неверная дистанция камеры");
+        return Math.max(2.7f,Math.min(40f,distance*0.82f));
+    }
+    /** Maximum XZ radius across every yaw; narrower than the 3D sphere for tall shapes.
+     * The Vulkan shader rotates around Y, then pitches around X, so camera-facing
+     * horizontal X is always bounded by hypot(original X,original Z). */
+    public static float horizontalRadius(float[] segments) {
+        if(segments==null || segments.length<6 || segments.length%6!=0)
+            throw new IllegalArgumentException("Неверная геометрия");
+        double maxSquared=0;
+        for(int i=0;i<segments.length;i+=3){
+            double x=segments[i],y=segments[i+1],z=segments[i+2];
+            if(!Double.isFinite(x)||!Double.isFinite(y)||!Double.isFinite(z))
+                throw new IllegalArgumentException("Некорректная координата");
+            maxSquared=Math.max(maxSquared,x*x+z*z);
+        }
+        return Math.max(0.05f,(float)Math.sqrt(maxSquared));
+    }
+    /** Compatibility overload: a sphere needs its entire radius in both axes. */
+    public static Frame compute(float radius,int width,int height,int titleHeight,int panelHeight){
+        return compute(radius,radius,width,height,titleHeight,panelHeight);
+    }
+    public static Frame compute(float radius,float horizontalRadius,
+                                int width,int height,int titleHeight,int panelHeight) {
+        if(!(radius>0) || !Float.isFinite(radius) ||
+           !(horizontalRadius>=0) || !Float.isFinite(horizontalRadius) ||
+           width<=0 || height<=0)
             throw new IllegalArgumentException("Неверный размер модели или экрана");
         int top=Math.max(0,Math.min(titleHeight,height));
         int bottom=Math.max(0,Math.min(panelHeight,height));
@@ -36,9 +64,12 @@ public final class SceneFraming {
         if(top+bottom>height*0.82f) offset=Math.max(-0.82f,Math.min(0.82f,offset));
         // The shader perspective scale is 3.2 / distance. Bound the entire rotating sphere.
         // Keep 15% padding and prevent vertices near the camera from escaping the frustum.
-        float safety=0.85f;
+        float safety=0.90f; // 10% sphere padding; preserves fit while enlarging the model.
         float vertical=radius+3.2f*radius/(visibleFraction*safety);
-        float horizontal=radius+3.2f*radius/(aspect*safety);
+        // Keep the full 3D sphere as near-plane safety; only the screen's X
+        // requirement uses the real XZ half-width. Works for every yaw/pitch.
+        float horizontal=radius+3.2f*Math.min(radius,Math.max(0.05f,horizontalRadius))/
+                         (aspect*safety);
         float fit=Math.max(vertical,horizontal);
         return new Frame(Math.min(40f,Math.max(2.7f,fit)),offset,visibleFraction);
     }

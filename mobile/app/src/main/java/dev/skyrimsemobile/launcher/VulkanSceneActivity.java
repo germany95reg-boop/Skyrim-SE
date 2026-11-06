@@ -18,6 +18,7 @@ import android.view.Surface;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.view.MotionEvent;
+import android.view.View;
 import android.widget.Button;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
@@ -60,6 +61,7 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
     private TextView sceneTitle;
     private LinearLayout scenePanel;
     private float modelRadius=SceneFraming.CUBE_RADIUS;
+    private float modelHorizontalRadius=(float)Math.sqrt(2.0);
     private boolean fitFollowsLayout=true;
     private String framingInfo="";
     private Button modelButton;
@@ -137,7 +139,7 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
         root.addView(viewport, new FrameLayout.LayoutParams(-1, -1));
 
         TextView title = new TextView(this);
-        title.setText("SKYRIM SE MOBILE\nVulkan 3D · v2.4");
+        title.setText("SKYRIM SE MOBILE\nVulkan 3D · v2.5");
         sceneTitle=title;
         title.setTypeface(Typeface.SERIF, Typeface.BOLD);
         title.setTextSize(20);
@@ -184,21 +186,32 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
         meshControls.addView(pyramid, new LinearLayout.LayoutParams(0, dp(46), 1));
         Button cube = controlButton("Куб");
         cube.setOnClickListener(v -> {
-            nativeClearGeometry(); hasSurface=false;hasTexture=false;hasNormalMap=false;useTexture=false;useNormalMap=false;solidMode=false;updateSurfaceButton(); meshLabel = "Куб (встроенный)"; nifDimensions=""; modelRadius=SceneFraming.CUBE_RADIUS; fitFollowsLayout=true; refreshFraming();
+            nativeClearGeometry(); hasSurface=false;hasTexture=false;hasNormalMap=false;useTexture=false;useNormalMap=false;solidMode=false;updateSurfaceButton(); meshLabel = "Куб (встроенный)"; nifDimensions=""; modelRadius=SceneFraming.CUBE_RADIUS; modelHorizontalRadius=(float)Math.sqrt(2.0); fitFollowsLayout=true; refreshFraming();
             getSharedPreferences("launcher_state",MODE_PRIVATE).edit().remove("obj_uri").apply();
             restartRenderer();
         });
         meshControls.addView(cube, new LinearLayout.LayoutParams(0, dp(46), 1));
-        panel.addView(meshControls);
+        // OBJ, cube and pyramid remain available in the optional panel.
         LinearLayout actions = new LinearLayout(this);
         Button back = new Button(this);
-        back.setText("Вернуться в лаунчер");
+        back.setText("← Назад");
+        back.setContentDescription("Вернуться на предыдущий экран без закрытия приложения");
         back.setAllCaps(false);
         back.setOnClickListener(v -> finish());
         Button fit=controlButton("Вписать");
         fit.setContentDescription("Поместить модель целиком между заголовком и панелью управления");
         fit.setOnClickListener(v -> { autoSpin=false; fitFollowsLayout=true; refreshFraming(); updateControls(); });
-        actions.addView(fit,new LinearLayout.LayoutParams(0,dp(48),1));
+        actions.addView(fit,new LinearLayout.LayoutParams(0,dp(44),1));
+        Button closer=controlButton("Крупнее");
+        closer.setContentDescription("Приблизить модель на один шаг; кнопка Вписать возвращает безопасный масштаб");
+        closer.setOnClickListener(v->{
+            autoSpin=false;
+            fitFollowsLayout=false;
+            zoom=SceneFraming.closer(zoom);
+            refreshFraming();
+            updateControls();
+        });
+        actions.addView(closer,new LinearLayout.LayoutParams(0,dp(44),1));
         surfaceButton=controlButton("Поверхность");
         surfaceButton.setEnabled(false);
         surfaceButton.setContentDescription("Переключить каркас и цельные треугольники NIF");
@@ -207,7 +220,7 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
             if(nativeSetSolidMode(!solidMode)) {solidMode=!solidMode;updateSurfaceButton();}
             else status.setText("Невозможно переключить Vulkan-режим");
         });
-        actions.addView(surfaceButton,new LinearLayout.LayoutParams(0,dp(48),1));
+        actions.addView(surfaceButton,new LinearLayout.LayoutParams(0,dp(44),1));
         textureButton=controlButton("DDS: Выкл");
         textureButton.setEnabled(false);
         textureButton.setOnClickListener(v->{
@@ -216,7 +229,7 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
             nativeSetUseTexture(useTexture);
             updateSurfaceButton();
         });
-        actions.addView(textureButton,new LinearLayout.LayoutParams(0,dp(48),1));
+        actions.addView(textureButton,new LinearLayout.LayoutParams(0,dp(44),1));
         normalButton=controlButton("Нормали: Выкл");
         normalButton.setEnabled(false);
         normalButton.setOnClickListener(v->{
@@ -226,7 +239,7 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
             updateSurfaceButton();
         });
 
-        actions.addView(back, new LinearLayout.LayoutParams(0, dp(48),2));
+        // Move navigation to its own short, unwrapped footer row.
         LinearLayout views = new LinearLayout(this);
         Button front = controlButton("Спереди");
         front.setOnClickListener(v -> setCameraPreset("Спереди",0f,0f));
@@ -259,7 +272,8 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
             updateSurfaceButton();
         });
         lightingControls.addView(reliefButton,new LinearLayout.LayoutParams(0,dp(40),1));
-        panel.addView(lightingControls);
+        // Lighting is accessible from "Параметры", hidden by default for a
+        // larger 3D viewport. No native state is modified by collapsing UI.
         // Material controls are independent of mesh geometry and only active when
         // a normal DDS supplies a per-pixel alpha mask for the preview highlight.
         LinearLayout materialControls=new LinearLayout(this);
@@ -281,8 +295,27 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
             updateSurfaceButton();
         });
         materialControls.addView(specularSizeButton,new LinearLayout.LayoutParams(0,dp(40),1));
-        panel.addView(materialControls);
         panel.addView(actions);
+        LinearLayout advancedControls = new LinearLayout(this);
+        advancedControls.setOrientation(LinearLayout.VERTICAL);
+        advancedControls.addView(lightingControls);
+        advancedControls.addView(materialControls);
+        advancedControls.addView(meshControls);
+        advancedControls.setVisibility(View.GONE);
+        panel.addView(advancedControls);
+        LinearLayout footer = new LinearLayout(this);
+        Button advancedButton=controlButton("Параметры ▾");
+        advancedButton.setContentDescription("Показать или скрыть освещение, материалы и выбор OBJ");
+        advancedButton.setOnClickListener(v->{
+            boolean expand=advancedControls.getVisibility()!=View.VISIBLE;
+            advancedControls.setVisibility(expand?View.VISIBLE:View.GONE);
+            advancedButton.setText(expand?"Скрыть параметры ▴":"Параметры ▾");
+            // Reframe after the panel's height actually changes.
+            panel.post(this::refreshFraming);
+        });
+        footer.addView(advancedButton,new LinearLayout.LayoutParams(0,dp(42),1));
+        footer.addView(back,new LinearLayout.LayoutParams(0,dp(42),1));
+        panel.addView(footer);
         root.addView(panel, new FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM));
         setContentView(root);
         root.addOnLayoutChangeListener((v,left,topEdge,right,bottom,oldLeft,oldTop,oldRight,oldBottom)->refreshFraming());
@@ -426,6 +459,7 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
         updateSurfaceButton();
         meshLabel=name;
         modelRadius=SceneFraming.radius(model.segments);
+        modelHorizontalRadius=SceneFraming.horizontalRadius(model.segments);
         fitFollowsLayout=true;
         refreshFraming();
         if(!name.startsWith("NIF:")) nifDimensions="";
@@ -452,7 +486,8 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
         if(sceneRoot==null||sceneTitle==null||scenePanel==null || loadingError!=null) return;
         int w=sceneRoot.getWidth(),h=sceneRoot.getHeight();
         if(w<=0||h<=0)return;
-        SceneFraming.Frame f=SceneFraming.compute(modelRadius,w,h,sceneTitle.getHeight(),scenePanel.getHeight());
+        SceneFraming.Frame f=SceneFraming.compute(modelRadius,modelHorizontalRadius,
+            w,h,sceneTitle.getHeight(),scenePanel.getHeight());
         nativeSetViewportOffset(f.ndcYOffset);
         if(fitFollowsLayout){ zoom=f.distance; nativeSetView(yaw,pitch,zoom,autoSpin); }
         framingInfo=String.format(java.util.Locale.US,"Кадр: %.0f%% свободно · авто-вписывание: %s",
