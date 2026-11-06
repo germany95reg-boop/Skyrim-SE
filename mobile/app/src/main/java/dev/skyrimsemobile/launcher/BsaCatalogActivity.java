@@ -210,7 +210,7 @@ public final class BsaCatalogActivity extends Activity {
         if(savedArchive==null){
             inspectionOutput.setText("Сохранённого BSA с постоянным доступом пока нет. "+
                 "Выбери архив один раз в v2.9; затем он будет открываться автоматически."+
-                (savedTree!=null?"\\nРазрешение на папку Data сохранено.":""));
+                (savedTree!=null?"\nРазрешение на папку Data сохранено.":""));
             return;
         }
         openCatalog(savedArchive,savedSession.archiveDisplayName(),true);
@@ -344,6 +344,9 @@ public final class BsaCatalogActivity extends Activity {
             "\nИндекс поиска: "+c.indexedCount+" / "+c.fileCount+
             (c.partialIndex?" (ограничение объёма; поиск неполный)":" (полный)")+
             "\nЧтение только каталога; данные файлов не распакованы и не изменены.";
+        if(currentUri!=null&&!savedSession.hasReadPermission(currentUri))
+            info+="\nВнимание: Android предоставил только временный доступ к BSA. "+
+                "При следующем открытии каталога его понадобится выбрать заново.";
         summary.setText(info);
         List<BsaCatalogReader.Entry> found=c.find(filter.getText().toString(),nifOnly.isChecked(),60);
         SpannableStringBuilder b=new SpannableStringBuilder(
