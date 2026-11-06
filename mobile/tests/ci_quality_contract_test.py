@@ -39,6 +39,7 @@ assert "textured_safe.frag:frag" in shaders
 assert "textured_legacy.frag:frag" in shaders
 assert "spirv-val --target-env vulkan1.0" in shaders
 assert "python3 mobile/tests/v214_vulkan_fallback_contract_test.py" in workflow
+assert "python3 mobile/tests/android_instrumentation_apk_test.py" in workflow
 assert "ActivityScenario.launch(BsaCatalogActivity.class)" in ui
 assert "ActivityScenario.launch(MainActivity.class)" in ui
 assert "ActivityScenario.launch(VulkanSceneActivity.class)" in ui
