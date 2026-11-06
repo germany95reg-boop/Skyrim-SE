@@ -1,20 +1,18 @@
-# Skyrim SE Mobile — Vulkan 3D v2.4
+# Skyrim SE Mobile — Vulkan 3D v2.5
 
-Android ARM64 Vulkan viewer for selected Skyrim SE NIF meshes and DDS resources; not a playable game engine.
+Android ARM64 Vulkan preview of user-selected Skyrim SE NIF, DDS and BSA resources; **not a playable Skyrim game port**.
 
-## New in v2.4
+## v2.5 — more room for the 3D model
 
-- Per-pixel **experimental material highlight** from alpha of the normal DDS (`LureArgonian_n.dds` BC3/DXT5) plus existing tangent-space normal lighting.
-- Two controls: **Блик: 0/25/50/100%** and **Ширина: Широкий/Средний/Узкий**.
-- Real-time updates use atomic C++ values and a 52-byte Vulkan push constant; no BSA re-scan or Vulkan swapchain rebuild.
-- **Default highlight OFF**: the user-confirmed v2.3 look (DDS, normal map, light presets and relief) is preserved.
-- Controls disabled when no matched normal DDS atlas exists. CPU assets and game BSA remain read-only.
-- Test-only signing fingerprint preserved, versionCode 26, versionName 2.4.0, applicationId `dev.skyrimsemobile.launcher`; supports upgrade over signed v2.3.
+- The **Параметры ▾** control collapses the advanced OBJ examples, lighting, relief and material controls by default. They remain fully accessible and do not reset the GPU, the mesh or the chosen DDS.
+- The **Крупнее** button moves the camera 18% closer per tap, within the renderer's 2.7–40 distance bounds, and disables auto-rotation. **Вписать** restores safe auto-fitting.
+- Automatic framing increases the viewport padding efficiency from 85% to 90%, retaining a conservative 10% rotating-mesh margin. Collapsing the control rows also expands the actual visible viewport and automatically reframes the model.
+- A short **← Назад** button occupies its own footer half; it cannot wrap as the previous multi-line launcher label did.
+- All BSA/NIF/DDS, Vulkan material, light and normal-map features from the user-tested v2.4 are retained without native renderer or shader changes.
+- Same application ID and persistent private **test-only** signing certificate; versionCode 27, versionName 2.5.0, upgrades over v2.4.
 
-### Limitations
+## App-only testing
 
-This is not Skyrim engine material rendering or full PBR; gloss alpha interpretation varies between actual textures. Highlight position and width are approximate, with a fixed preview camera vector. One BSTriShape + one texture set, first mip only. Real device GPU comparison is required.
+See [DEVICE_TEST_V25_RU.md](DEVICE_TEST_V25_RU.md).
 
-## Phone procedure (only inside app)
-
-See [DEVICE_TEST_V24_RU.md](DEVICE_TEST_V24_RU.md).
+**Limitations:** one static NIF BSTriShape, one texture set, first DDS mip; the UI and model scale must be visually confirmed on a Samsung phone.
