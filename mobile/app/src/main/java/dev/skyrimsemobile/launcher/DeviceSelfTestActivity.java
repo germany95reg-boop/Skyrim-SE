@@ -18,6 +18,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import org.json.JSONObject;
+import org.json.JSONArray;
 
 import java.util.Locale;
 
@@ -69,7 +70,8 @@ public final class DeviceSelfTestActivity extends Activity {
         body.addView(heading);
         body.addView(text(
             "Один запуск: проверка ARM64/Vulkan → сохранённый BSA → NIF → DDS → "+
-            "составная модель → настоящие кадры Vulkan на твоём телефоне.\n"+
+            "составная модель → настоящий Vulkan с автоматическим переключением\n"+
+            "30 FPS → 60 FPS → Без ограничения.\n"+
             "Никакого эмулятора и загрузки данных в интернет. "+
             "Архивы Skyrim остаются неизменными.",14,0xffc9c5d2));
 
@@ -153,36 +155,79 @@ public final class DeviceSelfTestActivity extends Activity {
             finishReport();
         }
     }
+    /** Actual FPS and frame counts are measured for every native cap separately. */
+    private void recordFpsModes(JSONObject stats,boolean gpuCompleted){
+        JSONArray stages=stats.optJSONArray("fpsStages");
+        int[] expected={30,60,0};
+        int passed=0;
+        for(int target:expected){
+            JSONObject stage=null;
+            if(stages!=null)for(int i=0;i<stages.length();i++){
+                JSONObject candidate=stages.optJSONObject(i);
+                if(candidate!=null&&candidate.optInt("cap",-1)==target){
+                    stage=candidate;
+                    break;
+                }
+            }
+            String name="Vulkan FPS "+(target==0?"Без ограничения":target);
+            if(stage==null){
+                if(gpuCompleted)
+                    report.fail(name,"Автотест не вернул измерение для этого режима");
+                else
+                    report.warn(name,"Измерение не завершено из-за остановки Vulkan");
+                continue;
+            }
+            long frames=stage.optLong("frames",0),ms=stage.optLong("sampleMillis",0);
+            double fps=stage.optDouble("fps",0),nativeFps=stage.optDouble("nativeFps",0);
+            boolean confirmed=stage.optBoolean("capConfirmed",false);
+            String details=String.format(Locale.ROOT,
+                "Заданный лимит: %s · фактически %.1f FPS · %d кадров за %.2f с"+
+                " · окно Vulkan %.1f FPS · лимит подтверждён: %s",
+                target==0?"отключён":Integer.toString(target),
+                fps,frames,ms/1000.0,nativeFps,confirmed?"да":"НЕТ");
+            if(stage.optBoolean("passed",false)&&confirmed&&frames>0&&
+               ms>=1800&&Double.isFinite(fps)&&fps>0){
+                report.pass(name,details);
+                passed++;
+            }else report.fail(name,details);
+        }
+        if(passed==expected.length)
+            report.pass("Переключение FPS",
+                "Все 3 режима переключены автоматически, без перезапуска Vulkan и ручных нажатий");
+        else
+            report.warn("Переключение FPS",passed+" из "+expected.length+
+                " этапов подтверждены; смотри строки Vulkan FPS выше");
+    }
     @Override protected void onActivityResult(int request,int resultCode,Intent data){
         super.onActivityResult(request,resultCode,data);
         if(request!=VULKAN_TEST_REQUEST||!running||destroyed)return;
-        if(resultCode==RESULT_OK&&data!=null){
-            try{
-                String json=data.getStringExtra(VulkanSceneActivity.EXTRA_DEVICE_AUTOTEST_RESULT);
-                JSONObject stats=new JSONObject(json==null?"{}":json);
-                int frames=stats.optInt("frames",0);
-                double fps=stats.optDouble("fps",0);
-                int width=stats.optInt("width",0),height=stats.optInt("height",0);
-                if(frames>0&&!stats.optBoolean("error",false)){
-                    report.pass("Настоящий Vulkan GPU",frames+" кадров · "+
-                        String.format(Locale.ROOT,"%.1f",fps)+" FPS · "+
-                        width+"×"+height+" · "+stats.optString("gpu","GPU"));
-                    String texture=stats.optString("textureMode","");
-                    int triangles=stats.optInt("triangles",0);
-                    if(triangles>0)
-                        report.pass("3D-модель Vulkan",triangles+" треугольников · DDS: "+texture);
-                    else report.warn("3D-модель Vulkan",
-                        "Показан встроенный каркас; файлы NIF для рендера не выбраны");
-                }else report.fail("Настоящий Vulkan GPU",
-                    stats.optString("message","Драйвер не отрисовал кадры"));
-            }catch(Exception ex){
-                report.fail("Vulkan GPU-сцена","Ошибка отчёта GPU: "+ex.getClass().getSimpleName());
-            }
-        }else{
+        JSONObject stats=new JSONObject();
+        if(data!=null)try{
+            String json=data.getStringExtra(VulkanSceneActivity.EXTRA_DEVICE_AUTOTEST_RESULT);
+            if(json!=null)stats=new JSONObject(json);
+        }catch(Exception ex){
+            report.fail("Vulkan GPU-сцена","Невозможно прочитать статистику: "+
+                ex.getClass().getSimpleName());
+        }
+        boolean completed=resultCode==RESULT_OK;
+        int frames=stats.optInt("frames",0);
+        if(completed&&frames>0&&!stats.optBoolean("error",false)){
+            int width=stats.optInt("width",0),height=stats.optInt("height",0);
+            report.pass("Настоящий Vulkan GPU",frames+" кадров всего · "+
+                width+"×"+height+" · "+stats.optString("gpu","GPU"));
+            int triangles=stats.optInt("triangles",0);
+            if(triangles>0)
+                report.pass("3D-модель Vulkan",triangles+" треугольников · DDS: "+
+                    stats.optString("textureMode","неизвестно"));
+            else report.warn("3D-модель Vulkan",
+                "Отображался встроенный каркас, выбранная NIF недоступна");
+        }else {
             String reason=data==null?"Проверка была закрыта или прервана":
                 data.getStringExtra(VulkanSceneActivity.EXTRA_DEVICE_AUTOTEST_ERROR);
-            report.fail("Настоящий Vulkan GPU",reason==null?"Не удалось запустить Vulkan":reason);
+            report.fail("Настоящий Vulkan GPU",reason==null?
+                stats.optString("message","Не удалось завершить Vulkan"):reason);
         }
+        recordFpsModes(stats,completed);
         finishReport();
     }
     private void finishReport(){
