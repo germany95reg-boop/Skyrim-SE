@@ -431,6 +431,6 @@ final class DeviceSelfTestRunner {
                 "NIF: "+sample.nif.path,"АВТОТЕСТ · составная геометрия");
             report.pass("Вход GPU-проверки","Подготовлена составная NIF без текстур");
         }else report.pass("Вход GPU-проверки",
-            "Подготовлена составная NIF с несколькими diffuse DDS");
+            "Подготовлена составная NIF с diffuse DDS (число текстур указано выше)");
     }
 }
