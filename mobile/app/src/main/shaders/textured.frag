@@ -97,5 +97,8 @@ void main(){
         float intensity=clamp(options.specularStrength,0.0,1.0);
         shaded=clamp(shaded+vec3(highlight*glossWeight*intensity*0.55),0.0,1.0);
     }
+    // Conservative Skyrim diffuse alpha MASK only; no translucent blending.
+    // Place discard AFTER dFdx/dFdy and normal sampling for defined derivatives.
+    if(base.a < 0.05) discard;
     fragColor=vec4(shaded,base.a);
 }

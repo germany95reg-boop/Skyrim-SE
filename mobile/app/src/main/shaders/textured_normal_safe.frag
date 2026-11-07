@@ -62,5 +62,8 @@ void main(){
     else if(options.lightMode==2)light=vec3(-0.76,0.45,0.48);
     else if(options.lightMode==3)light=vec3(0.15,0.94,0.30);
     float d=abs(dot(n,normalize(light)));
+    // The proven Adreno normal-safe path also respects diffuse cutouts.
+    // Never discard before tangent-space derivatives.
+    if(base.a < 0.05) discard;
     fragColor=vec4(base.rgb*(0.45+0.55*d),base.a);
 }

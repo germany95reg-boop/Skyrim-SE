@@ -23,5 +23,7 @@ void main() {
         sampleUV=(vec2(col,row)+within)/grid;
         if(options.atlasMode==3)sampleUV.y*=0.5;
     }
-    fragColor=texture(diffuseSampler,sampleUV);
+    vec4 base=texture(diffuseSampler,sampleUV);
+    if(base.a < 0.05) discard; // Driver-safe cutout; no extra samplers.
+    fragColor=base;
 }

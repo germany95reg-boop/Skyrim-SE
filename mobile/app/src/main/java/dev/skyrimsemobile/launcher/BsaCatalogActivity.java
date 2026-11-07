@@ -71,7 +71,7 @@ public final class BsaCatalogActivity extends Activity {
         ScrollView scroll=new ScrollView(this);scroll.setBackgroundColor(0xff101116);scroll.setFillViewport(true);
         LinearLayout root=new LinearLayout(this);root.setOrientation(LinearLayout.VERTICAL);
         root.setPadding(dp(16),dp(14),dp(16),dp(18));scroll.addView(root);
-        TextView title=text("Skyrim SE · NIF v2.19",22,0xffdbc5fb);title.setGravity(Gravity.CENTER);root.addView(title);
+        TextView title=text("Skyrim SE · NIF v2.21",22,0xffdbc5fb);title.setGravity(Gravity.CENTER);root.addView(title);
         root.addView(text("BSA 105: каталог, NIF и Vulkan. Последний разрешённый архив, модель и папка Data восстанавливаются автоматически. Содержимое файлов Skyrim не копируется и не изменяется.",13,0xffd5d3dd));
         button(root,"Запустить полный автотест на телефоне · v2.15",()->
             startActivity(new Intent(this,DeviceSelfTestActivity.class)));
@@ -108,7 +108,7 @@ public final class BsaCatalogActivity extends Activity {
         button(root,"Связи материалов частей NIF · v2.11",this::inspectPartMaterialLinks);
         button(root,"Найти DDS каждой части NIF · v2.11",this::findPartDds);
         button(root,"Показать выбранную часть NIF с её DDS · v2.12",this::previewTexturedPart);
-        button(root,"Показать ВСЕ части NIF с DDS · v2.19",this::previewCompositeDds);
+        button(root,"Показать ВСЕ части NIF с DDS · v2.21",this::previewCompositeDds);
         button(root,"Пути текстур NIF · v2.11",this::inspectNifMaterials);
         button(root,"Найти DDS в папке Data · v2.11",this::pickDataForDds);
         button(root,"Изменить папку Data · v2.11",this::chooseDataFolder);
@@ -746,7 +746,7 @@ public final class BsaCatalogActivity extends Activity {
         final BsaCatalogReader.Entry entry=candidates.get(0);
         final long flags=catalog.flags;
         final List<LocatedDds> matches=new ArrayList<>(foundDds);
-        inspectionOutput.setText("Собираю части NIF с diffuse + normal DDS в общий Vulkan-атлас v2.19…");
+        inspectionOutput.setText("Собираю части NIF с diffuse + normal DDS в общий Vulkan-атлас v2.21…");
         new Thread(()->{
             try{
                 NifGeometryDecoder.Parts parts;
@@ -826,6 +826,13 @@ public final class BsaCatalogActivity extends Activity {
                 NifCompositeDdsAtlas.Result atlas=perNormal.isEmpty()?
                     NifCompositeDdsAtlas.build(parts,scene,perShape):
                     NifCompositeDdsAtlas.buildPaired(parts,scene,perShape,perNormal);
+                String alphaNote="Diffuse alpha-mask не проверена";
+                try{
+                    alphaNote=DdsAlphaCoverage.inspect(perShape).report()+
+                        " · GPU отсечение alpha < 5%";
+                }catch(IOException alphaError){
+                    alphaNote="Diffuse alpha-mask: "+alphaError.getMessage();
+                }
                 NifCompositeNormalAtlas.Result stacked=null;
                 String normalNote="Normal DDS: недоступны; сохранён diffuse atlas";
                 if(!perNormal.isEmpty()){
@@ -847,6 +854,7 @@ public final class BsaCatalogActivity extends Activity {
                     "DDS-атлас: "+atlas.width+"×"+atlas.height+" · сетка "+
                     atlas.grid+"×"+atlas.grid+"\\n"+
                     normalNote+"\\n"+
+                    "Diffuse alpha-mask: "+alphaNote+"\\n"+
                     parts.hierarchyNote+
                     errors;
                 runOnUiThread(()->{
@@ -859,7 +867,7 @@ public final class BsaCatalogActivity extends Activity {
                     else
                         NifGeometryTransfer.offerAtlas(scene.lines,scene.triangles,
                             atlas,title,details);
-                    inspectionOutput.setText("Составная Vulkan DDS v2.19 подготовлена.\\n"+
+                    inspectionOutput.setText("Составная Vulkan DDS v2.21 подготовлена.\\n"+
                         details+"\\nИгровые BSA не изменены.");
                     startActivity(new Intent(this,VulkanSceneActivity.class));
                 });
