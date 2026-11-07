@@ -27,7 +27,7 @@ checks={
  "Adreno normal-safe retains bump":'options.normalEnabled!=0' in s["normal-safe"],
  "fallback retains no derivative":'dFdx' not in s["atlas-safe"],
  "basic keeps one sampler":s["basic"].count("uniform sampler2D")==1,
- "no alpha blend promised":'no translucent blending' in alpha,
+ "no alpha blend promised":'not translucent alpha blending' in alpha,
  "CPU threshold matches 5 percent shader":'CUTOUT_ALPHA_EXCLUSIVE=13' in alpha,
  "normal gloss not treated as opacity":'perShape.values()' in alpha and
      'perNormal.values()' not in alpha,
