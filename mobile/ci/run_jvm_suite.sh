@@ -34,7 +34,7 @@ sources=(
   NifMaterialLinkInspector NifPartDdsAvailability NifPartTextureSelection
   NifSceneComposer ObjWireParser PeHeaderInspector PreviewLighting
   PreviewMaterial RecentNifPaths ResourceHeaderInspector SceneFraming
-  DeviceSelfTestReport FpsAutotestSequence
+  DeviceSelfTestReport FpsAutotestSequence VulkanFrameSanity
 )
 args=()
 for name in "${sources[@]}"; do
