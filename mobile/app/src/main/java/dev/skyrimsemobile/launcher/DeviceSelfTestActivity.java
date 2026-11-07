@@ -221,6 +221,22 @@ public final class DeviceSelfTestActivity extends Activity {
                     stats.optString("textureMode","неизвестно"));
             else report.warn("3D-модель Vulkan",
                 "Отображался встроенный каркас, выбранная NIF недоступна");
+            if(triangles>0){
+                // Report what the actual on-screen camera did, separately
+                // from NIF/DDS correctness or the three FPS measurements.
+                String method=stats.optString("framingMethod","unknown");
+                double distance=stats.optDouble("framingDistance",0);
+                double fraction=stats.optDouble("framingVisibleFraction",0);
+                String details=String.format(Locale.ROOT,
+                    "Метод: %s · дистанция %.2f · свободная высота %.0f%%",
+                    method,distance,fraction*100.0);
+                if("geometry-yaw-sweep".equals(method)&&
+                   Double.isFinite(distance)&&distance>=2.7&&distance<=40&&
+                   Double.isFinite(fraction)&&fraction>0.05&&fraction<=1.0)
+                    report.pass("Авто-вписывание камеры NIF",details);
+                else report.warn("Авто-вписывание камеры NIF",
+                    details+" · камера могла остаться в ручном режиме");
+            }
             if(stats.optBoolean("normalAtlasPresent",false)){
                 if(stats.optBoolean("normalMapApplied",false))
                     report.pass("Normal DDS GPU",

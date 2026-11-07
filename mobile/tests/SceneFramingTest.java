@@ -4,6 +4,43 @@ public final class SceneFramingTest {
     private static int checks;
     private static void ok(boolean value,String message){checks++;if(!value)throw new AssertionError(message);}
     private static void close(float actual,float expected,float tolerance,String message){ok(Math.abs(actual-expected)<=tolerance,message+" "+actual+" != "+expected);}
+    /** Independent shader-perspective check at intermediate yaw angles. */
+    private static void fitsProjected(float[] segments,float yaw,float pitch,
+                                      boolean spin,int w,int h,int top,int bottom){
+        SceneFraming.Frame tight=SceneFraming.computeGeometry(
+            segments,yaw,pitch,spin,w,h,top,bottom);
+        SceneFraming.Frame old=SceneFraming.compute(
+            SceneFraming.radius(segments),SceneFraming.horizontalRadius(segments),
+            w,h,top,bottom);
+        ok(tight.distance<=old.distance+0.0001f,
+            "tight camera never farther than conservative sphere");
+        ok(tight.distance>=2.7f&&tight.distance<=40f,
+            "camera distance always bounded");
+        close(tight.ndcYOffset,old.ndcYOffset,0.00001f,
+              "same overlay-centered camera offset");
+        close(tight.visibleFraction,old.visibleFraction,0.00001f,
+              "same Android visible fraction");
+        int steps=spin?96:1;
+        for(int n=0;n<steps;n++){
+            double a=yaw+(spin?2*Math.PI*n/steps:0);
+            double cy=Math.cos(a),sy=Math.sin(a);
+            double cp=Math.cos(pitch),sp=Math.sin(pitch);
+            for(int i=0;i<segments.length;i+=3){
+                double x=segments[i],y=segments[i+1],z=segments[i+2];
+                double rx=cy*x+sy*z,rz=-sy*x+cy*z;
+                double vy=cp*y-sp*rz,vz=sp*y+cp*rz;
+                double depth=tight.distance+vz;
+                ok(depth>0.5,"geometry must remain in front of near plane");
+                double projectedX=3.2*rx/(Math.max((double)w/h,0.2)*depth);
+                double projectedY=-3.2*vy/depth;
+                ok(Math.abs(projectedX)<0.93,
+                    "all rotated vertices fit horizontal safe area");
+                ok(Math.abs(projectedY)<tight.visibleFraction*0.93,
+                    "all rotated vertices fit vertical overlay-free area");
+            }
+        }
+    }
+
     public static void main(String[] args) {
         float[] line={-1,-1,-1,1,1,1};
         close(SceneFraming.radius(line),(float)Math.sqrt(3),0.0001f,"radius");
@@ -48,6 +85,29 @@ public final class SceneFramingTest {
         catch(IllegalArgumentException expected){checks++;}
         try{SceneFraming.compute(1,0,500,0,0);throw new AssertionError("expected viewport rejection");}
         catch(IllegalArgumentException expected){checks++;}
-        System.out.println("PASS: v2.5 compact viewport and camera framing: "+checks+" checks");
+        // Real screenshot-based issue: the v2.22 physical NIF occupies a
+        // modest region of the screen (43x49 of the 192x256 PixelCopy).
+        // New fit uses exact vertex perspective instead of a huge sphere.
+        fitsProjected(slim,0f,0.42f,true,1440,2915,260,1100);
+        SceneFraming.Frame slimSphere=SceneFraming.compute(
+            SceneFraming.radius(slim),SceneFraming.horizontalRadius(slim),
+            1440,2915,260,1100);
+        SceneFraming.Frame slimTight=SceneFraming.computeGeometry(
+            slim,0f,0.42f,true,1440,2915,260,1100);
+        ok(slimTight.distance<slimSphere.distance,
+            "tall narrow model must be visibly closer, not just report a number");
+        fitsProjected(slim,0.6f,-0.4f,true,2915,1440,180,290);
+        fitsProjected(line,0f,0.42f,true,1440,2915,260,1100);
+        fitsProjected(line,1.2f,1.1f,false,1440,2915,260,690);
+        fitsProjected(line,0.3f,-1.2f,true,2915,1440,180,420);
+        try{SceneFraming.computeGeometry(line,Float.NaN,0.42f,true,
+                                         1440,2915,260,1100);
+            throw new AssertionError("NaN yaw accepted");
+        }catch(IllegalArgumentException expected){checks++;}
+        try{SceneFraming.computeGeometry(line,0f,Float.POSITIVE_INFINITY,false,
+                                         1440,2915,260,1100);
+            throw new AssertionError("infinite pitch accepted");
+        }catch(IllegalArgumentException expected){checks++;}
+        System.out.println("PASS v2.23 geometry-aware camera fit: "+checks+" checks");
     }
 }

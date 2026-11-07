@@ -118,6 +118,13 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
             }
             output.put("fpsStages",stages);
             output.put("fpsExpectedStages",fpsSequence.stageCount());
+            output.put("framingMethod",fitFollowsLayout&&activeModelSegments!=null?
+                "geometry-yaw-sweep":"legacy-sphere-or-manual");
+            output.put("framingDistance",zoom);
+            output.put("framingVisibleFraction",sceneRoot==null||sceneRoot.getHeight()==0?0:
+                Math.max(0.0,Math.min(1.0,(double)(sceneRoot.getHeight()-
+                (sceneTitle==null?0:sceneTitle.getHeight())-
+                (scenePanel==null?0:scenePanel.getHeight()))/sceneRoot.getHeight())));
             output.put("frameCaptureStatus",visualStatus);
             output.put("frameCaptureNote",visualNote);
             if(visualResult!=null){
@@ -184,6 +191,7 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
     private LinearLayout scenePanel;
     private float modelRadius=SceneFraming.CUBE_RADIUS;
     private float modelHorizontalRadius=(float)Math.sqrt(2.0);
+    private float[] activeModelSegments;
     private boolean fitFollowsLayout=true;
     private String framingInfo="";
     private Button modelButton;
@@ -308,7 +316,7 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
         root.addView(viewport, new FrameLayout.LayoutParams(-1, -1));
 
         TextView title = new TextView(this);
-        title.setText("SKYRIM SE MOBILE\nVulkan 3D · v2.22");
+        title.setText("SKYRIM SE MOBILE\nVulkan 3D · v2.23");
         sceneTitle=title;
         title.setTypeface(Typeface.SERIF, Typeface.BOLD);
         title.setTextSize(20);
@@ -355,7 +363,7 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
         meshControls.addView(pyramid, new LinearLayout.LayoutParams(0, dp(46), 1));
         Button cube = controlButton("Куб");
         cube.setOnClickListener(v -> {
-            nativeClearGeometry(); hasSurface=false;hasTexture=false;hasNormalMap=false;useTexture=false;useNormalMap=false;solidMode=false;updateSurfaceButton(); meshLabel = "Куб (встроенный)"; nifDimensions=""; modelRadius=SceneFraming.CUBE_RADIUS; modelHorizontalRadius=(float)Math.sqrt(2.0); fitFollowsLayout=true; refreshFraming();
+            nativeClearGeometry(); hasSurface=false;hasTexture=false;hasNormalMap=false;useTexture=false;useNormalMap=false;solidMode=false;updateSurfaceButton(); meshLabel = "Куб (встроенный)"; nifDimensions=""; modelRadius=SceneFraming.CUBE_RADIUS; modelHorizontalRadius=(float)Math.sqrt(2.0); activeModelSegments=null; fitFollowsLayout=true; refreshFraming();
             getSharedPreferences("launcher_state",MODE_PRIVATE).edit().remove("obj_uri").apply();
             restartRenderer();
         });
@@ -647,6 +655,7 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
         meshLabel=name;
         modelRadius=SceneFraming.radius(model.segments);
         modelHorizontalRadius=SceneFraming.horizontalRadius(model.segments);
+        activeModelSegments=model.segments;
         fitFollowsLayout=true;
         refreshFraming();
         if(!name.startsWith("NIF:")) nifDimensions="";
@@ -673,12 +682,16 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
         if(sceneRoot==null||sceneTitle==null||scenePanel==null || loadingError!=null) return;
         int w=sceneRoot.getWidth(),h=sceneRoot.getHeight();
         if(w<=0||h<=0)return;
-        SceneFraming.Frame f=SceneFraming.compute(modelRadius,modelHorizontalRadius,
-            w,h,sceneTitle.getHeight(),scenePanel.getHeight());
+        SceneFraming.Frame f=(fitFollowsLayout&&activeModelSegments!=null)?
+            SceneFraming.computeGeometry(activeModelSegments,yaw,pitch,autoSpin,
+                w,h,sceneTitle.getHeight(),scenePanel.getHeight()):
+            SceneFraming.compute(modelRadius,modelHorizontalRadius,
+                w,h,sceneTitle.getHeight(),scenePanel.getHeight());
         nativeSetViewportOffset(f.ndcYOffset);
         if(fitFollowsLayout){ zoom=f.distance; nativeSetView(yaw,pitch,zoom,autoSpin); }
         framingInfo=String.format(java.util.Locale.US,"Кадр: %.0f%% свободно · авто-вписывание: %s",
-            100*f.visibleFraction,fitFollowsLayout?"да":"ручной масштаб");
+            100*f.visibleFraction,fitFollowsLayout?
+            (activeModelSegments!=null?"геометрия":"стандарт"):"ручной масштаб");
     }
     private void updateControls() {
         autoButton.setText(autoSpin ? "Авто: Вкл" : "Авто: Выкл");
