@@ -74,7 +74,8 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
                         int[] argb=new int[w*h];
                         pixels.getPixels(argb,0,w,0,0,w,h);
                         visualResult=VulkanFrameSanity.analyze(argb,w,h);
-                        visualStatus=visualResult.visibleGeometryEvidence?"visible":"blank";
+                        visualStatus=!visualResult.visibleGeometryEvidence?"blank":
+                            (visualResult.smallProjectedFootprint?"small":"visible");
                         visualNote=visualResult.summary();
                     }else{
                         visualStatus="error";
@@ -124,6 +125,9 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
                 output.put("frameNonBackground",visualResult.nonBackground);
                 output.put("frameBrightnessRange",visualResult.brightnessRange);
                 output.put("frameBrightnessBuckets",visualResult.distinctBrightnessBuckets);
+                output.put("frameForegroundWidth",visualResult.foregroundWidth);
+                output.put("frameForegroundHeight",visualResult.foregroundHeight);
+                output.put("frameSmallFootprint",visualResult.smallProjectedFootprint);
             }
             return output.toString();
         } catch(Exception ignored){return rawStats==null?"{}":rawStats;}
@@ -304,7 +308,7 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
         root.addView(viewport, new FrameLayout.LayoutParams(-1, -1));
 
         TextView title = new TextView(this);
-        title.setText("SKYRIM SE MOBILE\nVulkan 3D · v2.21");
+        title.setText("SKYRIM SE MOBILE\nVulkan 3D · v2.22");
         sceneTitle=title;
         title.setTypeface(Typeface.SERIF, Typeface.BOLD);
         title.setTextSize(20);

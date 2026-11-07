@@ -17,7 +17,7 @@ shaders=read("ci/compile_shaders.sh")
 
 assert "abiFilters 'arm64-v8a'" in gradle
 assert "applicationId 'dev.skyrimsemobile.launcher'" in gradle
-assert "versionCode 44" in gradle and "versionName '2.21.0'" in gradle
+assert "versionCode 45" in gradle and "versionName '2.22.0'" in gradle
 assert "android:exported=\"false\"" in manifest
 assert "pull_request:" in workflow and "branches: [main]" in workflow
 assert "needs: jvm-regressions" in workflow
@@ -25,13 +25,14 @@ assert "android-emulator-ui:" not in workflow, "Use the real device's in-app tes
 assert "bash mobile/ci/run_jvm_suite.sh" in workflow
 assert "bash mobile/ci/verify_apk.sh" in workflow
 assert "v215_device_autotest_contract_test.py" in workflow
-assert "Skyrim-SE-v2.21-CI-ARM64-APK" in workflow
+assert "Skyrim-SE-v2.22-CI-ARM64-APK" in workflow
 assert "*Test.java" in jvm and "java -ea" in jvm
 assert "DeviceSelfTestReport" in jvm
 assert "FpsAutotestSequence" in jvm
 assert "VulkanFrameSanity" in jvm
 assert "DdsAlphaCoverage" in jvm
 assert "v221_dds_alpha_contract_test.py" in workflow
+assert "v222_pixel_footprint_contract_test.py" in workflow
 assert "v220_frame_pixelcopy_contract_test.py" in workflow
 assert "NifHierarchyTransforms" in jvm
 assert "NifCompositeNormalAtlas" in jvm
@@ -42,7 +43,7 @@ assert "v216_fps_matrix_contract_test.py" in workflow
 assert "lib/arm64-v8a/libskyrimse_scene.so" in verify
 assert "grep -Eq '^lib/x86_64/'" in verify
 assert "apksigner" in verify
-assert "versionCode='44'" in verify
+assert "versionCode='45'" in verify
 assert "textured.frag:frag" in shaders
 assert "textured_safe.vert:vert" in shaders
 assert "textured_safe.frag:frag" in shaders

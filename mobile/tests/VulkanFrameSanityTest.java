@@ -24,6 +24,9 @@ public final class VulkanFrameSanityTest {
         ok(clear.sampledPixels==w*h,"correct copy dimensions");
         ok(clear.nonBackground==0,"clear-only pixels are background");
         ok(clear.brightnessRange==0,"flat frame has zero contrast");
+        ok(clear.foregroundWidth==0&&clear.foregroundHeight==0,
+            "uniform background has zero foreground bounding box");
+        ok(!clear.smallProjectedFootprint,"blank frame is not a small visible mesh");
         ok(!clear.visibleGeometryEvidence,"presenting clear-only frames cannot PASS");
         Arrays.fill(blank,0xff000000);
         VulkanFrameSanity.Result black=VulkanFrameSanity.analyze(blank,w,h);
@@ -43,6 +46,13 @@ public final class VulkanFrameSanityTest {
         ok(mesh.nonBackground>=8000,"mesh occupies substantial area");
         ok(mesh.brightnessRange>90,"mesh varies brightness");
         ok(mesh.distinctBrightnessBuckets>=3,"several pixel tones seen");
+        ok(mesh.foregroundWidth==75&&mesh.foregroundHeight==110,
+            "visible mesh exact foreground extents");
+        ok(!mesh.smallProjectedFootprint,
+            "large foreground bounding box is not too-small framing");
+        ok(mesh.summary().contains("% кадра")&&
+           mesh.summary().contains("границы изображения 75×110"),
+            "report carries actual coverage fraction and bounding rectangle");
         ok(mesh.summary().contains("пикселей отличаются"),
             "copyable report includes color evidence");
         Arrays.fill(blank,0xff090a11);
@@ -50,6 +60,28 @@ public final class VulkanFrameSanityTest {
         VulkanFrameSanity.Result noise=VulkanFrameSanity.analyze(blank,w,h);
         ok(!noise.visibleGeometryEvidence,
             "one tiny UI-like highlight is not sufficient evidence");
+        // Tiny but colorful projected prop: 12x12 at 192x256 is barely
+        // noticeable. Keep evidence, but flag framing as possibly too small.
+        Arrays.fill(blank,0xff090a11);
+        for(int y=90;y<102;y++)for(int x=45;x<57;x++)
+            blank[y*w+x]=(x+y)%2==0?0xfffaf0b0:0xff2964b0;
+        VulkanFrameSanity.Result tiny=VulkanFrameSanity.analyze(blank,w,h);
+        ok(tiny.visibleGeometryEvidence,"tiny prop is actually rendered");
+        ok(tiny.smallProjectedFootprint,
+            "tiny foreground must not be reported as confidently framed");
+        ok(tiny.foregroundWidth==12&&tiny.foregroundHeight==12,
+            "small bounding rectangle counted precisely");
+        // Narrow but very tall net/rope is not inherently poorly framed:
+        // low area occupancy does not mean a small 3D model.
+        Arrays.fill(blank,0xff090a11);
+        for(int y=35;y<219;y++)for(int x=68;x<70;x++)
+            blank[y*w+x]=(x+y)%2==0?0xfff9c95a:0xff365cb5;
+        VulkanFrameSanity.Result rope=VulkanFrameSanity.analyze(blank,w,h);
+        ok(rope.visibleGeometryEvidence,"thin tall geometry has real pixels");
+        ok(!rope.smallProjectedFootprint,
+            "thin tall mesh spans viewport and must NOT be tiny");
+        ok(rope.foregroundWidth==2&&rope.foregroundHeight==184,
+            "rect spans full height despite low pixel coverage");
         Arrays.fill(blank,0xff0a0b12);
         VulkanFrameSanity.Result nearClear=VulkanFrameSanity.analyze(blank,w,h);
         ok(!nearClear.visibleGeometryEvidence,"anti-aliased background noise is ignored");
@@ -57,6 +89,6 @@ public final class VulkanFrameSanityTest {
         reject(new int[1],w,h,"wrong length");
         reject(new int[256],16,15,"too small height");
         reject(new int[1024],513,2,"too large width");
-        System.out.println("PASS v2.20 Vulkan in-memory framebuffer sanity: "+checks+" checks");
+        System.out.println("PASS v2.22 Vulkan framebuffer framing and sparse model sanity: "+checks+" checks");
     }
 }

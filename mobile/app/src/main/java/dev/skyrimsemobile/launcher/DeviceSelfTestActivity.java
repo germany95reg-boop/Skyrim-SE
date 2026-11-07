@@ -246,6 +246,14 @@ public final class DeviceSelfTestActivity extends Activity {
                         frameDetails+" · реальный SurfaceView (не UI)");
                 else report.warn("Изображение Vulkan PixelCopy",
                     "Некорректные данные пикселей: "+frameDetails);
+            }else if("small".equals(frameStatus)){
+                // A small footprint may be camera framing, a thin object,
+                // or a face-on texture. Keep Vulkan/FPS PASS unchanged.
+                report.warn("Изображение Vulkan PixelCopy",
+                    "Модель есть, но видимая область компактна по обеим осям. "+
+                    "Проверь авто-вписывание и масштаб камеры: "+frameDetails+
+                    " · дистанция "+String.format(Locale.ROOT,"%.1f",
+                        stats.optDouble("distance",0))+" (Vulkan)");
             }else if("blank".equals(frameStatus)){
                 report.warn("Изображение Vulkan PixelCopy",
                     "Рендер выводит кадры, но на SurfaceView не найдено убедительных "+
