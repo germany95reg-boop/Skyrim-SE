@@ -374,6 +374,15 @@ final class DeviceSelfTestRunner {
                     perShape.size()+" частей NIF");
                 if(failures>0)report.warn("Материалы","Пропущено частей: "+failures+
                     " (невалидная или неподдерживаемая DDS)");
+                // Only diffuse alpha is opacity. Normal DDS alpha commonly
+                // encodes gloss and must never be mistaken for a hole mask.
+                try{
+                    DdsAlphaCoverage.Result alpha=DdsAlphaCoverage.inspect(perShape);
+                    report.pass("Diffuse DDS альфа-маска",alpha.report()+
+                        " · Vulkan отсекает только alpha < 5%");
+                }catch(IOException badAlpha){
+                    report.warn("Diffuse DDS альфа-маска",shortError(badAlpha));
+                }
                 try{
                     NifCompositeDdsAtlas.Result atlas=perNormal.isEmpty()?
                         NifCompositeDdsAtlas.build(sample.parts,sample.scene,perShape):
