@@ -242,21 +242,18 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
                                 // sample, while the unlimited stage warms up.
                                 // This avoids disrupting the measured FPS windows.
                                 if(measured.cap==60)requestVisualCapture();
-                                if(fpsSequence.complete()&&frames>=45){
-                                    // The callback is asynchronous. Give it up
-                                    // to 1.5 s, then report a WARN instead of
-                                    // ever claiming an unseen frame was valid.
-                                    if(!"capturing".equals(visualStatus)||
-                                       SystemClock.elapsedRealtime()-visualRequestedAtMs>=1500)
-                                        completeDeviceAutotest(true,json,null);
-                                }else if(!fpsSequence.complete()){
+                                if(!fpsSequence.complete()){
                                     fpsCap=fpsSequence.requestedCap();
                                     updateControls(); // sets real native FPS cap
                                 }
                             }
+                            // Check on EVERY poll, not just stage transitions:
+                            // PixelCopy callbacks can complete after stage 3.
+                            // Delay at most 1.5s after FPS testing for the
+                            // small frame copy; a timeout produces a WARN.
                             if(fpsSequence.complete()&&frames>=45&&
-                               "capturing".equals(visualStatus)&&
-                               SystemClock.elapsedRealtime()-visualRequestedAtMs>=1500)
+                               (!"capturing".equals(visualStatus)||
+                                SystemClock.elapsedRealtime()-visualRequestedAtMs>=1500))
                                 completeDeviceAutotest(true,json,null);
                         }
                     }
