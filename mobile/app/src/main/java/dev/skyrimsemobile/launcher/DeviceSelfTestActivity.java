@@ -232,6 +232,34 @@ public final class DeviceSelfTestActivity extends Activity {
                     " без normal shading; diffuse DDS сохранены");
             }else report.skip("Normal DDS GPU",
                 "Не передан составной normal DDS-атлас; GPU тестирует diffuse или геометрию");
+            // Real pixel evidence is checked separately from submitted GPU
+            // frames. Do not falsely PASS when Vulkan only presents a clear
+            // surface. A failed PixelCopy produces WARN, never loses the model.
+            String frameStatus=stats.optString("frameCaptureStatus","not-requested");
+            String frameDetails=stats.optString("frameCaptureNote",
+                "Нет данных PixelCopy с Android SurfaceView");
+            if("visible".equals(frameStatus)){
+                int foreground=stats.optInt("frameNonBackground",0);
+                int total=stats.optInt("frameSamplePixels",0);
+                if(total>0&&foreground>0)
+                    report.pass("Изображение Vulkan PixelCopy",
+                        frameDetails+" · реальный SurfaceView (не UI)");
+                else report.warn("Изображение Vulkan PixelCopy",
+                    "Некорректные данные пикселей: "+frameDetails);
+            }else if("blank".equals(frameStatus)){
+                report.warn("Изображение Vulkan PixelCopy",
+                    "Рендер выводит кадры, но на SurfaceView не найдено убедительных "+
+                    "пикселей модели: "+frameDetails);
+            }else if("capturing".equals(frameStatus)){
+                report.warn("Изображение Vulkan PixelCopy",
+                    "PixelCopy не завершился до конца теста; FPS и Vulkan проверены отдельно");
+            }else if("not-requested".equals(frameStatus)&&triangles==0){
+                report.skip("Изображение Vulkan PixelCopy",
+                    "Статическая NIF не подготовлена для проверки изображения");
+            }else{
+                report.warn("Изображение Vulkan PixelCopy",
+                    "Не удалось проверить изображение: "+frameDetails);
+            }
         }else {
             String reason=data==null?"Проверка была закрыта или прервана":
                 data.getStringExtra(VulkanSceneActivity.EXTRA_DEVICE_AUTOTEST_ERROR);
