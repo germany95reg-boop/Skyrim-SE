@@ -9,6 +9,8 @@ import android.database.Cursor;
 import java.io.InputStream;
 import java.io.IOException;
 import android.graphics.Color;
+import android.graphics.Bitmap;
+import android.view.PixelCopy;
 import android.graphics.Typeface;
 import android.os.Bundle;
 import android.os.Handler;
@@ -36,6 +38,62 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
     private boolean deviceAutotest=false,deviceAutotestFinished=false;
     private final FpsAutotestSequence fpsSequence=new FpsAutotestSequence();
     private long deviceAutotestStarted;
+    private boolean visualRequested=false;
+    private long visualRequestedAtMs;
+    private String visualStatus="not-requested";
+    private String visualNote="Не было подтверждённого GPU-кадра для PixelCopy";
+    private VulkanFrameSanity.Result visualResult;
+    private SurfaceView frameSurface;
+
+    /** One one-time SurfaceView copy. Only aggregate pixel counters are retained.
+     * Nothing is saved to storage, shared with any service or shown to the UI.
+     * PixelCopy copies the Vulkan surface, not the Android controls layered on it.
+     */
+    private void requestVisualCapture(){
+        if(!deviceAutotest||visualRequested||destroyed||!surfaceReady||
+           !hasSurface||frameSurface==null)return;
+        visualRequested=true;
+        visualRequestedAtMs=SystemClock.elapsedRealtime();
+        visualStatus="capturing";
+        visualNote="Ожидаю копирование одного Vulkan-кадра";
+        final Bitmap pixels;
+        try{
+            pixels=Bitmap.createBitmap(VulkanFrameSanity.CAPTURE_WIDTH,
+                VulkanFrameSanity.CAPTURE_HEIGHT,Bitmap.Config.ARGB_8888);
+        }catch(Throwable error){
+            visualStatus="error";
+            visualNote="Не удалось выделить маленький PixelCopy-буфер: "+
+                error.getClass().getSimpleName();
+            return;
+        }
+        try{
+            PixelCopy.request(frameSurface,pixels,result->{
+                try{
+                    if(result==PixelCopy.SUCCESS){
+                        int w=pixels.getWidth(),h=pixels.getHeight();
+                        int[] argb=new int[w*h];
+                        pixels.getPixels(argb,0,w,0,0,w,h);
+                        visualResult=VulkanFrameSanity.analyze(argb,w,h);
+                        visualStatus=visualResult.visibleGeometryEvidence?"visible":"blank";
+                        visualNote=visualResult.summary();
+                    }else{
+                        visualStatus="error";
+                        visualNote="PixelCopy вернул Android-код "+result;
+                    }
+                }catch(Throwable error){
+                    visualStatus="error";
+                    visualNote="Не удалось проанализировать кадр: "+
+                        error.getClass().getSimpleName();
+                }finally{
+                    pixels.recycle();
+                }
+            },ui);
+        }catch(Throwable error){
+            pixels.recycle();
+            visualStatus="error";
+            visualNote="PixelCopy не запущен: "+error.getClass().getSimpleName();
+        }
+    }
     private final Runnable deviceAutotestTimeout=()->{
         if(deviceAutotest&&!deviceAutotestFinished)
             completeDeviceAutotest(false,null,
@@ -59,6 +117,14 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
             }
             output.put("fpsStages",stages);
             output.put("fpsExpectedStages",fpsSequence.stageCount());
+            output.put("frameCaptureStatus",visualStatus);
+            output.put("frameCaptureNote",visualNote);
+            if(visualResult!=null){
+                output.put("frameSamplePixels",visualResult.sampledPixels);
+                output.put("frameNonBackground",visualResult.nonBackground);
+                output.put("frameBrightnessRange",visualResult.brightnessRange);
+                output.put("frameBrightnessBuckets",visualResult.distinctBrightnessBuckets);
+            }
             return output.toString();
         } catch(Exception ignored){return rawStats==null?"{}":rawStats;}
     }
@@ -172,13 +238,26 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
                                 SystemClock.elapsedRealtime(),frames,
                                 info.optInt("fpsCap",-1),fps,running);
                             if(measured!=null){
+                                // Capture one real Surface frame AFTER the 60 FPS
+                                // sample, while the unlimited stage warms up.
+                                // This avoids disrupting the measured FPS windows.
+                                if(measured.cap==60)requestVisualCapture();
                                 if(fpsSequence.complete()&&frames>=45){
-                                    completeDeviceAutotest(true,json,null);
+                                    // The callback is asynchronous. Give it up
+                                    // to 1.5 s, then report a WARN instead of
+                                    // ever claiming an unseen frame was valid.
+                                    if(!"capturing".equals(visualStatus)||
+                                       SystemClock.elapsedRealtime()-visualRequestedAtMs>=1500)
+                                        completeDeviceAutotest(true,json,null);
                                 }else if(!fpsSequence.complete()){
                                     fpsCap=fpsSequence.requestedCap();
                                     updateControls(); // sets real native FPS cap
                                 }
                             }
+                            if(fpsSequence.complete()&&frames>=45&&
+                               "capturing".equals(visualStatus)&&
+                               SystemClock.elapsedRealtime()-visualRequestedAtMs>=1500)
+                                completeDeviceAutotest(true,json,null);
                         }
                     }
                     if (frames > 0 && !error) {
@@ -221,13 +300,14 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
         sceneRoot=root;
         root.setBackgroundColor(0xff101115);
         SurfaceView viewport = new SurfaceView(this);
+        frameSurface=viewport;
         viewport.getHolder().addCallback(this);
         viewport.setContentDescription("Тест трёхмерной геометрии через Vulkan — жестами можно менять камеру");
         viewport.setOnTouchListener((view, event) -> onSceneTouch(event));
         root.addView(viewport, new FrameLayout.LayoutParams(-1, -1));
 
         TextView title = new TextView(this);
-        title.setText("SKYRIM SE MOBILE\nVulkan 3D · v2.19");
+        title.setText("SKYRIM SE MOBILE\nVulkan 3D · v2.20");
         sceneTitle=title;
         title.setTypeface(Typeface.SERIF, Typeface.BOLD);
         title.setTextSize(20);
