@@ -349,7 +349,7 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
         root.addView(viewport, new FrameLayout.LayoutParams(-1, -1));
 
         TextView title = new TextView(this);
-        title.setText("SKYRIM SE MOBILE · 3D v2.26");
+        title.setText("SKYRIM SE · 3D · " + InstalledAppVersion.label(this));
         sceneTitle=title;
         title.setTypeface(Typeface.SERIF, Typeface.BOLD);
         title.setTextSize(16);

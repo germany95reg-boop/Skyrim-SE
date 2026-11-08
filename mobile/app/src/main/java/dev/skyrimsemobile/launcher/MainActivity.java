@@ -120,6 +120,8 @@ public final class MainActivity extends Activity {
             startActivity(new Intent(MainActivity.this, VulkanTestActivity.class));
         }); }
         @JavascriptInterface public void openResourceInspector() { runOnUiThread(() -> startActivity(new Intent(MainActivity.this, ResourceInspectorActivity.class))); }
+        @JavascriptInterface public void openPluginInspector() { runOnUiThread(() ->
+            startActivity(new Intent(MainActivity.this, ResourceInspectorActivity.class).putExtra("open_tes4", true))); }
         @JavascriptInterface public void openDeviceSelfTest() { runOnUiThread(() ->
             startActivity(new Intent(MainActivity.this, DeviceSelfTestActivity.class))); }
         @JavascriptInterface public void openVulkan3DTest() { runOnUiThread(() -> {
@@ -351,6 +353,7 @@ public final class MainActivity extends Activity {
         JSONObject json = new JSONObject();
         try {
             FolderProbe probe = probeFolder();
+            json.put("installedVersion", InstalledAppVersion.label(this));
             json.put("gameFolder", probe.name);
             json.put("folderStatus", probe.status);
             json.put("exeValidation", probe.exeValidation);

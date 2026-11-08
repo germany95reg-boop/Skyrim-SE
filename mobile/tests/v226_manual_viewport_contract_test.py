@@ -31,7 +31,7 @@ checks={
  "advanced DDS and alpha still present":'advancedControls.addView(alphaButton,' in scene,
  "core manual controls still reachable":'actions.addView(fit,' in scene and
      'controls.addView(fpsButton,' in scene,
- "title compact":'SKYRIM SE MOBILE · 3D v2.26' in scene and
+ "title compact":'"SKYRIM SE · 3D · " + InstalledAppVersion.label(this)' in scene and
      'title.setTextSize(16);' in scene,
  "camera uses actually visible manual sheet":'controlsScroller.getHeight():0;' in scene,
  "auto test uses compact HUD only":'controlsScroller.setVisibility(View.GONE);' in scene and
@@ -50,8 +50,8 @@ checks={
  "legacy model transfer preserved":'static synchronized void offerTextured(' in transfer,
  "user footer remains removed":'Отчёт не отправлялся автоматически' not in report,
  "never adds network/upload permission":'android.permission.INTERNET' not in manifest,
- "stable upgrade and package identity":'versionCode 50' in gradle and
-     "versionName '2.27.0'" in gradle and
+ "stable upgrade and package identity":'versionCode 51' in gradle and
+     "versionName '2.28.0'" in gradle and
      "applicationId 'dev.skyrimsemobile.launcher'" in gradle,
  "CI always checks this correction":'v226_manual_viewport_contract_test.py' in workflow,
 }

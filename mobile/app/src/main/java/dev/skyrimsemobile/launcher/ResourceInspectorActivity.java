@@ -39,7 +39,7 @@ public final class ResourceInspectorActivity extends Activity {
         scroll.setFillViewport(true);scroll.setBackgroundColor(0xff101116);
         LinearLayout root=new LinearLayout(this);root.setOrientation(LinearLayout.VERTICAL);
         root.setPadding(dp(16),dp(17),dp(16),dp(20));scroll.addView(root);
-        TextView title=new TextView(this);title.setText("Ресурсы Skyrim SE · v2.27");
+        TextView title=new TextView(this);title.setText("Ресурсы Skyrim SE · " + InstalledAppVersion.label(this));
         title.setTextSize(22);title.setTextColor(0xffdbc5fb);title.setGravity(Gravity.CENTER);
         root.addView(title);
         TextView info=new TextView(this);
@@ -60,6 +60,8 @@ public final class ResourceInspectorActivity extends Activity {
         report.setBackgroundColor(0xff22232e);root.addView(report);
         setContentView(scroll);
         update(text);
+        if(getIntent()!=null && getIntent().getBooleanExtra("open_tes4",false))
+            scroll.post(this::selectPlugin);
     }
     private int dp(float d){return (int)(getResources().getDisplayMetrics().density*d+.5f);}
     private void addButton(LinearLayout p,String label,Runnable action){

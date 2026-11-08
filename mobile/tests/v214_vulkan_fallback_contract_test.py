@@ -17,8 +17,8 @@ activity = read("app/src/main/java/dev/skyrimsemobile/launcher/VulkanSceneActivi
 ci = read("../.github/workflows/build-skyrimse-v2-13-apk.yml")
 
 checks = {
-    "upgradeable version code": "versionCode 50" in gradle,
-    "upgradeable version name": "versionName '2.27.0'" in gradle,
+    "upgradeable version code": "versionCode 51" in gradle,
+    "upgradeable version name": "versionName '2.28.0'" in gradle,
     "persistent Android package": "applicationId 'dev.skyrimsemobile.launcher'" in gradle,
     "same signing certificate": "signingConfig signingConfigs.stableDebug" in gradle,
     "all existing DDS/NIF features": "nativeSetDiffuseAtlas" in native and "nativeSetNormalTexture" in native,

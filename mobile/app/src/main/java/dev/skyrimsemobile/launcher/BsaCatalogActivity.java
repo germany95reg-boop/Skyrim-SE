@@ -63,6 +63,9 @@ public final class BsaCatalogActivity extends Activity {
     private BsaSessionStore savedSession;
     private long archiveLoadSequence=0;
     private volatile boolean destroyed=false;
+    private void openPluginInspector() {
+        startActivity(new Intent(this,ResourceInspectorActivity.class).putExtra("open_tes4",true));
+    }
     @Override public void onCreate(Bundle saved){
         super.onCreate(saved);
         savedSession=new BsaSessionStore(this);
@@ -71,11 +74,12 @@ public final class BsaCatalogActivity extends Activity {
         ScrollView scroll=new ScrollView(this);scroll.setBackgroundColor(0xff101116);scroll.setFillViewport(true);
         LinearLayout root=new LinearLayout(this);root.setOrientation(LinearLayout.VERTICAL);
         root.setPadding(dp(16),dp(14),dp(16),dp(18));scroll.addView(root);
-        TextView title=text("Skyrim SE · NIF v2.26",22,0xffdbc5fb);title.setGravity(Gravity.CENTER);root.addView(title);
+        TextView title=text("Skyrim SE · NIF · " + InstalledAppVersion.label(this),22,0xffdbc5fb);title.setGravity(Gravity.CENTER);root.addView(title);
         root.addView(text("BSA 105: каталог, NIF и Vulkan. Последний разрешённый архив, модель и папка Data восстанавливаются автоматически. Содержимое файлов Skyrim не копируется и не изменяется.",13,0xffd5d3dd));
         button(root,"Запустить полный автотест на телефоне · v2.15",()->
             startActivity(new Intent(this,DeviceSelfTestActivity.class)));
         button(root,"Выбрать архив BSA",this::pick);
+        button(root,"ESM / ESP / ESL · проверить заголовок TES4",this::openPluginInspector);
         button(root,"Забыть сохранённые пути · v2.11",this::forgetSavedPaths);
         filter=new EditText(this);filter.setSingleLine(true);filter.setHint("Поиск: meshes, .nif, fish...");
         filter.setTextColor(0xffeeeeee);filter.setHintTextColor(0xffaaa4b8);root.addView(filter);

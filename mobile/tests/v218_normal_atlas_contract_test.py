@@ -46,8 +46,8 @@ checks={
 "new shader packaged":"assets/textured_normal_safe.frag.spv" in apk,
 "test actual Java fixtures":"NifCompositeNormalAtlas" in jvm,
 "new source contracts invoked":"v218_normal_atlas_contract_test.py" in ci,
-"stable signed update":"versionCode 50" in gradle and
-    "versionName '2.27.0'" in gradle,
+"stable signed update":"versionCode 51" in gradle and
+    "versionName '2.28.0'" in gradle,
 "old physical GPU FPS tests retained":"FpsAutotestSequence" in jvm,
 "no emulator job":"android-emulator-ui:" not in ci,
 }
