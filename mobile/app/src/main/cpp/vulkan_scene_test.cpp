@@ -59,6 +59,8 @@ std::atomic<int> previewLightMode{0};
 std::atomic<float> previewReliefStrength{1.0f};
 std::atomic<float> previewSpecularStrength{0.0f}; // OFF preserves proven v2.3 image
 std::atomic<int> previewSpecularSize{1};
+// Opt-in, straight-alpha preview. OFF by default: preserves proven normal-safe path.
+std::atomic<bool> previewAlphaBlend{false};
 std::atomic<bool> solidMode{false};
 uint32_t geometryTriangleCount = 0;
 std::string geometryLabel = "Куб (встроенный)";
@@ -84,6 +86,7 @@ uint32_t frameWidth = 0, frameHeight = 0;
 bool rendering = false;
 bool failed = false;
 std::string activeTextureMode = "off";
+bool activeAlphaBlendSupported=false; // guarded by statsMutex
 
 void setStats(const std::string& msg, bool error = false) {
     std::lock_guard<std::mutex> guard(statsMutex);
@@ -129,6 +132,7 @@ struct Renderer {
     VkPipeline pipeline = VK_NULL_HANDLE;
     VkPipeline solidPipeline = VK_NULL_HANDLE;
     VkPipeline texturePipeline=VK_NULL_HANDLE;
+    VkPipeline textureBlendPipeline=VK_NULL_HANDLE; // optional, nonfatal
     VkPipelineLayout textureLayout=VK_NULL_HANDLE;
     VkDescriptorSetLayout textureSetLayout=VK_NULL_HANDLE;
     VkDescriptorPool textureDescriptorPool=VK_NULL_HANDLE;
@@ -176,6 +180,7 @@ struct Renderer {
             if (vertexMemory) vkFreeMemory(device, vertexMemory, nullptr);
             if (triangleBuffer) vkDestroyBuffer(device, triangleBuffer, nullptr);
             if (triangleMemory) vkFreeMemory(device, triangleMemory, nullptr);
+            if (textureBlendPipeline) vkDestroyPipeline(device,textureBlendPipeline,nullptr);
             if (texturePipeline) vkDestroyPipeline(device, texturePipeline, nullptr);
             if (textureLayout) vkDestroyPipelineLayout(device,textureLayout,nullptr);
             if (textureDescriptorPool) vkDestroyDescriptorPool(device,textureDescriptorPool,nullptr);
@@ -653,6 +658,34 @@ struct Renderer {
             stages[1].module=textureFragmentModule;
             pipelineInfo.pVertexInputState=&uvInput;
             pipelineInfo.layout=textureLayout;
+            // A second graphics pipeline uses the exact SAME shader that
+            // succeeded for the ordinary opaque/masked path, including
+            // Adreno normal-safe. It is optional, fails closed, and must be
+            // built while the active shader modules are still alive.
+            auto tryAlphaPreview=[&](){
+                VkBool32 oldDepthWrite=depthState.depthWriteEnable;
+                depthState.depthWriteEnable=VK_FALSE; // alpha faces do not occlude each other
+                blendAttachment.blendEnable=VK_TRUE;
+                blendAttachment.srcColorBlendFactor=VK_BLEND_FACTOR_SRC_ALPHA;
+                blendAttachment.dstColorBlendFactor=VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+                blendAttachment.colorBlendOp=VK_BLEND_OP_ADD;
+                blendAttachment.srcAlphaBlendFactor=VK_BLEND_FACTOR_ONE;
+                blendAttachment.dstAlphaBlendFactor=VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+                blendAttachment.alphaBlendOp=VK_BLEND_OP_ADD;
+                VkResult blendResult=vkCreateGraphicsPipelines(
+                    device,VK_NULL_HANDLE,1,&pipelineInfo,nullptr,&textureBlendPipeline);
+                blendAttachment.blendEnable=VK_FALSE;
+                depthState.depthWriteEnable=oldDepthWrite;
+                if(blendResult!=VK_SUCCESS){
+                    if(textureBlendPipeline){
+                        vkDestroyPipeline(device,textureBlendPipeline,nullptr);
+                        textureBlendPipeline=VK_NULL_HANDLE;
+                    }
+                    __android_log_print(ANDROID_LOG_WARN,TAG,
+                        "Optional DDS alpha preview unavailable VkResult=%d; opaque path retained",
+                        static_cast<int>(blendResult));
+                }
+            };
             // v2.14: a driver may reject the full fragment program with
             // VK_ERROR_UNKNOWN (-13), even when line and solid pipelines work.
             // Never let an optional DDS shader blank the entire 3D scene.
@@ -660,6 +693,7 @@ struct Renderer {
                 device,VK_NULL_HANDLE,1,&pipelineInfo,nullptr,&texturePipeline);
             if(fullResult==VK_SUCCESS){
                 textureMode="full";
+                tryAlphaPreview();
             }else{
                 __android_log_print(ANDROID_LOG_WARN,TAG,
                     "Full DDS pipeline failed VkResult=%d; trying compatible shader",
@@ -690,6 +724,7 @@ struct Renderer {
                             stages[1].module=fs;
                             result=vkCreateGraphicsPipelines(
                                 device,VK_NULL_HANDLE,1,&pipelineInfo,nullptr,&texturePipeline);
+                            if(result==VK_SUCCESS)tryAlphaPreview();
                         }
                     }catch(const std::exception& error){
                         __android_log_print(ANDROID_LOG_WARN,TAG,
@@ -884,6 +919,7 @@ struct Renderer {
             frameHeight = size.height;
             stage = "3D-сцена работает" + textureCompatibility;
             activeTextureMode = textureMode;
+            activeAlphaBlendSupported=textureBlendPipeline!=VK_NULL_HANDLE;
             rendering = true;
         }
     }
@@ -914,8 +950,11 @@ struct Renderer {
         const bool filled = solidMode.load(std::memory_order_relaxed) && solidPipeline!=VK_NULL_HANDLE;
         const bool textured=filled&&useTexture.load(std::memory_order_relaxed)&&
             texturePipeline!=VK_NULL_HANDLE&&textureDescriptor!=VK_NULL_HANDLE;
+        const bool blendPreview=textured&&textureBlendPipeline!=VK_NULL_HANDLE&&
+            previewAlphaBlend.load(std::memory_order_relaxed);
         vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                          textured?texturePipeline:(filled?solidPipeline:pipeline));
+                          blendPreview?textureBlendPipeline:
+                          (textured?texturePipeline:(filled?solidPipeline:pipeline)));
         struct Parameters {float angle, aspect, width, height, pitch, distance, focusOffsetY;};
         static_assert(sizeof(Parameters) == 28, "Push constant layout must match GLSL");
         Parameters p{angle, static_cast<float>(size.width)/static_cast<float>(size.height),
@@ -1055,6 +1094,11 @@ std::string statsJson() {
         << ",\"normalMapApplied\":" << ((activeNormalAtlas &&
             (activeTextureMode=="full"||activeTextureMode=="normal-safe") &&
             useNormalMap.load(std::memory_order_relaxed))?"true":"false")
+        << ",\"alphaBlendSupported\":" << (activeAlphaBlendSupported?"true":"false")
+        << ",\"alphaBlendApplied\":" << ((activeAlphaBlendSupported&&
+            previewAlphaBlend.load(std::memory_order_relaxed)&&
+            useTexture.load(std::memory_order_relaxed)&&
+            solidMode.load(std::memory_order_relaxed))?"true":"false")
         << ",\"normalAtlasPresent\":" << (activeNormalAtlas?"true":"false")
         << ",\"message\":\"" << esc(stage) << "\"}";
     return out.str();
@@ -1072,6 +1116,7 @@ Java_dev_skyrimsemobile_launcher_VulkanSceneActivity_nativeResetScene(JNIEnv*, j
     stage = "Ожидание Vulkan pipeline…";
     gpuName.clear();
     activeTextureMode = "off";
+    activeAlphaBlendSupported=false;
     renderedFrames = 0;
     measuredFps = 0;
     frameWidth = frameHeight = 0;
@@ -1315,6 +1360,12 @@ extern "C" JNIEXPORT void JNICALL
 Java_dev_skyrimsemobile_launcher_VulkanSceneActivity_nativeSetUseTexture(
     JNIEnv*,jclass,jboolean enabled){
     useTexture.store(enabled==JNI_TRUE,std::memory_order_relaxed);
+}
+extern "C" JNIEXPORT void JNICALL
+Java_dev_skyrimsemobile_launcher_VulkanSceneActivity_nativeSetAlphaBlend(
+    JNIEnv*,jclass,jboolean enabled){
+    // UI only. The one-tap test explicitly disables this optional pipeline.
+    previewAlphaBlend.store(enabled==JNI_TRUE,std::memory_order_relaxed);
 }
 
 
