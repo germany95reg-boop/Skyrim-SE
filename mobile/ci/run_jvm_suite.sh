@@ -35,6 +35,7 @@ sources=(
   NifSceneComposer ObjWireParser PeHeaderInspector PreviewLighting
   PreviewMaterial RecentNifPaths ResourceHeaderInspector SceneFraming
   DeviceSelfTestReport FpsAutotestSequence VulkanFrameSanity
+  Tes4PluginHeaderReader
 )
 args=()
 for name in "${sources[@]}"; do

@@ -24,7 +24,7 @@ import java.util.Locale;
 
 /** Read-only Skyrim SE file inspector via Android Storage Access Framework. */
 public final class ResourceInspectorActivity extends Activity {
-    private static final int PICK_DATA=707, PICK_RESOURCE=708;
+    private static final int PICK_DATA=707, PICK_RESOURCE=708, PICK_PLUGIN=709;
     public static final String PREF_REPORT="resource_inspector_report";
     private SharedPreferences prefs;
     private TextView report;
@@ -39,15 +39,16 @@ public final class ResourceInspectorActivity extends Activity {
         scroll.setFillViewport(true);scroll.setBackgroundColor(0xff101116);
         LinearLayout root=new LinearLayout(this);root.setOrientation(LinearLayout.VERTICAL);
         root.setPadding(dp(16),dp(17),dp(16),dp(20));scroll.addView(root);
-        TextView title=new TextView(this);title.setText("Ресурсы Skyrim SE · v2.11");
+        TextView title=new TextView(this);title.setText("Ресурсы Skyrim SE · v2.27");
         title.setTextSize(22);title.setTextColor(0xffdbc5fb);title.setGravity(Gravity.CENTER);
         root.addView(title);
         TextView info=new TextView(this);
-        info.setText("Чтение заголовков BSA/NIF, списка Data и каталога файлов внутри BSA 105. Никакой распаковки, изменения файлов или запуска Skyrim SE.");
+        info.setText("Чтение заголовков BSA/NIF/TES4, списка Data и каталога файлов внутри BSA 105. Никакой распаковки, изменения файлов или запуска Skyrim SE.");
         info.setTextColor(0xffd5d3dd);info.setTextSize(13);info.setPadding(0,dp(12),0,dp(14));root.addView(info);
         addButton(root,"Проверить папку игры / Data",()->scanCurrent());
         addButton(root,"Выбрать папку Data",()->selectFolder());
         addButton(root,"Проверить файл BSA / NIF",()->selectFile());
+        addButton(root,"Проверить ESM / ESP / ESL (заголовок TES4)",()->selectPlugin());
         addButton(root,"Каталог BSA v105 · выбор и проверка NIF",()->startActivity(new Intent(this,BsaCatalogActivity.class)));
         addButton(root,"Скопировать отчёт",()->{
             ClipboardManager cb=(ClipboardManager)getSystemService(Context.CLIPBOARD_SERVICE);
@@ -74,6 +75,12 @@ public final class ResourceInspectorActivity extends Activity {
         i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
         startActivityForResult(i,PICK_DATA);
     }
+    private void selectPlugin(){
+        Intent i=new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        i.addCategory(Intent.CATEGORY_OPENABLE);i.setType("*/*");
+        i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        startActivityForResult(i,PICK_PLUGIN);
+    }
     private void selectFile(){
         Intent i=new Intent(Intent.ACTION_OPEN_DOCUMENT);
         i.addCategory(Intent.CATEGORY_OPENABLE);i.setType("*/*");
@@ -89,6 +96,7 @@ public final class ResourceInspectorActivity extends Activity {
             prefs.edit().putString("resource_data_uri",uri.toString()).apply();
             inspectTree(uri);
         } else if(req==PICK_RESOURCE)inspectDocument(uri);
+        else if(req==PICK_PLUGIN)inspectPlugin(uri);
     }
     private void scanCurrent(){
         String saved=prefs.getString("resource_data_uri","");
@@ -109,6 +117,26 @@ public final class ResourceInspectorActivity extends Activity {
                 runOnUiThread(()->update(text));
             }catch(Exception e){runOnUiThread(()->update("Ошибка доступа: "+e.getClass().getSimpleName()+": "+e.getMessage()));}
         },"resource-header-reader").start();
+    }
+    private void inspectPlugin(Uri uri){
+        update("Читаю заголовок TES4 (только чтение)...");
+        new Thread(()->{
+            try{
+                String name=getName(uri);
+                String suffix=name.toLowerCase(Locale.ROOT);
+                if(!suffix.endsWith(".esm")&&!suffix.endsWith(".esp")&&!suffix.endsWith(".esl"))
+                    throw new java.io.IOException("Выберите файл .esm, .esp или .esl");
+                Tes4PluginHeaderReader.Result value;
+                try(InputStream in=getContentResolver().openInputStream(uri)){
+                    value=Tes4PluginHeaderReader.inspect(in);
+                }
+                String message="Файл: "+name+"\n"+value+"\nИсходные файлы не изменялись.";
+                runOnUiThread(()->update(message));
+            }catch(Exception e){
+                String message="Ошибка TES4: "+e.getClass().getSimpleName()+": "+e.getMessage();
+                runOnUiThread(()->update(message));
+            }
+        },"tes4-header-reader").start();
     }
     private String getName(Uri uri){
         try(Cursor c=getContentResolver().query(uri,new String[]{OpenableColumns.DISPLAY_NAME},null,null,null)){
