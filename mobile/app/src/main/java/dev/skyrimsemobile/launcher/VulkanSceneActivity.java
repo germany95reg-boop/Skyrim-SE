@@ -121,10 +121,13 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
             output.put("framingMethod",fitFollowsLayout&&activeModelSegments!=null?
                 "geometry-yaw-sweep":"legacy-sphere-or-manual");
             output.put("framingDistance",zoom);
+            output.put("framingViewportMode",deviceAutotest&&diagnosticHud!=null?
+                "compact-diagnostic-hud":"full-interactive-controls");
+            output.put("framingBottomInsetPx",framingBottomInset());
             output.put("framingVisibleFraction",sceneRoot==null||sceneRoot.getHeight()==0?0:
                 Math.max(0.0,Math.min(1.0,(double)(sceneRoot.getHeight()-
                 (sceneTitle==null?0:sceneTitle.getHeight())-
-                (scenePanel==null?0:scenePanel.getHeight()))/sceneRoot.getHeight())));
+                framingBottomInset())/sceneRoot.getHeight())));
             output.put("frameCaptureStatus",visualStatus);
             output.put("frameCaptureNote",visualNote);
             if(visualResult!=null){
@@ -189,6 +192,7 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
     private FrameLayout sceneRoot;
     private TextView sceneTitle;
     private LinearLayout scenePanel;
+    private TextView diagnosticHud; // small bottom status; full controls hidden only in one-tap test
     private float modelRadius=SceneFraming.CUBE_RADIUS;
     private float modelHorizontalRadius=(float)Math.sqrt(2.0);
     private float[] activeModelSegments;
@@ -241,6 +245,13 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
                         " · Треугольников: " + info.optInt("triangles") + "\nВид: "+viewPreset +
                         (framingInfo.isEmpty()?"":"\n"+framingInfo));
                     status.setTextColor(error ? 0xffffabab : 0xffb4d8fd);
+                    if(deviceAutotest&&diagnosticHud!=null){
+                        String cap=fpsSequence.requestedCap()==0?
+                            "∞":Integer.toString(fpsSequence.requestedCap());
+                        diagnosticHud.setText("Автотест · этап "+
+                            fpsSequence.stageNumber()+"/"+fpsSequence.stageCount()+
+                            " · FPS "+cap+" · "+frames+" кадров");
+                    }
                     // Explicit one-tap device test only: a real Surface/Vulkan frame
                     // must reach the GPU before we return a test result.
                     if(deviceAutotest&&!deviceAutotestFinished){
@@ -269,7 +280,7 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
                                 completeDeviceAutotest(true,json,null);
                         }
                     }
-                    if (frames > 0 && !error) {
+                    if (frames > 0 && !error && !deviceAutotest) {
                         getSharedPreferences("launcher_state", MODE_PRIVATE).edit()
                             .putString(PREF_RESULT, json).apply();
                     }
@@ -316,7 +327,7 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
         root.addView(viewport, new FrameLayout.LayoutParams(-1, -1));
 
         TextView title = new TextView(this);
-        title.setText("SKYRIM SE MOBILE\nVulkan 3D · v2.23");
+        title.setText("SKYRIM SE MOBILE\nVulkan 3D · v2.24");
         sceneTitle=title;
         title.setTypeface(Typeface.SERIF, Typeface.BOLD);
         title.setTextSize(20);
@@ -494,6 +505,27 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
         footer.addView(back,new LinearLayout.LayoutParams(0,dp(42),1));
         panel.addView(footer);
         root.addView(panel, new FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM));
+        if(deviceAutotest){
+            // The v2.23 hardware report measured only 35% free display height.
+            // These controls serve interactive previews, not the one-tap test.
+            // Keep them FULLY available in the normal Vulkan preview; the
+            // diagnostic run uses a tiny, non-interactive progress HUD instead.
+            panel.setVisibility(View.GONE);
+            diagnosticHud=new TextView(this);
+            diagnosticHud.setText("Автотест Vulkan · 30 → 60 → ∞ FPS");
+            diagnosticHud.setTextSize(13);
+            diagnosticHud.setSingleLine(true);
+            diagnosticHud.setGravity(Gravity.CENTER);
+            diagnosticHud.setTextColor(Color.WHITE);
+            diagnosticHud.setBackgroundColor(0xde11121b);
+            diagnosticHud.setPadding(dp(8),dp(8),dp(8),dp(8));
+            diagnosticHud.setContentDescription(
+                "Проверка Vulkan, нормалей DDS и автоматических режимов FPS");
+            root.addView(diagnosticHud,
+                new FrameLayout.LayoutParams(-1,-2,Gravity.BOTTOM));
+            diagnosticHud.addOnLayoutChangeListener(
+                (v,l,t,r,b,ol,ot,or_,ob)->refreshFraming());
+        }
         setContentView(root);
         root.addOnLayoutChangeListener((v,left,topEdge,right,bottom,oldLeft,oldTop,oldRight,oldBottom)->refreshFraming());
         // The dynamic status text may resize the panel without changing root bounds.
@@ -677,6 +709,15 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
         viewPreset=name; yaw=newYaw; pitch=newPitch; autoSpin=false;
         fitFollowsLayout=true; refreshFraming(); updateControls();
     }
+    /** Hidden test controls must not consume the on-screen camera framing area. */
+    private int framingBottomInset(){
+        if(deviceAutotest&&diagnosticHud!=null&&
+            diagnosticHud.getVisibility()==View.VISIBLE)
+            return diagnosticHud.getHeight();
+        return scenePanel!=null&&scenePanel.getVisibility()==View.VISIBLE?
+            scenePanel.getHeight():0;
+    }
+
     /** Align the projected model with the actually visible region of the SurfaceView. */
     private void refreshFraming(){
         if(sceneRoot==null||sceneTitle==null||scenePanel==null || loadingError!=null) return;
@@ -684,9 +725,9 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
         if(w<=0||h<=0)return;
         SceneFraming.Frame f=(fitFollowsLayout&&activeModelSegments!=null)?
             SceneFraming.computeGeometry(activeModelSegments,yaw,pitch,autoSpin,
-                w,h,sceneTitle.getHeight(),scenePanel.getHeight()):
+                w,h,sceneTitle.getHeight(),framingBottomInset()):
             SceneFraming.compute(modelRadius,modelHorizontalRadius,
-                w,h,sceneTitle.getHeight(),scenePanel.getHeight());
+                w,h,sceneTitle.getHeight(),framingBottomInset());
         nativeSetViewportOffset(f.ndcYOffset);
         if(fitFollowsLayout){ zoom=f.distance; nativeSetView(yaw,pitch,zoom,autoSpin); }
         framingInfo=String.format(java.util.Locale.US,"Кадр: %.0f%% свободно · авто-вписывание: %s",
