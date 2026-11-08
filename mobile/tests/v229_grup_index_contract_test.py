@@ -22,6 +22,6 @@ assert "Tes4TopLevelGroupReader.scan(in,fileSize)" in screen
 assert "getContentResolver().openInputStream(uri)" in screen
 assert "static void main(String[] args)" in test
 assert "Tes4TopLevelGroupReader" in ci
-assert "versionCode 54" in gradle and "versionName '2.31.0'" in gradle
+assert "versionCode 55" in gradle and "versionName '2.32.0'" in gradle
 assert "v229_grup_index_contract_test.py" in workflow
 print("PASS v2.29 top-level GRUP index and read-only SAF integration")
