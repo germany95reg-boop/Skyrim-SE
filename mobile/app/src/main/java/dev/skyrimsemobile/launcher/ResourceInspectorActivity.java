@@ -24,7 +24,7 @@ import java.util.Locale;
 
 /** Read-only Skyrim SE file inspector via Android Storage Access Framework. */
 public final class ResourceInspectorActivity extends Activity {
-    private static final int PICK_DATA=707, PICK_RESOURCE=708, PICK_PLUGIN=709, PICK_GROUPS=710;
+    private static final int PICK_DATA=707, PICK_RESOURCE=708, PICK_PLUGIN=709, PICK_GROUPS=710, PICK_NESTED_CELL=711, PICK_NESTED_WRLD=712;
     public static final String PREF_REPORT="resource_inspector_report";
     private SharedPreferences prefs;
     private TextView report;
@@ -50,6 +50,8 @@ public final class ResourceInspectorActivity extends Activity {
         addButton(root,"Проверить файл BSA / NIF",()->selectFile());
         addButton(root,"Проверить ESM / ESP / ESL (заголовок TES4)",()->selectPlugin());
         addButton(root,"Индекс ESM / ESP / ESL · группы GRUP",()->selectGroupFile());
+        addButton(root,"Записи CELL · вложенный образец",()->selectNestedFile(PICK_NESTED_CELL));
+        addButton(root,"Записи WRLD · вложенный образец",()->selectNestedFile(PICK_NESTED_WRLD));
         addButton(root,"Каталог BSA v105 · выбор и проверка NIF",()->startActivity(new Intent(this,BsaCatalogActivity.class)));
         addButton(root,"Скопировать отчёт",()->{
             ClipboardManager cb=(ClipboardManager)getSystemService(Context.CLIPBOARD_SERVICE);
@@ -92,6 +94,12 @@ public final class ResourceInspectorActivity extends Activity {
         i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
         startActivityForResult(i,PICK_GROUPS);
     }
+    private void selectNestedFile(int requestCode){
+        Intent i=new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        i.addCategory(Intent.CATEGORY_OPENABLE);i.setType("*/*");
+        i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        startActivityForResult(i,requestCode);
+    }
     private void selectFile(){
         Intent i=new Intent(Intent.ACTION_OPEN_DOCUMENT);
         i.addCategory(Intent.CATEGORY_OPENABLE);i.setType("*/*");
@@ -109,6 +117,8 @@ public final class ResourceInspectorActivity extends Activity {
         } else if(req==PICK_RESOURCE)inspectDocument(uri);
         else if(req==PICK_PLUGIN)inspectPlugin(uri);
         else if(req==PICK_GROUPS)inspectPluginGroups(uri);
+        else if(req==PICK_NESTED_CELL)inspectNested(uri,"CELL");
+        else if(req==PICK_NESTED_WRLD)inspectNested(uri,"WRLD");
     }
     private void scanCurrent(){
         String saved=prefs.getString("resource_data_uri","");
@@ -176,6 +186,27 @@ public final class ResourceInspectorActivity extends Activity {
                 runOnUiThread(()->update(message));
             }
         },"tes4-grup-index").start();
+    }
+    private void inspectNested(Uri uri,String section){
+        update("Читаю вложенные заголовки "+section+" · ограниченный образец...");
+        new Thread(()->{
+            try{
+                String name=getName(uri);
+                String suffix=name.toLowerCase(Locale.ROOT);
+                if(!suffix.endsWith(".esm")&&!suffix.endsWith(".esp")&&!suffix.endsWith(".esl"))
+                    throw new java.io.IOException("Выберите файл .esm, .esp или .esl");
+                long fileSize=getFileSize(uri);
+                Tes4NestedRecordSampler.Result result;
+                try(InputStream in=getContentResolver().openInputStream(uri)){
+                    result=Tes4NestedRecordSampler.scan(in,section,fileSize);
+                }
+                String message="Файл: "+name+"\n"+result+"\nИсходные файлы не изменялись.";
+                runOnUiThread(()->update(message));
+            }catch(Exception e){
+                String message="Ошибка вложенных записей "+section+": "+e.getClass().getSimpleName()+": "+e.getMessage();
+                runOnUiThread(()->update(message));
+            }
+        },"tes4-nested-sample").start();
     }
     private String getName(Uri uri){
         try(Cursor c=getContentResolver().query(uri,new String[]{OpenableColumns.DISPLAY_NAME},null,null,null)){
