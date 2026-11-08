@@ -227,9 +227,14 @@ public final class DeviceSelfTestActivity extends Activity {
                 String method=stats.optString("framingMethod","unknown");
                 double distance=stats.optDouble("framingDistance",0);
                 double fraction=stats.optDouble("framingVisibleFraction",0);
+                String viewportMode=stats.optString("framingViewportMode","unknown");
+                String layout="compact-diagnostic-hud".equals(viewportMode)?
+                    "компактный HUD":"обычные панели";
+                int bottomPixels=stats.optInt("framingBottomInsetPx",0);
                 String details=String.format(Locale.ROOT,
-                    "Метод: %s · дистанция %.2f · свободная высота %.0f%%",
-                    method,distance,fraction*100.0);
+                    "Метод: %s · дистанция %.2f · свободная высота %.0f%%"+
+                    " · экран: %s · нижняя панель: %d px",
+                    method,distance,fraction*100.0,layout,bottomPixels);
                 if("geometry-yaw-sweep".equals(method)&&
                    Double.isFinite(distance)&&distance>=2.7&&distance<=40&&
                    Double.isFinite(fraction)&&fraction>0.05&&fraction<=1.0)

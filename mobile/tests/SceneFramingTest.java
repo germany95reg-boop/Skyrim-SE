@@ -108,6 +108,25 @@ public final class SceneFramingTest {
                                          1440,2915,260,1100);
             throw new AssertionError("infinite pitch accepted");
         }catch(IllegalArgumentException expected){checks++;}
-        System.out.println("PASS v2.23 geometry-aware camera fit: "+checks+" checks");
+        // A real v2.23 physical device had only 35% free viewport height.
+        // The v2.24 automated GPU scene hides its unused multi-row controls,
+        // leaving a one-line progress HUD. All regular preview controls stay.
+        SceneFraming.Frame panelFit=SceneFraming.computeGeometry(
+            slim,0f,0.42f,true,1440,2915,240,1100);
+        SceneFraming.Frame hudFit=SceneFraming.computeGeometry(
+            slim,0f,0.42f,true,1440,2915,240,104);
+        ok(hudFit.visibleFraction>panelFit.visibleFraction+0.25f,
+            "compact diagnostic HUD leaves substantially more display space");
+        ok(hudFit.distance<panelFit.distance,
+            "same real NIF vertices can appear larger without clipping");
+        ok(hudFit.ndcYOffset>panelFit.ndcYOffset,
+            "model center follows freed screen region");
+        fitsProjected(slim,0f,0.42f,true,1440,2915,240,104);
+        fitsProjected(slim,0.3f,0.85f,true,2915,1440,130,85);
+        SceneFraming.Frame minimal=SceneFraming.compute(
+            1.2f,1440,2915,240,104);
+        ok(minimal.visibleFraction>0.80f,
+            "small HUD gives over 80% viewport on representative tall device");
+        System.out.println("PASS v2.24 compact GPU diagnostic viewport: "+checks+" checks");
     }
 }
