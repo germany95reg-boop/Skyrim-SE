@@ -122,6 +122,8 @@ public final class MainActivity extends Activity {
         @JavascriptInterface public void openResourceInspector() { runOnUiThread(() -> startActivity(new Intent(MainActivity.this, ResourceInspectorActivity.class))); }
         @JavascriptInterface public void openPluginInspector() { runOnUiThread(() ->
             startActivity(new Intent(MainActivity.this, ResourceInspectorActivity.class).putExtra("open_tes4", true))); }
+        @JavascriptInterface public void openPluginGroupIndex() { runOnUiThread(() ->
+            startActivity(new Intent(MainActivity.this, ResourceInspectorActivity.class).putExtra("open_grup", true))); }
         @JavascriptInterface public void openDeviceSelfTest() { runOnUiThread(() ->
             startActivity(new Intent(MainActivity.this, DeviceSelfTestActivity.class))); }
         @JavascriptInterface public void openVulkan3DTest() { runOnUiThread(() -> {

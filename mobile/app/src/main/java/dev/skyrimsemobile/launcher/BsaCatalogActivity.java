@@ -66,6 +66,9 @@ public final class BsaCatalogActivity extends Activity {
     private void openPluginInspector() {
         startActivity(new Intent(this,ResourceInspectorActivity.class).putExtra("open_tes4",true));
     }
+    private void openPluginGroupIndex(){
+        startActivity(new Intent(this,ResourceInspectorActivity.class).putExtra("open_grup",true));
+    }
     @Override public void onCreate(Bundle saved){
         super.onCreate(saved);
         savedSession=new BsaSessionStore(this);
@@ -80,6 +83,7 @@ public final class BsaCatalogActivity extends Activity {
             startActivity(new Intent(this,DeviceSelfTestActivity.class)));
         button(root,"Выбрать архив BSA",this::pick);
         button(root,"ESM / ESP / ESL · проверить заголовок TES4",this::openPluginInspector);
+        button(root,"ESM / ESP / ESL · индекс групп GRUP",this::openPluginGroupIndex);
         button(root,"Забыть сохранённые пути · v2.11",this::forgetSavedPaths);
         filter=new EditText(this);filter.setSingleLine(true);filter.setHint("Поиск: meshes, .nif, fish...");
         filter.setTextColor(0xffeeeeee);filter.setHintTextColor(0xffaaa4b8);root.addView(filter);
