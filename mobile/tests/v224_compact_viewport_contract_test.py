@@ -16,8 +16,8 @@ manifest=read("app/src/main/AndroidManifest.xml")
 workflow=read("../.github/workflows/android-quality-gates.yml")
 checks={
  "hide controls only during automated test":'if(deviceAutotest){\n            // The v2.23 hardware report' in activity,
- "actual manual controls created unchanged":'root.addView(panel, new FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM));' in activity,
- "normal 3D viewer keeps panel":'panel.setVisibility(View.GONE);' in activity and activity.count('panel.setVisibility(View.GONE);')==1,
+ "actual manual controls created unchanged":'root.addView(controlsScroller,' in activity and 'controlsScroller.addView(panel);' in activity,
+ "normal 3D viewer keeps panel":'controlsScroller.setVisibility(View.GONE);' in activity and activity.count('controlsScroller.setVisibility(View.GONE);')==1,
  "visible compact status for test":'diagnosticHud=new TextView(this)' in activity,
  "one line prevents HUD growth":'diagnosticHud.setSingleLine(true)' in activity,
  "live FPS stage visible":'diagnosticHud.setText("Автотест · этап "' in activity,
@@ -25,7 +25,7 @@ checks={
  "small HUD included in actual camera":'w,h,sceneTitle.getHeight(),framingBottomInset()' in activity,
  "Vulkan offset camera preserved":'nativeSetViewportOffset(f.ndcYOffset)' in activity,
  "view framing measures actual overlay":'private int framingBottomInset()' in activity,
- "hidden controls excluded from inset":'scenePanel.getVisibility()==View.VISIBLE' in activity,
+ "hidden controls excluded from inset":'controlsScroller.getVisibility()==View.VISIBLE' in activity,
  "device telemetry uses SAME inset":'framingBottomInset())/sceneRoot.getHeight()' in activity,
  "report identifies compact HUD":'output.put("framingViewportMode"' in activity,
  "reported actual lower inset":'output.put("framingBottomInsetPx",framingBottomInset())' in activity,
@@ -42,7 +42,7 @@ checks={
  "compact landscape fixture":"fitsProjected(slim,0.3f,0.85f,true,2915,1440,130,85)" in jvm,
  "larger free viewport test":'hudFit.visibleFraction>panelFit.visibleFraction+0.25f' in jvm,
  "safe closer fit test":'hudFit.distance<panelFit.distance' in jvm,
- "Android version upgrade":'versionCode 48' in gradle and "versionName '2.25.0'" in gradle,
+ "Android version upgrade":'versionCode 49' in gradle and "versionName '2.26.0'" in gradle,
  "same stable package":'applicationId \'dev.skyrimsemobile.launcher\'' in gradle,
  "read-only no network":'android.permission.INTERNET' not in manifest,
  "CI must run new source guard":'v224_compact_viewport_contract_test.py' in workflow,

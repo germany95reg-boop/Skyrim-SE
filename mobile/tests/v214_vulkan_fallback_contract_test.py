@@ -17,8 +17,8 @@ activity = read("app/src/main/java/dev/skyrimsemobile/launcher/VulkanSceneActivi
 ci = read("../.github/workflows/build-skyrimse-v2-13-apk.yml")
 
 checks = {
-    "upgradeable version code": "versionCode 48" in gradle,
-    "upgradeable version name": "versionName '2.25.0'" in gradle,
+    "upgradeable version code": "versionCode 49" in gradle,
+    "upgradeable version name": "versionName '2.26.0'" in gradle,
     "persistent Android package": "applicationId 'dev.skyrimsemobile.launcher'" in gradle,
     "same signing certificate": "signingConfig signingConfigs.stableDebug" in gradle,
     "all existing DDS/NIF features": "nativeSetDiffuseAtlas" in native and "nativeSetNormalTexture" in native,
@@ -44,7 +44,7 @@ checks = {
                          'textured_safe.vert.spv', 'textured_safe.frag.spv',
                          'textured_legacy.frag.spv')),
     "SPIR-V validation": "spirv-val --target-env vulkan1.0" in ci,
-    "v2.25 UI": 'Vulkan 3D · v2.25' in activity,
+    "v2.26 UI": 'SKYRIM SE MOBILE · 3D v2.26' in activity,
 }
 assert all(checks.values()), [k for k,v in checks.items() if not v]
 print("PASS v2.14 Vulkan fallback contracts:", len(checks))

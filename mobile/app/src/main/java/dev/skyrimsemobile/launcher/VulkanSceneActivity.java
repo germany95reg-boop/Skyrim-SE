@@ -25,6 +25,7 @@ import android.view.View;
 import android.widget.Button;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
+import android.widget.ScrollView;
 import android.widget.TextView;
 import org.json.JSONObject;
 import org.json.JSONArray;
@@ -193,6 +194,8 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
     private FrameLayout sceneRoot;
     private TextView sceneTitle;
     private LinearLayout scenePanel;
+    private ScrollView controlsScroller;
+    private TextView briefStatus;
     private TextView diagnosticHud; // small bottom status; full controls hidden only in one-tap test
     private float modelRadius=SceneFraming.CUBE_RADIUS;
     private float modelHorizontalRadius=(float)Math.sqrt(2.0);
@@ -247,6 +250,14 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
                         " · Треугольников: " + info.optInt("triangles") + "\nВид: "+viewPreset +
                         (framingInfo.isEmpty()?"":"\n"+framingInfo));
                     status.setTextColor(error ? 0xffffabab : 0xffb4d8fd);
+                    if(briefStatus!=null){
+                        briefStatus.setText(error?"Ошибка Vulkan · открой сведения":
+                            String.format(java.util.Locale.ROOT,
+                            "%s · %d треугольников · %.0f FPS · %s",
+                            info.optString("geometry","3D"),
+                            info.optInt("triangles"),fps,
+                            info.optString("textureMode","off")));
+                    }
                     if(!deviceAutotest&&alphaButton!=null&&running){
                         boolean supported=info.optBoolean("alphaBlendSupported",false);
                         alphaButton.setEnabled(hasTexture&&supported);
@@ -338,14 +349,14 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
         root.addView(viewport, new FrameLayout.LayoutParams(-1, -1));
 
         TextView title = new TextView(this);
-        title.setText("SKYRIM SE MOBILE\nVulkan 3D · v2.25");
+        title.setText("SKYRIM SE MOBILE · 3D v2.26");
         sceneTitle=title;
         title.setTypeface(Typeface.SERIF, Typeface.BOLD);
-        title.setTextSize(20);
+        title.setTextSize(16);
         title.setTextColor(Color.WHITE);
         title.setGravity(Gravity.CENTER);
         title.setBackgroundColor(0xde11121b);
-        title.setPadding(dp(10), dp(10), dp(10), dp(10));
+        title.setPadding(dp(8), dp(7), dp(8), dp(7));
         root.addView(title, new FrameLayout.LayoutParams(-1, -2, Gravity.TOP));
 
         LinearLayout panel = new LinearLayout(this);
@@ -358,12 +369,22 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
         status.setTextColor(0xffd8bfef);
         status.setTextSize(13);
         status.setPadding(dp(4), dp(3), dp(4), dp(10));
+        status.setVisibility(View.GONE); // expandable, no longer covers Vulkan by default
         panel.addView(status);
+        briefStatus=new TextView(this);
+        briefStatus.setText("Vulkan · ожидание 3D-модели");
+        briefStatus.setTextSize(13);
+        briefStatus.setTextColor(0xffd9e4f8);
+        briefStatus.setSingleLine(true);
+        briefStatus.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        briefStatus.setPadding(dp(4),dp(2),dp(4),dp(4));
+        panel.addView(briefStatus);
         TextView hint = new TextView(this);
         hint.setText("1 палец — вращать · 2 пальца — приблизить / отдалить");
         hint.setTextSize(12);
         hint.setTextColor(0xffdddddd);
         hint.setPadding(dp(4), dp(1), dp(4), dp(4));
+        hint.setVisibility(View.GONE);
         panel.addView(hint);
         LinearLayout controls = new LinearLayout(this);
         autoButton = controlButton("Авто: Вкл");
@@ -515,6 +536,21 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
         advancedControls.setVisibility(View.GONE);
         panel.addView(advancedControls);
         LinearLayout footer = new LinearLayout(this);
+        Button detailsButton=controlButton("Сведения ▾");
+        detailsButton.setContentDescription(
+            "Показать полный технический отчёт и подсказки в прокручиваемой панели");
+        detailsButton.setOnClickListener(v->{
+            boolean expand=status.getVisibility()!=View.VISIBLE;
+            status.setVisibility(expand?View.VISIBLE:View.GONE);
+            hint.setVisibility(expand?View.VISIBLE:View.GONE);
+            detailsButton.setText(expand?"Скрыть сведения ▴":"Сведения ▾");
+            if(controlsScroller!=null){
+                controlsScroller.post(()->{
+                    controlsScroller.smoothScrollTo(0,0);
+                    refreshFraming();
+                });
+            }
+        });
         Button advancedButton=controlButton("Параметры ▾");
         advancedButton.setContentDescription("Показать или скрыть освещение, материалы и выбор OBJ");
         advancedButton.setOnClickListener(v->{
@@ -524,16 +560,34 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
             // Reframe after the panel's height actually changes.
             panel.post(this::refreshFraming);
         });
+        footer.addView(detailsButton,new LinearLayout.LayoutParams(0,dp(42),1));
         footer.addView(advancedButton,new LinearLayout.LayoutParams(0,dp(42),1));
         footer.addView(back,new LinearLayout.LayoutParams(0,dp(42),1));
         panel.addView(footer);
-        root.addView(panel, new FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM));
+        // Unlike v2.25, the long status and advanced buttons NEVER occupy
+        // the complete display. A bounded bottom sheet scrolls independently
+        // while the Vulkan SurfaceView stays visible and touch-rotatable.
+        controlsScroller=new ScrollView(this){
+            @Override protected void onMeasure(int widthSpec,int heightSpec){
+                int maxHeight=Math.max(dp(180),Math.round(
+                    getResources().getDisplayMetrics().heightPixels*0.38f));
+                int actualLimit=Math.min(maxHeight,View.MeasureSpec.getSize(heightSpec));
+                super.onMeasure(widthSpec,View.MeasureSpec.makeMeasureSpec(
+                    actualLimit,View.MeasureSpec.AT_MOST));
+            }
+        };
+        controlsScroller.setFillViewport(false);
+        controlsScroller.setVerticalScrollBarEnabled(true);
+        controlsScroller.setBackgroundColor(0xe914151c);
+        controlsScroller.addView(panel);
+        root.addView(controlsScroller,
+            new FrameLayout.LayoutParams(-1,-2,Gravity.BOTTOM));
         if(deviceAutotest){
             // The v2.23 hardware report measured only 35% free display height.
             // These controls serve interactive previews, not the one-tap test.
             // Keep them FULLY available in the normal Vulkan preview; the
             // diagnostic run uses a tiny, non-interactive progress HUD instead.
-            panel.setVisibility(View.GONE);
+            controlsScroller.setVisibility(View.GONE);
             diagnosticHud=new TextView(this);
             diagnosticHud.setText("Автотест Vulkan · 30 → 60 → ∞ FPS");
             diagnosticHud.setTextSize(13);
@@ -552,7 +606,8 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
         setContentView(root);
         root.addOnLayoutChangeListener((v,left,topEdge,right,bottom,oldLeft,oldTop,oldRight,oldBottom)->refreshFraming());
         // The dynamic status text may resize the panel without changing root bounds.
-        panel.addOnLayoutChangeListener((v,left,topEdge,right,bottom,oldLeft,oldTop,oldRight,oldBottom)->refreshFraming());
+        controlsScroller.addOnLayoutChangeListener(
+            (v,left,topEdge,right,bottom,oldLeft,oldTop,oldRight,oldBottom)->refreshFraming());
         title.addOnLayoutChangeListener((v,left,topEdge,right,bottom,oldLeft,oldTop,oldRight,oldBottom)->refreshFraming());
         root.post(this::refreshFraming);
         if (loadingError != null) {
@@ -744,8 +799,8 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
         if(deviceAutotest&&diagnosticHud!=null&&
             diagnosticHud.getVisibility()==View.VISIBLE)
             return diagnosticHud.getHeight();
-        return scenePanel!=null&&scenePanel.getVisibility()==View.VISIBLE?
-            scenePanel.getHeight():0;
+        return controlsScroller!=null&&controlsScroller.getVisibility()==View.VISIBLE?
+            controlsScroller.getHeight():0;
     }
 
     /** Align the projected model with the actually visible region of the SurfaceView. */
