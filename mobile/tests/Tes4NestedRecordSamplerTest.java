@@ -31,6 +31,15 @@ public final class Tes4NestedRecordSamplerTest {
         out.write(new byte[8]);out.write(payload);
         return out.toByteArray();
     }
+    private static byte[] placementPayload()throws Exception{
+        ByteArrayOutputStream out=new ByteArrayOutputStream();
+        add(out,"NAME");out.write(new byte[]{4,0});out.write(le(0x42));
+        add(out,"DATA");out.write(new byte[]{24,0});
+        out.write(ByteBuffer.allocate(24).order(ByteOrder.LITTLE_ENDIAN)
+            .putFloat(512f).putFloat(-256f).putFloat(16f)
+            .putFloat(0f).putFloat(0f).putFloat(1.5f).array());
+        return out.toByteArray();
+    }
     private static byte[] grup(int type,String label,byte[]... contents)throws Exception {
         ByteArrayOutputStream body=new ByteArrayOutputStream();
         for(byte[] content:contents)body.write(content);
@@ -54,7 +63,7 @@ public final class Tes4NestedRecordSamplerTest {
         byte[] start=header();
         byte[] wrong=grup(0,"GMST",record("GMST",1,0,new byte[3]));
         byte[] worldRecord=record("WRLD",0x1000,0,new byte[0]);
-        byte[] reference=record("REFR",0xabcdef,0x40000,new byte[]{1,2,3,4});
+        byte[] reference=record("REFR",0xabcdef,0,placementPayload());
         byte[] cell=record("CELL",0x2000,0,new byte[0]);
         byte[] children=grup(1,"xxxx",grup(4,"yyyy",grup(5,"zzzz",cell,grup(6,"cccc",reference))));
         byte[] world=grup(0,"WRLD",worldRecord,children);
@@ -69,6 +78,10 @@ public final class Tes4NestedRecordSamplerTest {
         assert wrld.samples.get(2).depth==4;
         assert !wrld.partial;
         assert wrld.toString().contains("0x00ABCDEF");
+        assert wrld.placements.size()==1;
+        assert wrld.placements.get(0).baseFormId==0x42;
+        assert wrld.placements.get(0).x==512f && wrld.placements.get(0).y==-256f;
+        assert wrld.toString().contains("Первые размещения (NAME + DATA)");
         Tes4NestedRecordSampler.Result cellResult=
              Tes4NestedRecordSampler.scan(new ByteArrayInputStream(input),"CELL",input.length);
         assert cellResult.recordsSeen==1 && cellResult.recordTypes.get("CELL")==1;

@@ -22,6 +22,8 @@ public final class Tes4NestedRecordSampler {
     private static final int MAX_DEPTH=24;
     private static final long MAX_SECTION_BYTES=16L*1024*1024;
     private static final int MAX_SAMPLES=16;
+    private static final int MAX_PLACEMENTS=8;
+    private static final int MAX_PLACEMENT_PROBES=40;
     private Tes4NestedRecordSampler(){}
 
     public static final class Record {
@@ -40,14 +42,21 @@ public final class Tes4NestedRecordSampler {
         public final boolean partial;
         public final Map<String,Integer> recordTypes;
         public final List<Record> samples;
+        public final List<Tes4PlacementSubrecordReader.Placement> placements;
+        public final int placementProbes, malformedPlacementPayloads;
         private Result(String section,long sectionOffset,long sectionBytes,long examinedBytes,
                        int groupsSeen,int recordsSeen,int maxDepth,boolean partial,
-                       Map<String,Integer> types,List<Record> samples){
+                       Map<String,Integer> types,List<Record> samples,
+                       List<Tes4PlacementSubrecordReader.Placement> placements,
+                       int placementProbes,int malformedPlacementPayloads){
             this.section=section;this.sectionOffset=sectionOffset;this.sectionBytes=sectionBytes;
             this.examinedBytes=examinedBytes;this.groupsSeen=groupsSeen;this.recordsSeen=recordsSeen;
             this.maxDepth=maxDepth;this.partial=partial;
             this.recordTypes=java.util.Collections.unmodifiableMap(new LinkedHashMap<>(types));
             this.samples=java.util.Collections.unmodifiableList(new ArrayList<>(samples));
+            this.placements=java.util.Collections.unmodifiableList(new ArrayList<>(placements));
+            this.placementProbes=placementProbes;
+            this.malformedPlacementPayloads=malformedPlacementPayloads;
         }
         @Override public String toString(){
             StringBuilder b=new StringBuilder();
@@ -73,8 +82,17 @@ public final class Tes4NestedRecordSampler {
                  .append(" · depth ").append(r.depth)
                  .append(" · compressed=").append((r.flags&0x00040000L)!=0);
             }
-            b.append("\n\nТолько заголовки без содержимого записей, разрешения FormID,");
-            b.append(" распаковки, NPC или запуска SkyrimSE.exe. Это НЕ весь игровой мир.");
+            b.append("\nПервые размещения (NAME + DATA): ")
+             .append(placements.size()).append(" подтверждено из ")
+             .append(placementProbes).append(" проверенных несжатых записей");
+            if(malformedPlacementPayloads>0)
+                b.append(" · неверных/неподдерживаемых payload: ").append(malformedPlacementPayloads);
+            if(placements.isEmpty())b.append("\n• Координаты не найдены в ограниченном образце");
+            else for(Tes4PlacementSubrecordReader.Placement pl:placements)
+                b.append("\n• ").append(pl.format());
+            b.append("\n\nСсылки NAME — сырые FormID без разрешения в базовые модели.");
+            b.append(" Извлечены лишь первые координаты некоторых REFR/ACHR;");
+            b.append(" сжатые записи пропущены. NPC, геометрия мира и SkyrimSE.exe не загружаются.");
             return b.toString();
         }
     }
@@ -111,6 +129,8 @@ public final class Tes4NestedRecordSampler {
         parents.push(end);
         Map<String,Integer> types=new LinkedHashMap<>();
         List<Record> records=new ArrayList<>();
+        List<Tes4PlacementSubrecordReader.Placement> placements=new ArrayList<>();
+        int placementProbes=0,malformedPlacementPayloads=0;
         int children=0,recordCount=0,headers=0,depth=0;
         boolean partial=false;
 
@@ -156,12 +176,29 @@ public final class Tes4NestedRecordSampler {
                 types.put(type,types.containsKey(type)?types.get(type)+1:1);
                 if(records.size()<MAX_SAMPLES)
                     records.add(new Record(type,recordOffset,formId,flags,bytes,parents.size()-1));
-                skipExactly(in,bytes);
+                boolean probe=("REFR".equals(type)||"ACHR".equals(type))
+                    && (flags&0x00040000L)==0
+                    && bytes<=Tes4PlacementSubrecordReader.MAX_BODY
+                    && placementProbes<MAX_PLACEMENT_PROBES
+                    && placements.size()<MAX_PLACEMENTS;
+                if(probe){
+                    placementProbes++;
+                    byte[] body=readExactly(in,(int)bytes);
+                    try {
+                        Tes4PlacementSubrecordReader.Placement placement=
+                            Tes4PlacementSubrecordReader.inspect(type,formId,body);
+                        if(placement.complete())placements.add(placement);
+                    }catch(IOException ignored){
+                        // Keep structural scanning independent of optional detail extraction.
+                        malformedPlacementPayloads++;
+                    }
+                }else skipExactly(in,bytes);
                 pos+=bytes;
             }
         }
         return new Result(section,start,groupSize,pos-(start+HEADER),children,
-                          recordCount,depth,partial,types,records);
+                          recordCount,depth,partial,types,records,placements,
+                          placementProbes,malformedPlacementPayloads);
     }
     private static byte[] readHeaderOrEof(InputStream in)throws IOException{
         int first=in.read();

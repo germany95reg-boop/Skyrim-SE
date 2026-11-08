@@ -11,8 +11,8 @@ vert=read("app/src/main/shaders/textured.vert")
 frag=read("app/src/main/shaders/textured.frag")
 gradle=read("app/build.gradle")
 checks={
- "versionCode >=36":("versionCode 36" in gradle or "versionCode 37" in gradle or "versionCode 38" in gradle or "versionCode 39" in gradle or "versionCode 40" in gradle or "versionCode 41" in gradle or "versionCode 42" in gradle or "versionCode 43" in gradle or "versionCode 44" in gradle or "versionCode 53" in gradle),
- "versionName >=2.13":("versionName '2.13.0'" in gradle or "versionName '2.14.0'" in gradle or "versionName '2.15.0'" in gradle or "versionName '2.16.0'" in gradle or "versionName '2.17.0'" in gradle or "versionName '2.18.0'" in gradle or "versionName '2.19.0'" in gradle or "versionName '2.20.0'" in gradle or "versionName '2.21.0'" in gradle or "versionName '2.30.0'" in gradle),
+ "versionCode >=36":("versionCode 36" in gradle or "versionCode 37" in gradle or "versionCode 38" in gradle or "versionCode 39" in gradle or "versionCode 40" in gradle or "versionCode 41" in gradle or "versionCode 42" in gradle or "versionCode 43" in gradle or "versionCode 44" in gradle or "versionCode 54" in gradle),
+ "versionName >=2.13":("versionName '2.13.0'" in gradle or "versionName '2.14.0'" in gradle or "versionName '2.15.0'" in gradle or "versionName '2.16.0'" in gradle or "versionName '2.17.0'" in gradle or "versionName '2.18.0'" in gradle or "versionName '2.19.0'" in gradle or "versionName '2.20.0'" in gradle or "versionName '2.21.0'" in gradle or "versionName '2.31.0'" in gradle),
  "same Android package":"applicationId 'dev.skyrimsemobile.launcher'" in gradle,
  "persistent signed upgrades":"signingConfig signingConfigs.stableDebug" in gradle,
  "composite DDS button":"2 · Открыть ВСЮ NIF с DDS (все части)" in ui,

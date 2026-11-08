@@ -50,8 +50,8 @@ public final class ResourceInspectorActivity extends Activity {
         addButton(root,"Проверить файл BSA / NIF",()->selectFile());
         addButton(root,"Проверить ESM / ESP / ESL (заголовок TES4)",()->selectPlugin());
         addButton(root,"Индекс ESM / ESP / ESL · группы GRUP",()->selectGroupFile());
-        addButton(root,"Записи CELL · вложенный образец",()->selectNestedFile(PICK_NESTED_CELL));
-        addButton(root,"Записи WRLD · вложенный образец",()->selectNestedFile(PICK_NESTED_WRLD));
+        addButton(root,"Записи CELL · FormID и координаты (образец)",()->selectNestedFile(PICK_NESTED_CELL));
+        addButton(root,"Записи WRLD · FormID и координаты (образец)",()->selectNestedFile(PICK_NESTED_WRLD));
         addButton(root,"Каталог BSA v105 · выбор и проверка NIF",()->startActivity(new Intent(this,BsaCatalogActivity.class)));
         addButton(root,"Скопировать отчёт",()->{
             ClipboardManager cb=(ClipboardManager)getSystemService(Context.CLIPBOARD_SERVICE);
