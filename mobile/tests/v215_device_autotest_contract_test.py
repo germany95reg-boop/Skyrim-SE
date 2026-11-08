@@ -13,8 +13,8 @@ manifest=get("app/src/main/AndroidManifest.xml")
 gradle=get("app/build.gradle")
 ci=get("../.github/workflows/android-quality-gates.yml")
 checks={
-"upgradeable APK versionCode 47":"versionCode 47" in gradle,
-"installed versionName":"versionName '2.24.0'" in gradle,
+"upgradeable APK versionCode 48":"versionCode 48" in gradle,
+"installed versionName":"versionName '2.25.0'" in gradle,
 "stable app package":"applicationId 'dev.skyrimsemobile.launcher'" in gradle,
 "stable signing":"signingConfig signingConfigs.stableDebug" in gradle,
 "launcher WebView bridge":'public void openDeviceSelfTest()' in launcher,
