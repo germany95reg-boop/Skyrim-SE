@@ -178,6 +178,7 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
     private static native boolean nativeSetDiffuseAtlas(float[] uv,float[] slots,int[] argb,int width,int height,int grid);
     private static native boolean nativeSetDiffuseNormalAtlas(float[] uv,float[] slots,int[] stacked,int width,int height,int grid);
     private static native void nativeSetUseTexture(boolean enabled);
+    private static native void nativeSetAlphaBlend(boolean enabled);
     private static native boolean nativeSetNormalTexture(int[] argb,int width,int height);
     private static native void nativeSetUseNormalMap(boolean enabled);
     private static native void nativeSetLightMode(int mode);
@@ -203,12 +204,13 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
     private Button textureButton;
     private Button normalButton;
     private Button lightButton,reliefButton;
-    private Button specularButton,specularSizeButton;
+    private Button specularButton,specularSizeButton,alphaButton;
     private int lightMode=0,reliefPreset=1;
     private int specularPreset=0,specularSizePreset=1;
     private boolean hasSurface = false;
     private boolean hasTexture = false,hasNormalMap=false;
     private boolean solidMode = false,useTexture = false,useNormalMap=false;
+    private boolean alphaBlendPreview=false; // opt-in; normal-safe defaults unchanged
 
     private final Handler ui = new Handler(Looper.getMainLooper());
     private final Runnable poll = new Runnable() {
@@ -245,6 +247,12 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
                         " · Треугольников: " + info.optInt("triangles") + "\nВид: "+viewPreset +
                         (framingInfo.isEmpty()?"":"\n"+framingInfo));
                     status.setTextColor(error ? 0xffffabab : 0xffb4d8fd);
+                    if(!deviceAutotest&&alphaButton!=null&&running){
+                        boolean supported=info.optBoolean("alphaBlendSupported",false);
+                        alphaButton.setEnabled(hasTexture&&supported);
+                        if(!supported&&hasTexture)
+                            alphaButton.setText("Альфа: нет второго pipeline (совместимый режим)");
+                    }
                     if(deviceAutotest&&diagnosticHud!=null){
                         String cap=fpsSequence.requestedCap()==0?
                             "∞":Integer.toString(fpsSequence.requestedCap());
@@ -309,6 +317,9 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
     @Override public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         deviceAutotest=getIntent().getBooleanExtra(EXTRA_DEVICE_AUTOTEST,false);
+        // Process-global JNI state can survive a previous manual preview.
+        // Keep the physical one-tap GPU/FPS regression in its proven mode.
+        if(deviceAutotest&&loadingError==null)nativeSetAlphaBlend(false);
         deviceAutotestStarted=SystemClock.elapsedRealtime();
         if(deviceAutotest){
             fpsCap=FpsAutotestSequence.CAPS[0];
@@ -327,7 +338,7 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
         root.addView(viewport, new FrameLayout.LayoutParams(-1, -1));
 
         TextView title = new TextView(this);
-        title.setText("SKYRIM SE MOBILE\nVulkan 3D · v2.24");
+        title.setText("SKYRIM SE MOBILE\nVulkan 3D · v2.25");
         sceneTitle=title;
         title.setTypeface(Typeface.SERIF, Typeface.BOLD);
         title.setTextSize(20);
@@ -483,11 +494,23 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
             updateSurfaceButton();
         });
         materialControls.addView(specularSizeButton,new LinearLayout.LayoutParams(0,dp(40),1));
+        alphaButton=controlButton("Альфа: Вырезы");
+        alphaButton.setEnabled(false);
+        alphaButton.setContentDescription(
+            "Экспериментальный предпросмотр полупрозрачных DDS: " +
+            "без сортировки треугольников, глубина может отображаться неточно");
+        alphaButton.setOnClickListener(v->{
+            if(!hasTexture||deviceAutotest)return;
+            alphaBlendPreview=!alphaBlendPreview;
+            nativeSetAlphaBlend(alphaBlendPreview);
+            updateSurfaceButton();
+        });
         panel.addView(actions);
         LinearLayout advancedControls = new LinearLayout(this);
         advancedControls.setOrientation(LinearLayout.VERTICAL);
         advancedControls.addView(lightingControls);
         advancedControls.addView(materialControls);
+        advancedControls.addView(alphaButton,new LinearLayout.LayoutParams(-1,dp(42)));
         advancedControls.addView(meshControls);
         advancedControls.setVisibility(View.GONE);
         panel.addView(advancedControls);
@@ -649,6 +672,11 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
             specularSizeButton.setEnabled(hasNormalMap);
             specularSizeButton.setText(PreviewMaterial.sizeLabel(specularSizePreset));
         }
+        if(alphaButton!=null){
+            alphaButton.setEnabled(hasTexture&&!deviceAutotest);
+            alphaButton.setText(alphaBlendPreview?
+                "Альфа: Смешивание (эксперимент)":"Альфа: Вырезы (проверено)");
+        }
     }
     private void activateModel(ObjWireParser.Model model,String name,Uri persist,float[] triangles) {
         activateModel(model,name,persist,triangles,null,null,0,0,null,0,0,null,0);
@@ -673,6 +701,8 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
             (slots!=null||nativeSetNormalTexture(normalPixels,normalW,normalH));
         useNormalMap=hasNormalMap;
         nativeSetUseNormalMap(useNormalMap);
+        alphaBlendPreview=false;
+        nativeSetAlphaBlend(false);
         lightMode=0;
         reliefPreset=1;
         nativeSetLightMode(lightMode);
@@ -830,6 +860,7 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
         nativeSetFpsCap(fpsCap);
         nativeSetSolidMode(solidMode);
         nativeSetUseTexture(useTexture);
+        nativeSetAlphaBlend(alphaBlendPreview&&!deviceAutotest);
         nativeSetUseNormalMap(useNormalMap);
         nativeSetLightMode(lightMode);
         nativeSetNormalStrength(PreviewLighting.reliefStrength(reliefPreset));
