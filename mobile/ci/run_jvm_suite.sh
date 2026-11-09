@@ -37,7 +37,7 @@ sources=(
   DeviceSelfTestReport FpsAutotestSequence VulkanFrameSanity
   Tes4PluginHeaderReader Tes4TopLevelGroupReader Tes4NestedRecordSampler
   Tes4PlacementSubrecordReader Tes4BaseFormResolver Tes4BsaModelMatcher
-  Tes4MultiBsaModelMatcher Tes4MatchedNifVerifier
+  Tes4MultiBsaModelMatcher Tes4MatchedNifVerifier SkyrimAutoDiscovery
 )
 args=()
 for name in "${sources[@]}"; do

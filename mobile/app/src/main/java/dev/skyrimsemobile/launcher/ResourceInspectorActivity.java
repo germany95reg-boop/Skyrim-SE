@@ -234,6 +234,62 @@ public final class ResourceInspectorActivity extends Activity {
         }
         return new BsaSessionStore(this).lastDataTree();
     }
+    private void startAutomaticAnalysis(){
+        Uri saved=persistedDataTree();
+        if(saved==null){
+            update("Сначала выбери папку Skyrim SE. Доступ запрашивается Android один раз.");
+            selectFolder();
+            return;
+        }
+        analyzeAutomaticFolder(saved);
+    }
+    private void analyzeAutomaticFolder(Uri tree){
+        final long sequence=++automaticAnalysisSequence;
+        multiArchiveScanSequence++;
+        nifVerificationSequence++;
+        lastBaseRecords=null;
+        lastNestedReport="";
+        lastNifCandidates=java.util.Collections.emptyList();
+        lastMultiBsaReport="";
+        update("Автоматическая проверка Skyrim SE\nШаг 1/4: ищу Data и Skyrim.esm...");
+        new Thread(()->{
+            try{
+                String rootId=DocumentsContract.getTreeDocumentId(tree);
+                String rootName=nameDocument(tree,rootId);
+                String dataId=rootId;
+                if(!SkyrimAutoDiscovery.dataDirectory(rootName)){
+                    String child=findFolder(tree,rootId,"Data");
+                    if(child!=null)dataId=child;
+                }
+                ArrayList<Item> entries=readChildren(tree,dataId,4096);
+                java.util.List<String> names=new java.util.ArrayList<>();
+                for(Item item:entries)if(!item.directory)names.add(item.name);
+                String plugin=SkyrimAutoDiscovery.mainMaster(names);
+                if(plugin==null)throw new java.io.IOException(
+                    "Skyrim.esm не найден. Выбери папку Skyrim SE, содержащую Data, "+
+                    "или саму папку Data.");
+                Item master=null;
+                for(Item item:entries)if(!item.directory&&item.name.equals(plugin)){
+                    master=item;break;
+                }
+                if(master==null)throw new java.io.IOException("Не удалось получить Skyrim.esm");
+                Uri esmUri=DocumentsContract.buildDocumentUriUsingTree(tree,master.id);
+                final String chosenDataId=dataId;
+                runOnUiThread(()->{
+                    if(closed||sequence!=automaticAnalysisSequence)return;
+                    update("Автоматическая проверка Skyrim SE\n"+
+                           "Шаг 2/4: анализирую WRLD, объекты и базовые FormID...");
+                    inspectNested(esmUri,"WRLD",tree,chosenDataId,sequence);
+                });
+            }catch(Exception e){
+                String error="Автоматическая проверка: "+e.getMessage()+
+                    "\nПри необходимости нажми «Выбрать папку Skyrim».";
+                runOnUiThread(()->{
+                    if(!closed&&sequence==automaticAnalysisSequence)update(error);
+                });
+            }
+        },"skyrim-auto-locate-data").start();
+    }
     private void startMultiBsaSearch(){
         if(lastBaseRecords==null){
             update("Сначала открой Skyrim.esm через «Записи CELL» или «Записи WRLD», "
@@ -298,6 +354,9 @@ public final class ResourceInspectorActivity extends Activity {
         },"tes4-bsa-nif-verify").start();
     }
     private void scanAllModelArchives(Uri tree){
+        scanAllModelArchives(tree,null);
+    }
+    private void scanAllModelArchives(Uri tree,String selectedDataDocumentId){
         final Tes4BaseFormResolver.Result baseRecords=lastBaseRecords;
         final String baseReport=lastNestedReport;
         if(baseRecords==null){update("Нет базовых записей ESM.");return;}
@@ -308,8 +367,9 @@ public final class ResourceInspectorActivity extends Activity {
         new Thread(()->{
             try{
                 String rootId=DocumentsContract.getTreeDocumentId(tree);
-                String targetId=rootId;
-                if(!"Data".equalsIgnoreCase(nameDocument(tree,rootId))){
+                String targetId=selectedDataDocumentId==null?rootId:selectedDataDocumentId;
+                if(selectedDataDocumentId==null&&
+                   !SkyrimAutoDiscovery.dataDirectory(nameDocument(tree,rootId))){
                     String child=findFolder(tree,rootId,"Data");
                     if(child!=null)targetId=child;
                 }
@@ -350,7 +410,13 @@ public final class ResourceInspectorActivity extends Activity {
                         search.failed(archive.name,failure);
                     }
                 }
-                String full=baseReport+"\n\n"+
+                String autoSummary=selectedDataDocumentId==null?"":(
+                    "Автоматическая проверка Skyrim SE\n"+
+                    "Skyrim.esm: найден · WRLD и базовые FormID: прочитаны\n"+
+                    "BSA: "+search.archivesChecked()+" из "+archives.size()+
+                    " · пути NIF: "+search.foundPaths()+" из "+search.neededPaths()+
+                    "\nСодержимое NIF: следующий этап (до 3 моделей)\n\n");
+                String full=autoSummary+baseReport+"\n\n"+
                     "Папка: "+nameDocument(tree,targetId)+"\n"+
                     search.report(archives.size())+
                     (listed.size()>=4096
@@ -427,7 +493,13 @@ public final class ResourceInspectorActivity extends Activity {
         },"tes4-bsa-model-match").start();
     }
     private void inspectNested(Uri uri,String section){
+        automaticAnalysisSequence++;
+        inspectNested(uri,section,null,null,-1);
+    }
+    private void inspectNested(Uri uri,String section,Uri autoTree,
+                               String autoDataId,long automaticSequence){
         multiArchiveScanSequence++;
+        final long sampleSequence=multiArchiveScanSequence;
         nifVerificationSequence++;
         lastNifCandidates=java.util.Collections.emptyList();
         lastMultiBsaReport="";
@@ -436,7 +508,7 @@ public final class ResourceInspectorActivity extends Activity {
         update("Читаю вложенные заголовки "+section+" · ограниченный образец...");
         new Thread(()->{
             try{
-                String name=getName(uri);
+                String name=autoTree==null?getName(uri):"Skyrim.esm";
                 String suffix=name.toLowerCase(Locale.ROOT);
                 if(!suffix.endsWith(".esm")&&!suffix.endsWith(".esp")&&!suffix.endsWith(".esl"))
                     throw new java.io.IOException("Выберите файл .esm, .esp или .esl");
@@ -464,13 +536,27 @@ public final class ResourceInspectorActivity extends Activity {
                 String message=output.toString();
                 final Tes4BaseFormResolver.Result readyBases=bases;
                 runOnUiThread(()->{
+                    if(closed||sampleSequence!=multiArchiveScanSequence||
+                       (autoTree!=null&&automaticSequence!=automaticAnalysisSequence))return;
                     lastBaseRecords=readyBases;
                     lastNestedReport=message;
-                    update(message);
+                    if(autoTree!=null&&readyBases!=null){
+                        update("Автоматическая проверка Skyrim SE\n"+
+                               "Шаг 3/4: ищу модели во всех BSA...");
+                        scanAllModelArchives(autoTree,autoDataId);
+                    }else{
+                        update(message+(autoTree!=null?
+                            "\n\nАвтоматический поиск BSA не запущен: "+
+                            "базовые FormID прочитать не удалось.":""));
+                    }
                 });
             }catch(Exception e){
                 String message="Ошибка вложенных записей "+section+": "+e.getClass().getSimpleName()+": "+e.getMessage();
-                runOnUiThread(()->update(message));
+                runOnUiThread(()->{
+                    if(!closed&&sampleSequence==multiArchiveScanSequence&&
+                       (autoTree==null||automaticSequence==automaticAnalysisSequence))
+                        update(message);
+                });
             }
         },"tes4-nested-sample").start();
     }
@@ -553,5 +639,5 @@ public final class ResourceInspectorActivity extends Activity {
         }
         return items;
     }
-    @Override protected void onDestroy(){closed=true;multiArchiveScanSequence++;nifVerificationSequence++;super.onDestroy();}
+    @Override protected void onDestroy(){closed=true;automaticAnalysisSequence++;multiArchiveScanSequence++;nifVerificationSequence++;super.onDestroy();}
 }
