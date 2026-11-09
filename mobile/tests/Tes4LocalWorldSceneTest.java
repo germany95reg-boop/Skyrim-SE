@@ -60,6 +60,36 @@ public final class Tes4LocalWorldSceneTest {
         assert only.build().triangleCount==1;
         assert Tes4PlacedNifScene.findVisibleAll(
             Arrays.asList(marker),bases,"meshes/markerx.nif").isEmpty();
+        // v2.42 regression: ESM/BSA scan order is not a scene-selection rule.
+        // One early isolated REFR must not hide a later real cluster.
+        var isolated=pose(200,10,0,0,0,1);
+        var nearA=pose(201,10,100000,0,0,1);
+        var nearB=pose(202,10,100004,0,0,1);
+        var nearC=pose(203,10,100009,0,0,1);
+        var denseLinks=Tes4PlacedNifScene.findVisibleAll(
+            Arrays.asList(isolated,nearA,nearB,nearC),bases,"meshes/clutter/test.nif");
+        assert denseLinks.size()==4;
+        var planner=new Tes4LocalWorldScene.Planner();
+        for(var link:denseLinks)planner.offer(parts,link);
+        planner.offer(parts,denseLinks.get(2)); // same REFR, no extra instance
+        var cluster=planner.best();
+        assert cluster.instances()==3:cluster.instances();
+        assert cluster.distantCount()==1:cluster.distantCount();
+        var composed=cluster.build();
+        assert composed.triangleCount==3;
+        assert composed.details.contains("REFR 0x000000C9");
+        assert composed.details.contains("REFR 0x000000CA");
+        assert composed.details.contains("REFR 0x000000CB");
+        assert !composed.details.contains("REFR 0x000000C8");
+        assert planner.summary().contains("повторов 1");
+        var reversed=new java.util.ArrayList<>(denseLinks);
+        java.util.Collections.reverse(reversed);
+        var plannerReverse=new Tes4LocalWorldScene.Planner();
+        for(var link:reversed)plannerReverse.offer(parts,link);
+        var same=plannerReverse.best().build();
+        assert same.triangleCount==3;
+        assert !same.details.contains("REFR 0x000000C8");
+        for(float v:same.triangles)assert Float.isFinite(v)&&Math.abs(v)<=1.001f;
         System.out.println("PASS bounded nearby Skyrim REFR multi-mesh local scene and safe distant exclusion");
     }
 }

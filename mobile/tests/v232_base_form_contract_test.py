@@ -21,7 +21,7 @@ checks={
 "no whole game load":'readAllBytes' not in src,
 "UI reopens selected plugin":'Tes4BaseFormResolver.resolve(baseIn,result.placements,fileSize)' in ui,
 "JVM test":'Tes4BaseFormResolver' in jvm,
-"package version":"versionCode 64" in gradle and "versionName '2.41.0'" in gradle,
+"package version":"versionCode 65" in gradle and "versionName '2.42.0'" in gradle,
 "CI contract":'v232_base_form_contract_test.py' in wf,
 }
 assert all(checks.values()),[k for k,v in checks.items() if not v]

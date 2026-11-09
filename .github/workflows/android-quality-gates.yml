@@ -66,6 +66,7 @@ jobs:
           python3 mobile/tests/v239_placed_preview_contract_test.py
           python3 mobile/tests/v240_gpu_receipt_contract_test.py
           python3 mobile/tests/v241_local_scene_contract_test.py
+          python3 mobile/tests/v242_local_scene_selection_contract_test.py
           python3 mobile/tests/release_signing_contract_test.py
           python3 mobile/tests/ci_quality_contract_test.py
 
@@ -96,7 +97,7 @@ jobs:
       - name: Save tested APK for internal integration (not a user release)
         uses: actions/upload-artifact@v4
         with:
-          name: Skyrim-SE-v2.41-CI-ARM64-APK
+          name: Skyrim-SE-v2.42-CI-ARM64-APK
           path: mobile/app/build/outputs/apk/debug/app-debug.apk
           retention-days: 7
           if-no-files-found: error
