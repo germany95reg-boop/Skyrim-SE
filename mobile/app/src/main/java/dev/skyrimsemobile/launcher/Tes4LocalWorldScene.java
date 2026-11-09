@@ -25,6 +25,78 @@ public final class Tes4LocalWorldScene {
             this.parts=parts;this.link=link;
         }
     }
+    /**
+     * v2.42: choose the densest genuinely observed local REFR group instead of
+     * assuming that the first BSA/ESM match is the best scene centre.
+     * This ranks only decoded, validated meshes. No fictional scene content.
+     */
+    public static final class Planner {
+        public static final int MAX_CANDIDATES=32;
+        private final List<Instance> candidates=new ArrayList<>();
+        private final Set<Long> seen=new HashSet<>();
+        private int duplicates,overflow;
+
+        public void offer(NifGeometryDecoder.Parts parts,
+                          Tes4PlacedNifScene.Link link)throws IOException{
+            if(parts==null||parts.items==null||link==null||link.pose==null)return;
+            if(seen.contains(link.pose.recordFormId)){duplicates++;return;}
+            if(candidates.size()>=MAX_CANDIDATES){overflow++;return;}
+            // Validate before recording a candidate. A corrupt NIF cannot win
+            // merely because many REFR point at it.
+            Builder check=new Builder();
+            if(!check.add(parts,link))return;
+            seen.add(link.pose.recordFormId);
+            candidates.add(new Instance(parts,link));
+        }
+
+        public Builder best()throws IOException{
+            Builder winner=new Builder();
+            int bestCount=0;
+            double bestDistance=Double.POSITIVE_INFINITY;
+            long bestId=Long.MAX_VALUE;
+            for(Instance anchor:candidates){
+                Builder proposal=new Builder();
+                if(!proposal.add(anchor.parts,anchor.link))continue;
+                List<Instance> neighbours=new ArrayList<>(candidates);
+                neighbours.remove(anchor);
+                neighbours.sort((left,right)->{
+                    int cmp=Double.compare(distanceSquared(left.link.pose,anchor.link.pose),
+                                           distanceSquared(right.link.pose,anchor.link.pose));
+                    return cmp!=0?cmp:Long.compare(left.link.pose.recordFormId,
+                                                    right.link.pose.recordFormId);
+                });
+                double squaredDistance=0.0;
+                for(Instance neighbour:neighbours){
+                    if(proposal.add(neighbour.parts,neighbour.link))
+                        squaredDistance+=distanceSquared(neighbour.link.pose,anchor.link.pose);
+                }
+                int count=proposal.instances();
+                long id=anchor.link.pose.recordFormId;
+                if(count>bestCount ||
+                   (count==bestCount && (squaredDistance<bestDistance ||
+                    (squaredDistance==bestDistance && id<bestId)))){
+                    winner=proposal;
+                    bestCount=count;
+                    bestDistance=squaredDistance;
+                    bestId=id;
+                }
+            }
+            return winner;
+        }
+
+        public String summary(){
+            return candidates.size()+" реальных пригодных REFR проверено, "+
+                "повторов "+duplicates+", сверх лимита кандидатов "+overflow+
+                "; выбран наиболее плотный доступный локальный фрагмент";
+        }
+    }
+
+    private static double distanceSquared(Tes4PlacementSubrecordReader.Placement a,
+                                          Tes4PlacementSubrecordReader.Placement b){
+        double dx=(double)a.x-b.x,dy=(double)a.y-b.y,dz=(double)a.z-b.z;
+        return dx*dx+dy*dy+dz*dz;
+    }
+
     public static final class Builder {
         private final List<Instance> selected=new ArrayList<>();
         private final Set<Long> selectedFormIds=new HashSet<>();
