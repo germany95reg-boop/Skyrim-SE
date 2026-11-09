@@ -38,8 +38,8 @@ checks={
     "on-device report FPS 30/60/uncapped":"int[] expected={30,60,0}" in report,
     "false PASS prevented":"stage.optBoolean(\"passed\",false)" in report,
     "explicit uncapped wording":"Заданный лимит: %s" in report,
-    "inplace Android update":"versionCode 56" in gradle and
-                           "versionName '2.33.0'" in gradle,
+    "inplace Android update":"versionCode 57" in gradle and
+                           "versionName '2.34.0'" in gradle,
     "persist signing":"signingConfig signingConfigs.stableDebug" in gradle,
     "never include emulator job":"android-emulator-ui:" not in workflow,
     "read only game files":"android.permission.WRITE_EXTERNAL_STORAGE" not in manifest,

@@ -24,12 +24,13 @@ import java.util.Locale;
 
 /** Read-only Skyrim SE file inspector via Android Storage Access Framework. */
 public final class ResourceInspectorActivity extends Activity {
-    private static final int PICK_DATA=707, PICK_RESOURCE=708, PICK_PLUGIN=709, PICK_GROUPS=710, PICK_NESTED_CELL=711, PICK_NESTED_WRLD=712, PICK_MODEL_BSA=713;
+    private static final int PICK_DATA=707, PICK_RESOURCE=708, PICK_PLUGIN=709, PICK_GROUPS=710, PICK_NESTED_CELL=711, PICK_NESTED_WRLD=712, PICK_MODEL_BSA=713, PICK_DATA_MODELS=714;
     public static final String PREF_REPORT="resource_inspector_report";
     private SharedPreferences prefs;
     private TextView report;
     private boolean closed=false;
     private Tes4BaseFormResolver.Result lastBaseRecords;
+    private long multiArchiveScanSequence=0;
     private String lastNestedReport="";
     private String text="Готово к проверке. Выберите папку Data или отдельный файл BSA/NIF.\nФайлы не изменяются.";
     @Override public void onCreate(Bundle saved){
@@ -55,6 +56,7 @@ public final class ResourceInspectorActivity extends Activity {
         addButton(root,"Записи CELL · FormID / базовые модели (образец)",()->selectNestedFile(PICK_NESTED_CELL));
         addButton(root,"Записи WRLD · FormID / базовые модели (образец)",()->selectNestedFile(PICK_NESTED_WRLD));
         addButton(root,"Сопоставить модели MODL с BSA",()->matchSelectedBsa(false));
+        addButton(root,"Найти MODL во всех BSA папки Data",this::startMultiBsaSearch);
         addButton(root,"Выбрать другой BSA для моделей",()->matchSelectedBsa(true));
         addButton(root,"Каталог BSA v105 · выбор и проверка NIF",()->startActivity(new Intent(this,BsaCatalogActivity.class)));
         addButton(root,"Скопировать отчёт",()->{
@@ -123,6 +125,14 @@ public final class ResourceInspectorActivity extends Activity {
         else if(req==PICK_GROUPS)inspectPluginGroups(uri);
         else if(req==PICK_NESTED_CELL)inspectNested(uri,"CELL");
         else if(req==PICK_NESTED_WRLD)inspectNested(uri,"WRLD");
+        else if(req==PICK_DATA_MODELS){
+            BsaSessionStore saved=new BsaSessionStore(this);
+            if(saved.retainReadPermission(uri)){
+                saved.saveDataTree(uri);
+                prefs.edit().putString("resource_data_uri",uri.toString()).apply();
+            }
+            scanAllModelArchives(uri);
+        }
         else if(req==PICK_MODEL_BSA){
             String archiveName=getName(uri);
             BsaSessionStore session=new BsaSessionStore(this);
@@ -197,6 +207,94 @@ public final class ResourceInspectorActivity extends Activity {
             }
         },"tes4-grup-index").start();
     }
+    private Uri persistedDataTree(){
+        String saved=prefs.getString("resource_data_uri","");
+        if(!saved.isEmpty()){
+            try{
+                Uri parsed=Uri.parse(saved);
+                for(android.content.UriPermission permission:
+                        getContentResolver().getPersistedUriPermissions()){
+                    if(permission.isReadPermission()&&parsed.equals(permission.getUri()))
+                        return parsed;
+                }
+            }catch(IllegalArgumentException ignored){}
+        }
+        return new BsaSessionStore(this).lastDataTree();
+    }
+    private void startMultiBsaSearch(){
+        if(lastBaseRecords==null){
+            update("Сначала открой Skyrim.esm через «Записи CELL» или «Записи WRLD», "
+                  +"чтобы получить базовые FormID и пути MODL.");
+            return;
+        }
+        Uri tree=persistedDataTree();
+        if(tree!=null){scanAllModelArchives(tree);return;}
+        Intent i=new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
+        i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION|
+                   Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
+        startActivityForResult(i,PICK_DATA_MODELS);
+    }
+    private void scanAllModelArchives(Uri tree){
+        final Tes4BaseFormResolver.Result baseRecords=lastBaseRecords;
+        final String baseReport=lastNestedReport;
+        if(baseRecords==null){update("Нет базовых записей ESM.");return;}
+        final long sequence=++multiArchiveScanSequence;
+        update(baseReport+"\n\nИщу модели в каталогах BSA папки Data...");
+        new Thread(()->{
+            try{
+                String rootId=DocumentsContract.getTreeDocumentId(tree);
+                String targetId=rootId;
+                if(!"Data".equalsIgnoreCase(nameDocument(tree,rootId))){
+                    String child=findFolder(tree,rootId,"Data");
+                    if(child!=null)targetId=child;
+                }
+                ArrayList<Item> listed=readChildren(tree,targetId,4096);
+                ArrayList<Item> archives=new ArrayList<>();
+                for(Item item:listed){
+                    if(!item.directory&&item.name.toLowerCase(Locale.ROOT).endsWith(".bsa"))
+                        archives.add(item);
+                }
+                // Skyrim - Meshes*.bsa contain the most directly relevant NIFs.
+                archives.sort((a,b)->{
+                    boolean am=a.name.toLowerCase(Locale.ROOT).contains("meshes");
+                    boolean bm=b.name.toLowerCase(Locale.ROOT).contains("meshes");
+                    if(am!=bm)return am?-1:1;
+                    return a.name.compareToIgnoreCase(b.name);
+                });
+                Tes4MultiBsaModelMatcher.Search search=
+                    Tes4MultiBsaModelMatcher.begin(baseRecords.found.values());
+                for(Item archive:archives){
+                    if(search.allFound())break;
+                    if(search.archivesChecked()>=Tes4MultiBsaModelMatcher.MAX_ARCHIVES){
+                        search.markCapped();break;
+                    }
+                    try(InputStream in=getContentResolver().openInputStream(
+                        DocumentsContract.buildDocumentUriUsingTree(tree,archive.id))){
+                        BsaCatalogReader.Catalog catalog=BsaCatalogReader.read(in);
+                        search.accept(archive.name,catalog);
+                    }catch(Exception failure){
+                        search.failed(archive.name,failure);
+                    }
+                }
+                String full=baseReport+"\n\n"+
+                    "Папка: "+nameDocument(tree,targetId)+"\n"+
+                    search.report(archives.size())+
+                    (listed.size()>=4096
+                      ?"\nВнимание: список Data ограничен 4096 элементами."
+                      :"")+
+                    "\nИсходные файлы не изменялись.";
+                runOnUiThread(()->{
+                    if(sequence==multiArchiveScanSequence)update(full);
+                });
+            }catch(Exception e){
+                String msg=baseReport+"\n\nОшибка поиска BSA: "+
+                    e.getClass().getSimpleName()+": "+e.getMessage();
+                runOnUiThread(()->{
+                    if(sequence==multiArchiveScanSequence)update(msg);
+                });
+            }
+        },"tes4-multi-bsa-index").start();
+    }
     private void matchSelectedBsa(boolean forcePicker){
         if(lastBaseRecords==null){
             update("Сначала проверь записи CELL или WRLD в ESM/ESP/ESL, "
@@ -243,6 +341,7 @@ public final class ResourceInspectorActivity extends Activity {
         },"tes4-bsa-model-match").start();
     }
     private void inspectNested(Uri uri,String section){
+        multiArchiveScanSequence++;
         lastBaseRecords=null;
         lastNestedReport="";
         update("Читаю вложенные заголовки "+section+" · ограниченный образец...");

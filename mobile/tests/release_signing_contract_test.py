@@ -5,7 +5,7 @@ manifest=(p/'app/src/main/AndroidManifest.xml').read_text()
 gradle=(p/'app/build.gradle').read_text()
 assert 'android:icon="@mipmap/ic_launcher"' in manifest
 assert 'android:roundIcon="@mipmap/ic_launcher_round"' in manifest
-assert 'versionCode 56' in gradle and "versionName '2.33.0'" in gradle
+assert 'versionCode 57' in gradle and "versionName '2.34.0'" in gradle
 assert "signingConfig signingConfigs.stableDebug" in gradle
 assert "rootProject.file('../.ci/skyrimse-mobile-test.jks')" in gradle
 assert "applicationId 'dev.skyrimsemobile.launcher'" in gradle
