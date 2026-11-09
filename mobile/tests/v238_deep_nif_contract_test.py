@@ -15,7 +15,7 @@ assert "readDecoded(bsa,entry,archiveFlags)" in bsa
 assert "BsaEntryInspector.inspectProfile(in,entry,archiveFlags)" in ver
 assert "Таблица NIF:" in ver
 assert "Статическая геометрия BSTriShape" in ver
-assert "Геометрия ещё не помещена в игровой мир или Vulkan." in ver
+assert "Структура NIF прочитана; факт работы Vulkan проверяется отдельно." in ver
 assert "NifGeometryDecoder.scan" not in ui
 assert "Содержимое NIF: распознано" in ui
 assert "Tes4NifStructureProfileTest" in read("tests/Tes4NifStructureProfileTest.java")
