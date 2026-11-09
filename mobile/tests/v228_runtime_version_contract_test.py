@@ -24,7 +24,7 @@ tests={
 "ESM navigation from NIF": "openPluginInspector" in bsa and '"open_tes4"' in bsa,
 "ESM picker is offered": '"open_tes4"' in resources and 'selectPlugin()' in resources,
 "launcher shortcut": "openPluginInspector()" in html and "openPluginInspector()" in main,
-"same package and signed upgrade": "versionCode 62" in gradle and "versionName '2.39.0'" in gradle and "applicationId 'dev.skyrimsemobile.launcher'" in gradle,
+"same package and signed upgrade": "versionCode 63" in gradle and "versionName '2.40.0'" in gradle and "applicationId 'dev.skyrimsemobile.launcher'" in gradle,
 "contract required by CI": "v228_runtime_version_contract_test.py" in workflow,
 }
 assert all(tests.values()),[k for k,v in tests.items() if not v]

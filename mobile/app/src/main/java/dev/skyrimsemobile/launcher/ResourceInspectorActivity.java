@@ -9,6 +9,7 @@ import android.content.SharedPreferences;
 import android.database.Cursor;
 import android.net.Uri;
 import android.os.Bundle;
+import org.json.JSONObject;
 import android.provider.DocumentsContract;
 import android.provider.OpenableColumns;
 import android.view.Gravity;
@@ -25,12 +26,13 @@ import java.util.Locale;
 
 /** Read-only Skyrim SE file inspector via Android Storage Access Framework. */
 public final class ResourceInspectorActivity extends Activity {
-    private static final int PICK_DATA=707, PICK_RESOURCE=708, PICK_PLUGIN=709, PICK_GROUPS=710, PICK_NESTED_CELL=711, PICK_NESTED_WRLD=712, PICK_MODEL_BSA=713, PICK_DATA_MODELS=714;
+    private static final int PICK_DATA=707, PICK_RESOURCE=708, PICK_PLUGIN=709, PICK_GROUPS=710, PICK_NESTED_CELL=711, PICK_NESTED_WRLD=712, PICK_MODEL_BSA=713, PICK_DATA_MODELS=714, PICK_VULKAN_PREVIEW=715;
     public static final String PREF_REPORT="resource_inspector_report";
     private SharedPreferences prefs;
     private TextView report,folderStatus;
     private Button previewButton;
     private Tes4PlacedNifScene.Preview lastPreview;
+    private String placedPreviewToken,placedPreviewExpected;
     private java.util.List<Tes4PlacementSubrecordReader.Placement> lastPlacements=java.util.Collections.emptyList();
     private volatile boolean closed=false;
     private volatile long automaticAnalysisSequence=0;
@@ -137,7 +139,46 @@ public final class ResourceInspectorActivity extends Activity {
         }
         NifGeometryTransfer.offer(preview.lines,preview.triangles,
             preview.label,preview.details);
-        startActivity(new Intent(this,VulkanSceneActivity.class));
+        placedPreviewToken=Long.toHexString(System.nanoTime());
+        placedPreviewExpected=preview.label;
+        prefs.edit().remove(VulkanSceneActivity.PREF_PLACED_RESULT).apply();
+        Intent i=new Intent(this,VulkanSceneActivity.class);
+        i.putExtra(VulkanSceneActivity.EXTRA_PLACED_PREVIEW_TOKEN,placedPreviewToken);
+        i.putExtra(VulkanSceneActivity.EXTRA_PLACED_PREVIEW_LABEL,placedPreviewExpected);
+        startActivityForResult(i,PICK_VULKAN_PREVIEW);
+    }
+    private void appendVulkanPreviewReceipt(){
+        final String token=placedPreviewToken,expected=placedPreviewExpected;
+        placedPreviewToken=null;
+        placedPreviewExpected=null;
+        if(token==null||expected==null)return;
+        String report;
+        try{
+            String raw=prefs.getString(VulkanSceneActivity.PREF_PLACED_RESULT,"");
+            JSONObject payload=new JSONObject(raw);
+            if(!token.equals(payload.optString("token","")))
+                report="3D-предпросмотр Vulkan: нет данных от текущего сеанса.\n"+
+                       "Проверь, открывался ли 3D-экран и были ли кадры.";
+            else{
+                VulkanPlacedPreviewReceipt.Result checked=
+                    VulkanPlacedPreviewReceipt.assess(expected,
+                        payload.optString("geometry",""),
+                        payload.optBoolean("running"),
+                        payload.optBoolean("error"),
+                        payload.optLong("frames"),
+                        payload.optInt("edges"),
+                        payload.optInt("triangles"),
+                        payload.optInt("width"),
+                        payload.optInt("height"),
+                        payload.optDouble("fps",0));
+                report=checked.report;
+            }
+        }catch(Exception missing){
+            report="3D-предпросмотр Vulkan: кадры не подтверждены. "+
+                "Открой 3D-просмотр повторно, либо пришли скриншот ошибки.";
+        }
+        prefs.edit().remove(VulkanSceneActivity.PREF_PLACED_RESULT).apply();
+        update(text+"\n\n"+report);
     }
     private void refreshFolderStatus(){
         if(folderStatus==null)return;
@@ -180,6 +221,10 @@ public final class ResourceInspectorActivity extends Activity {
     }
     @Override protected void onActivityResult(int req,int result,Intent data){
         super.onActivityResult(req,result,data);
+        if(req==PICK_VULKAN_PREVIEW){
+            appendVulkanPreviewReceipt();
+            return;
+        }
         if(result!=RESULT_OK||data==null||data.getData()==null)return;
         Uri uri=data.getData();
         if(req==PICK_DATA){

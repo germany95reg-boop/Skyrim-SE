@@ -56,7 +56,7 @@ public final class Tes4MatchedNifVerifier {
                         s.append(" · ограничение: ").append(geometryStatus);
                 }else s.append("\n  Статическая геометрия BSTriShape: не обнаружена");
             }
-            s.append("\n  Геометрия ещё не помещена в игровой мир или Vulkan.");
+            s.append("\n  Структура NIF прочитана; факт работы Vulkan проверяется отдельно.");
             return s.toString();
         }
     }

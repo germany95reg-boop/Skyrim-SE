@@ -33,6 +33,11 @@ import org.json.JSONArray;
 /** A real animated Vulkan cube test. It does not load a Skyrim executable or any game assets. */
 public final class VulkanSceneActivity extends Activity implements SurfaceHolder.Callback {
     public static final String PREF_RESULT = "vulkan_scene_test_result";
+    public static final String PREF_PLACED_RESULT="skyrim_placed_vulkan_result";
+    public static final String EXTRA_PLACED_PREVIEW_TOKEN="skyrim_placed_preview_token";
+    public static final String EXTRA_PLACED_PREVIEW_LABEL="skyrim_placed_preview_label";
+    private String placedPreviewToken,placedPreviewExpectedLabel;
+    private boolean placedReceiptSaved=false;
     public static final String EXTRA_DEVICE_AUTOTEST = "dev.skyrimsemobile.launcher.DEVICE_AUTOTEST";
     public static final String EXTRA_DEVICE_AUTOTEST_RESULT = "deviceAutotestVulkanJson";
     public static final String EXTRA_DEVICE_AUTOTEST_ERROR = "deviceAutotestError";
@@ -299,6 +304,32 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
                                 completeDeviceAutotest(true,json,null);
                         }
                     }
+                    if(!deviceAutotest&&placedPreviewToken!=null&&
+                       !placedPreviewToken.isEmpty()&&!placedReceiptSaved&&
+                       (frames>0||error)){
+                        String actual=info.optString("geometry","");
+                        int edges=info.optInt("edges",0);
+                        int tris=info.optInt("triangles",0);
+                        boolean ready=error||(running&&frames>=2&&w>0&&h>0&&
+                            edges>0&&tris>0&&
+                            actual.equals(placedPreviewExpectedLabel));
+                        if(ready){
+                            JSONObject proof=new JSONObject();
+                            proof.put("token",placedPreviewToken);
+                            proof.put("geometry",actual);
+                            proof.put("running",running);
+                            proof.put("error",error);
+                            proof.put("frames",frames);
+                            proof.put("fps",fps);
+                            proof.put("edges",edges);
+                            proof.put("triangles",tris);
+                            proof.put("width",w);
+                            proof.put("height",h);
+                            getSharedPreferences("launcher_state",MODE_PRIVATE).edit()
+                                .putString(PREF_PLACED_RESULT,proof.toString()).apply();
+                            placedReceiptSaved=true;
+                        }
+                    }
                     if (frames > 0 && !error && !deviceAutotest) {
                         getSharedPreferences("launcher_state", MODE_PRIVATE).edit()
                             .putString(PREF_RESULT, json).apply();
@@ -328,6 +359,8 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
     @Override public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         deviceAutotest=getIntent().getBooleanExtra(EXTRA_DEVICE_AUTOTEST,false);
+        placedPreviewToken=getIntent().getStringExtra(EXTRA_PLACED_PREVIEW_TOKEN);
+        placedPreviewExpectedLabel=getIntent().getStringExtra(EXTRA_PLACED_PREVIEW_LABEL);
         // Process-global JNI state can survive a previous manual preview.
         // Keep the physical one-tap GPU/FPS regression in its proven mode.
         if(deviceAutotest&&loadingError==null)nativeSetAlphaBlend(false);
