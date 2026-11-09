@@ -24,8 +24,10 @@ public final class Tes4MultiBsaModelMatcher {
         public final String archive, entryPath;
         public final long storedBytes;
         public final boolean compressed;
+        public final BsaCatalogReader.Entry entry;
         Hit(String archive,BsaCatalogReader.Entry entry){
             this.archive=archive;
+            this.entry=entry;
             this.entryPath=entry.path;
             storedBytes=entry.storedBytes;
             compressed=entry.compressed;
@@ -38,6 +40,7 @@ public final class Tes4MultiBsaModelMatcher {
         private final Set<String> wanted;
         private final Map<String,Hit> hits=new LinkedHashMap<>();
         private final List<String> failures=new ArrayList<>();
+        private final List<String> partialArchives=new ArrayList<>();
         public final int missingModl,invalidModl;
         private int attempted,successful,partialIndexes;
         private boolean capped;
@@ -52,13 +55,23 @@ public final class Tes4MultiBsaModelMatcher {
         public int foundPaths(){return hits.size();}
         public int archivesChecked(){return attempted;}
         public void markCapped(){capped=true;}
+        /** Reuse exact catalog entry metadata for bounded NIF content verification. */
+        public List<Hit> hitsInArchive(String archive){
+            List<Hit> found=new ArrayList<>();
+            for(Hit hit:hits.values())
+                if(hit.archive.equals(archive))found.add(hit);
+            return Collections.unmodifiableList(found);
+        }
 
         public void accept(String archive,BsaCatalogReader.Catalog catalog)throws IOException {
             if(catalog==null)throw new IOException("Нет каталога BSA");
             if(attempted>=MAX_ARCHIVES)throw new IOException("Превышен лимит BSA");
             attempted++;
             successful++;
-            if(catalog.partialIndex)partialIndexes++;
+            if(catalog.partialIndex){
+                partialIndexes++;
+                if(partialArchives.size()<12)partialArchives.add(archive);
+            }
             if(wanted.isEmpty()||allFound())return;
             for(BsaCatalogReader.Entry entry:catalog.entries){
                 if(!entry.nif())continue;
@@ -89,6 +102,8 @@ public final class Tes4MultiBsaModelMatcher {
             b.append("Различных путей NIF найдено: ").append(hits.size())
              .append(" из ").append(wanted.size()).append('\n');
             if(capped)b.append("Достигнут лимит 48 BSA: возможны непроверенные архивы.\n");
+            if(!partialArchives.isEmpty())
+                b.append("Неполные каталоги: ").append(String.join(", ",partialArchives)).append('\n');
             for(Tes4BaseFormResolver.Base base:bases){
                 if(base==null)continue;
                 String normalized=canonical.get(base.formId);

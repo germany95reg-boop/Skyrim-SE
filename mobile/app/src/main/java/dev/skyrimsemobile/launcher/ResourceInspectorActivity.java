@@ -32,6 +32,17 @@ public final class ResourceInspectorActivity extends Activity {
     private Tes4BaseFormResolver.Result lastBaseRecords;
     private long multiArchiveScanSequence=0;
     private String lastNestedReport="";
+    private String lastMultiBsaReport="";
+    private java.util.List<ModelProbeCandidate> lastNifCandidates=java.util.Collections.emptyList();
+    private static final class ModelProbeCandidate {
+        final Uri archiveUri;
+        final String archiveName;
+        final BsaCatalogReader.Entry entry;
+        final long flags;
+        ModelProbeCandidate(Uri uri,String name,BsaCatalogReader.Entry entry,long flags){
+            archiveUri=uri;archiveName=name;this.entry=entry;this.flags=flags;
+        }
+    }
     private String text="Готово к проверке. Выберите папку Data или отдельный файл BSA/NIF.\nФайлы не изменяются.";
     @Override public void onCreate(Bundle saved){
         super.onCreate(saved);
@@ -57,6 +68,7 @@ public final class ResourceInspectorActivity extends Activity {
         addButton(root,"Записи WRLD · FormID / базовые модели (образец)",()->selectNestedFile(PICK_NESTED_WRLD));
         addButton(root,"Сопоставить модели MODL с BSA",()->matchSelectedBsa(false));
         addButton(root,"Найти MODL во всех BSA папки Data",this::startMultiBsaSearch);
+        addButton(root,"Проверить содержимое найденных NIF",this::verifyFoundModels);
         addButton(root,"Выбрать другой BSA для моделей",()->matchSelectedBsa(true));
         addButton(root,"Каталог BSA v105 · выбор и проверка NIF",()->startActivity(new Intent(this,BsaCatalogActivity.class)));
         addButton(root,"Скопировать отчёт",()->{
@@ -234,11 +246,52 @@ public final class ResourceInspectorActivity extends Activity {
                    Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
         startActivityForResult(i,PICK_DATA_MODELS);
     }
+    private void verifyFoundModels(){
+        java.util.List<ModelProbeCandidate> candidates=new java.util.ArrayList<>(lastNifCandidates);
+        final String searchReport=lastMultiBsaReport;
+        if(candidates.isEmpty()){
+            update("Сначала нажми «Найти MODL во всех BSA папки Data». "
+                  +"Нужны найденные записи NIF, а не только имена из Skyrim.esm.");
+            return;
+        }
+        final long sequence=multiArchiveScanSequence;
+        update(searchReport+"\n\nЧитаю первые найденные NIF (не более 3 записей)...");
+        new Thread(()->{
+            StringBuilder sb=new StringBuilder(searchReport);
+            sb.append("\n\nПроверка содержимого найденных NIF · только чтение\n");
+            int inspected=0,valid=0;
+            for(ModelProbeCandidate candidate:candidates){
+                if(inspected>=Tes4MatchedNifVerifier.MAX_MODELS)break;
+                inspected++;
+                try(InputStream in=getContentResolver().openInputStream(candidate.archiveUri)){
+                    Tes4MatchedNifVerifier.Verification result=
+                        Tes4MatchedNifVerifier.verify(in,candidate.entry,
+                            candidate.flags,candidate.archiveName);
+                    sb.append(result.report()).append('\n');
+                    valid++;
+                }catch(Exception e){
+                    sb.append("• ").append(candidate.entry.path).append(" · ")
+                      .append(candidate.archiveName).append(" · ОШИБКА: ")
+                      .append(e.getClass().getSimpleName()).append(": ")
+                      .append(e.getMessage()).append('\n');
+                }
+            }
+            sb.append("Проверено: ").append(inspected)
+              .append(" · распознано NIF: ").append(valid).append('\n');
+            sb.append("Распаковка только в памяти; без записи ресурсов и рендеринга.");
+            String finalReport=sb.toString();
+            runOnUiThread(()->{
+                if(sequence==multiArchiveScanSequence)update(finalReport);
+            });
+        },"tes4-bsa-nif-verify").start();
+    }
     private void scanAllModelArchives(Uri tree){
         final Tes4BaseFormResolver.Result baseRecords=lastBaseRecords;
         final String baseReport=lastNestedReport;
         if(baseRecords==null){update("Нет базовых записей ESM.");return;}
         final long sequence=++multiArchiveScanSequence;
+        lastNifCandidates=java.util.Collections.emptyList();
+        lastMultiBsaReport="";
         update(baseReport+"\n\nИщу модели в каталогах BSA папки Data...");
         new Thread(()->{
             try{
@@ -263,6 +316,7 @@ public final class ResourceInspectorActivity extends Activity {
                 });
                 Tes4MultiBsaModelMatcher.Search search=
                     Tes4MultiBsaModelMatcher.begin(baseRecords.found.values());
+                java.util.List<ModelProbeCandidate> verifiedCandidates=new java.util.ArrayList<>();
                 for(Item archive:archives){
                     if(search.allFound())break;
                     if(search.archivesChecked()>=Tes4MultiBsaModelMatcher.MAX_ARCHIVES){
@@ -272,6 +326,14 @@ public final class ResourceInspectorActivity extends Activity {
                         DocumentsContract.buildDocumentUriUsingTree(tree,archive.id))){
                         BsaCatalogReader.Catalog catalog=BsaCatalogReader.read(in);
                         search.accept(archive.name,catalog);
+                        if(verifiedCandidates.size()<Tes4MatchedNifVerifier.MAX_MODELS){
+                            Uri archiveUri=DocumentsContract.buildDocumentUriUsingTree(tree,archive.id);
+                            for(Tes4MultiBsaModelMatcher.Hit hit:search.hitsInArchive(archive.name)){
+                                if(verifiedCandidates.size()>=Tes4MatchedNifVerifier.MAX_MODELS)break;
+                                verifiedCandidates.add(new ModelProbeCandidate(
+                                    archiveUri,archive.name,hit.entry,catalog.flags));
+                            }
+                        }
                     }catch(Exception failure){
                         search.failed(archive.name,failure);
                     }
@@ -284,7 +346,12 @@ public final class ResourceInspectorActivity extends Activity {
                       :"")+
                     "\nИсходные файлы не изменялись.";
                 runOnUiThread(()->{
-                    if(sequence==multiArchiveScanSequence)update(full);
+                    if(sequence==multiArchiveScanSequence){
+                        lastNifCandidates=java.util.Collections.unmodifiableList(
+                            new java.util.ArrayList<>(verifiedCandidates));
+                        lastMultiBsaReport=full;
+                        update(full);
+                    }
                 });
             }catch(Exception e){
                 String msg=baseReport+"\n\nОшибка поиска BSA: "+
@@ -342,6 +409,8 @@ public final class ResourceInspectorActivity extends Activity {
     }
     private void inspectNested(Uri uri,String section){
         multiArchiveScanSequence++;
+        lastNifCandidates=java.util.Collections.emptyList();
+        lastMultiBsaReport="";
         lastBaseRecords=null;
         lastNestedReport="";
         update("Читаю вложенные заголовки "+section+" · ограниченный образец...");

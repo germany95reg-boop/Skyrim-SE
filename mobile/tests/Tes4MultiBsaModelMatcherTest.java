@@ -31,6 +31,9 @@ public final class Tes4MultiBsaModelMatcherTest {
         assert report.contains("НАЙДЕНО в Meshes0.bsa");
         assert report.contains("НАЙДЕНО в Meshes1.bsa");
         assert report.contains("неполных каталогов: 1");
+        assert report.contains("Неполные каталоги: Meshes1.bsa");
+        assert search.hitsInArchive("Meshes0.bsa").size()==1;
+        assert search.hitsInArchive("Meshes0.bsa").get(0).entry.path.endsWith("markerx.NIF");
         var notFound=Tes4MultiBsaModelMatcher.begin(Arrays.asList(base(4,"notfound.nif")));
         notFound.accept("Incomplete.bsa",cat(true,"meshes/another.nif"));
         assert notFound.report(1).contains("НЕ ПОДТВЕРЖДЕНО");
