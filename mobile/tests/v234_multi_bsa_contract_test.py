@@ -9,7 +9,7 @@ gradle=r("app/build.gradle")
 wf=r("../.github/workflows/android-quality-gates.yml")
 assert "MAX_ARCHIVES=48" in src
 assert "Tes4BsaModelMatcher.canonicalNif(entry.path)" in src
-assert "if(catalog.partialIndex)partialIndexes++" in src
+assert "if(catalog.partialIndex){" in src and "partialIndexes++" in src
 assert "НЕ ПОДТВЕРЖДЕНО" in src
 assert "ACTION_OPEN_DOCUMENT_TREE" in ui
 assert "Tes4MultiBsaModelMatcher.begin(baseRecords.found.values())" in ui
