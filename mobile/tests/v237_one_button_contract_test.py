@@ -11,7 +11,7 @@ gradle=r("app/build.gradle")
 assert "SkyrimAutoDiscovery.mainMaster" in ui
 assert "SkyrimAutoDiscovery.dataDirectory" in ui
 assert "startAutomaticAnalysis()" in ui
-assert "inspectNested(esmUri,\"WRLD\",tree,dataId" in ui
+assert "inspectNested(esmUri,\"WRLD\",tree,chosenDataId" in ui
 assert "scanAllModelArchives(autoTree,autoDataId)" in ui
 assert "BsaSessionStore(this).lastDataTree()" in ui
 assert "Проверить Skyrim автоматически" in ui

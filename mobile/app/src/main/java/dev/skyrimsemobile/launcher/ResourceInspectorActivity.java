@@ -14,6 +14,7 @@ import android.provider.OpenableColumns;
 import android.view.Gravity;
 import android.view.View;
 import android.widget.Button;
+import android.graphics.drawable.GradientDrawable;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
@@ -27,10 +28,12 @@ public final class ResourceInspectorActivity extends Activity {
     private static final int PICK_DATA=707, PICK_RESOURCE=708, PICK_PLUGIN=709, PICK_GROUPS=710, PICK_NESTED_CELL=711, PICK_NESTED_WRLD=712, PICK_MODEL_BSA=713, PICK_DATA_MODELS=714;
     public static final String PREF_REPORT="resource_inspector_report";
     private SharedPreferences prefs;
-    private TextView report;
+    private TextView report,folderStatus;
     private volatile boolean closed=false;
+    private volatile long automaticAnalysisSequence=0;
     private Tes4BaseFormResolver.Result lastBaseRecords;
     private volatile long multiArchiveScanSequence=0;
+    private volatile long automaticAnalysisSequence=0;
     private volatile long nifVerificationSequence=0;
     private String lastNestedReport="";
     private String lastMultiBsaReport="";
@@ -44,7 +47,7 @@ public final class ResourceInspectorActivity extends Activity {
             archiveUri=uri;archiveName=name;this.entry=entry;this.flags=flags;
         }
     }
-    private String text="Готово к проверке. Выберите папку Data или отдельный файл BSA/NIF.\nФайлы не изменяются.";
+    private String text="Выбери папку Skyrim SE один раз, затем нажимай «Проверить Skyrim автоматически».\nИсходные файлы игры не изменяются.";
     @Override public void onCreate(Bundle saved){
         super.onCreate(saved);
         prefs=getSharedPreferences("launcher_state",MODE_PRIVATE);
@@ -58,30 +61,43 @@ public final class ResourceInspectorActivity extends Activity {
         title.setTextSize(22);title.setTextColor(0xffdbc5fb);title.setGravity(Gravity.CENTER);
         root.addView(title);
         TextView info=new TextView(this);
-        info.setText("Чтение заголовков BSA/NIF/TES4, списка Data и каталога файлов внутри BSA 105. Никакой распаковки, изменения файлов или запуска Skyrim SE.");
-        info.setTextColor(0xffd5d3dd);info.setTextSize(13);info.setPadding(0,dp(12),0,dp(14));root.addView(info);
-        addButton(root,"Проверить папку игры / Data",()->scanCurrent());
-        addButton(root,"Выбрать папку Data",()->selectFolder());
-        addButton(root,"Проверить файл BSA / NIF",()->selectFile());
-        addButton(root,"Проверить ESM / ESP / ESL (заголовок TES4)",()->selectPlugin());
-        addButton(root,"Индекс ESM / ESP / ESL · группы GRUP",()->selectGroupFile());
-        addButton(root,"Записи CELL · FormID / базовые модели (образец)",()->selectNestedFile(PICK_NESTED_CELL));
-        addButton(root,"Записи WRLD · FormID / базовые модели (образец)",()->selectNestedFile(PICK_NESTED_WRLD));
-        addButton(root,"Сопоставить модели MODL с BSA",()->matchSelectedBsa(false));
-        addButton(root,"Найти MODL во всех BSA папки Data",this::startMultiBsaSearch);
-        addButton(root,"Проверить содержимое найденных NIF",this::verifyFoundModels);
-        addButton(root,"Выбрать другой BSA для моделей",()->matchSelectedBsa(true));
-        addButton(root,"Каталог BSA v105 · выбор и проверка NIF",()->startActivity(new Intent(this,BsaCatalogActivity.class)));
+        info.setText("Один раз разреши доступ к папке Skyrim SE. Дальше приложение само найдёт Data, Skyrim.esm, BSA и NIF и проверит их без дополнительных выборов.");
+        info.setTextColor(0xffd5d3dd);info.setTextSize(14);info.setPadding(0,dp(12),0,dp(14));root.addView(info);
+        folderStatus=new TextView(this);
+        folderStatus.setTextSize(13);folderStatus.setTextColor(0xffb1dda9);
+        folderStatus.setPadding(dp(6),dp(5),dp(6),dp(14));
+        root.addView(folderStatus);
+        addPrimaryButton(root,"Проверить Skyrim автоматически",this::startAutomaticAnalysis);
+        addButton(root,"Выбрать папку Skyrim",this::selectFolder);
         addButton(root,"Скопировать отчёт",()->{
             ClipboardManager cb=(ClipboardManager)getSystemService(Context.CLIPBOARD_SERVICE);
             if(cb!=null)cb.setPrimaryClip(ClipData.newPlainText("Skyrim SE Resource Report",text));
         });
-        addButton(root,"Вернуться в лаунчер",()->finish());
         report=new TextView(this);report.setTextColor(0xffeeeeee);report.setTextSize(14);
         report.setTextIsSelectable(true);report.setPadding(dp(12),dp(14),dp(12),dp(14));
         report.setBackgroundColor(0xff22232e);root.addView(report);
+        LinearLayout advanced=new LinearLayout(this);
+        advanced.setOrientation(LinearLayout.VERTICAL);
+        advanced.setVisibility(View.GONE);
+        addButton(root,"Для разработчика · дополнительные проверки",()->{
+            advanced.setVisibility(advanced.getVisibility()==View.VISIBLE?View.GONE:View.VISIBLE);
+        });
+        root.addView(advanced);
+        addButton(advanced,"Проверить папку игры / Data",this::scanCurrent);
+        addButton(advanced,"Проверить файл BSA / NIF",this::selectFile);
+        addButton(advanced,"Заголовок ESM / ESP / ESL",this::selectPlugin);
+        addButton(advanced,"Индекс ESM / ESP / ESL · GRUP",this::selectGroupFile);
+        addButton(advanced,"Записи CELL (образец)",()->selectNestedFile(PICK_NESTED_CELL));
+        addButton(advanced,"Записи WRLD (образец)",()->selectNestedFile(PICK_NESTED_WRLD));
+        addButton(advanced,"Сопоставить MODL с одним BSA",()->matchSelectedBsa(false));
+        addButton(advanced,"Найти MODL во всех BSA",this::startMultiBsaSearch);
+        addButton(advanced,"Повторно проверить содержимое NIF",this::verifyFoundModels);
+        addButton(advanced,"Выбрать другой BSA",()->matchSelectedBsa(true));
+        addButton(advanced,"Ручная проверка NIF/DDS",()->startActivity(new Intent(this,BsaCatalogActivity.class)));
+        addButton(root,"Вернуться в лаунчер",()->finish());
         setContentView(scroll);
         update(text);
+        refreshFolderStatus();
         if(getIntent()!=null && getIntent().getBooleanExtra("open_grup",false))
             scroll.post(this::selectGroupFile);
         else if(getIntent()!=null && getIntent().getBooleanExtra("open_tes4",false))
@@ -91,6 +107,24 @@ public final class ResourceInspectorActivity extends Activity {
     private void addButton(LinearLayout p,String label,Runnable action){
         Button b=new Button(this);b.setText(label);b.setAllCaps(false);b.setOnClickListener(v->action.run());
         LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,dp(47));lp.bottomMargin=dp(6);p.addView(b,lp);
+    }
+    private void addPrimaryButton(LinearLayout p,String title,Runnable action){
+        Button b=new Button(this);
+        b.setText(title);b.setTextSize(16);b.setAllCaps(false);
+        b.setTextColor(0xffffffff);
+        GradientDrawable background=new GradientDrawable();
+        background.setColor(0xff7259d7);
+        background.setCornerRadius(dp(16));
+        b.setBackground(background);
+        b.setOnClickListener(v->action.run());
+        LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,dp(60));
+        lp.bottomMargin=dp(12);p.addView(b,lp);
+    }
+    private void refreshFolderStatus(){
+        if(folderStatus==null)return;
+        folderStatus.setText(persistedDataTree()==null
+            ?"Папка Skyrim не выбрана · нужен однократный доступ Android"
+            :"Папка Skyrim подключена · доступ сохранён");
     }
     private void update(String s){text=s;if(closed)return;
         if(report!=null)report.setText(s);
@@ -130,9 +164,16 @@ public final class ResourceInspectorActivity extends Activity {
         if(result!=RESULT_OK||data==null||data.getData()==null)return;
         Uri uri=data.getData();
         if(req==PICK_DATA){
-            try{getContentResolver().takePersistableUriPermission(uri,Intent.FLAG_GRANT_READ_URI_PERMISSION);}catch(SecurityException ignored){}
-            prefs.edit().putString("resource_data_uri",uri.toString()).apply();
-            inspectTree(uri);
+            BsaSessionStore session=new BsaSessionStore(this);
+            boolean retained=session.retainReadPermission(uri);
+            if(retained){
+                prefs.edit().putString("resource_data_uri",uri.toString()).apply();
+                session.saveDataTree(uri);
+            }else{
+                prefs.edit().remove("resource_data_uri").apply();
+            }
+            refreshFolderStatus();
+            analyzeAutomaticFolder(uri);
         } else if(req==PICK_RESOURCE)inspectDocument(uri);
         else if(req==PICK_PLUGIN)inspectPlugin(uri);
         else if(req==PICK_GROUPS)inspectPluginGroups(uri);
