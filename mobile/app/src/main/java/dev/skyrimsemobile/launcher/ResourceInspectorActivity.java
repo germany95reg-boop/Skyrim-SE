@@ -33,7 +33,6 @@ public final class ResourceInspectorActivity extends Activity {
     private volatile long automaticAnalysisSequence=0;
     private Tes4BaseFormResolver.Result lastBaseRecords;
     private volatile long multiArchiveScanSequence=0;
-    private volatile long automaticAnalysisSequence=0;
     private volatile long nifVerificationSequence=0;
     private String lastNestedReport="";
     private String lastMultiBsaReport="";
