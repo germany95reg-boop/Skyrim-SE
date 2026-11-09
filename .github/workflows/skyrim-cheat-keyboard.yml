@@ -1,0 +1,53 @@
+name: Skyrim Cheat Keyboard APK
+on:
+  push:
+    branches: [build/skyrim-cheat-keyboard]
+    paths:
+      - 'tools/skyrim-cheat-keyboard/**'
+      - '.github/workflows/skyrim-cheat-keyboard.yml'
+  pull_request:
+    paths:
+      - 'tools/skyrim-cheat-keyboard/**'
+      - '.github/workflows/skyrim-cheat-keyboard.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Android SDK
+        uses: android-actions/setup-android@v3
+      - name: Install SDK packages
+        run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
+      - name: Gradle 8.7
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.7'
+      - name: Compile debug APK
+        working-directory: tools/skyrim-cheat-keyboard
+        run: gradle --no-daemon :app:assembleDebug
+      - name: Verify APK certificate
+        run: $ANDROID_HOME/build-tools/35.0.0/apksigner verify --verbose tools/skyrim-cheat-keyboard/app/build/outputs/apk/debug/app-debug.apk
+      - name: Publish APK for download on branch
+        if: github.event_name == 'push' && github.ref == 'refs/heads/build/skyrim-cheat-keyboard'
+        run: |
+          mkdir -p deliverables
+          cp tools/skyrim-cheat-keyboard/app/build/outputs/apk/debug/app-debug.apk deliverables/Skyrim-Cheat-Keyboard.apk
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
+          git add -f deliverables/Skyrim-Cheat-Keyboard.apk
+          git commit -m "build: publish standalone cheat keyboard APK [skip ci]"
+          git push origin HEAD:build/skyrim-cheat-keyboard
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Skyrim-Cheat-Keyboard-APK
+          path: tools/skyrim-cheat-keyboard/app/build/outputs/apk/debug/app-debug.apk
