@@ -52,6 +52,55 @@ public final class BsaEntryInspector {
         }
     }
 
+    /** Header, NIF block inventory and bounded static-geometry readiness in one decode.
+     * If a NIF has an unsupported layout, retain the valid header and report
+     * structure/geometry problems separately instead of claiming it is corrupt.
+     */
+    public static final class Profile {
+        public final Result header;
+        public final NifBlockInspector.Result blocks;
+        public final NifGeometryDecoder.Parts staticParts;
+        public final String blockIssue,geometryIssue;
+        Profile(Result header,NifBlockInspector.Result blocks,
+                NifGeometryDecoder.Parts parts,String blockIssue,String geometryIssue){
+            this.header=header;
+            this.blocks=blocks;staticParts=parts;
+            this.blockIssue=blockIssue;this.geometryIssue=geometryIssue;
+        }
+    }
+
+    public static Profile inspectProfile(InputStream bsa,
+            BsaCatalogReader.Entry entry,long archiveFlags)throws IOException{
+        Decoded d=readDecoded(bsa,entry,archiveFlags);
+        ResourceHeaderInspector.Result header=ResourceHeaderInspector.inspect(
+            new ByteArrayInputStream(d.bytes),entry.path);
+        if(!header.recognized||!"NIF".equals(header.format))
+            throw new IOException("Распакованная запись не содержит заголовок NIF");
+        Result basic=new Result(entry.path,entry.offset,d.storedLength,d.bytes.length,
+            entry.compressed,d.embeddedNameBytes,header);
+        NifBlockInspector.Result blockTable=null;
+        NifGeometryDecoder.Parts parts=null;
+        String blockIssue=null,geometryIssue=null;
+        try{
+            blockTable=NifBlockInspector.inspect(d.bytes);
+        }catch(IOException unsupported){
+            blockIssue=limitedIssue(unsupported);
+        }
+        if(blockTable!=null && blockTable.meshCandidateCount>0){
+            try{
+                parts=NifGeometryDecoder.scan(d.bytes);
+            }catch(IOException unsupported){
+                geometryIssue=limitedIssue(unsupported);
+            }
+        }
+        return new Profile(basic,blockTable,parts,blockIssue,geometryIssue);
+    }
+    private static String limitedIssue(IOException error){
+        String detail=error.getMessage();
+        if(detail==null||detail.trim().isEmpty())return error.getClass().getSimpleName();
+        return detail.length()>170?detail.substring(0,170)+"…":detail;
+    }
+
     private static final class Decoded {
         final byte[] bytes;
         final int storedLength,embeddedNameBytes;

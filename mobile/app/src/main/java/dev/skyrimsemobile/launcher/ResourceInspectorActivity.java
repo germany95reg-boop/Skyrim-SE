@@ -386,7 +386,9 @@ public final class ResourceInspectorActivity extends Activity {
             sb.append("Проверено: ").append(inspected)
               .append(" · распознано NIF: ").append(valid).append('\n');
             sb.append("Распаковка только в памяти; без записи ресурсов и рендеринга.");
-            String finalReport=sb.toString();
+            String finalReport=sb.toString().replace(
+                "Содержимое NIF: следующий этап (до 3 моделей)",
+                "Содержимое NIF: распознано "+valid+" из "+inspected);
             runOnUiThread(()->{
                 if(sequence==multiArchiveScanSequence&&
                    verification==nifVerificationSequence)update(finalReport);

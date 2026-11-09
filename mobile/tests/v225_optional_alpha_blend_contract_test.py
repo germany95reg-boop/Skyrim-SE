@@ -49,7 +49,7 @@ checks={
  "device PixelCopy still active":'PixelCopy.request(frameSurface,pixels' in scene,
  "user-requested footer stays absent":'Отчёт не отправлялся автоматически' not in report,
  "no automatic network uploads":'android.permission.INTERNET' not in manifest,
- "upgrade certificate version":'versionCode 60' in gradle and "versionName '2.37.0'" in gradle,
+ "upgrade certificate version":'versionCode 61' in gradle and "versionName '2.38.0'" in gradle,
  "same package ID":'applicationId \'dev.skyrimsemobile.launcher\'' in gradle,
  "CI v2.25 contract included":'v225_optional_alpha_blend_contract_test.py' in workflow,
 }

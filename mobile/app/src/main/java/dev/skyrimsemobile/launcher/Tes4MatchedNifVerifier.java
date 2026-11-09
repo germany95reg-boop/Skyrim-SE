@@ -18,7 +18,16 @@ public final class Tes4MatchedNifVerifier {
         public final int storedBytes,decodedBytes;
         public final boolean compressed;
         public final long offset;
-        Verification(String archive,BsaEntryInspector.Result details){
+        public final int totalBlocks,rootBlocks,meshCandidates,staticParts;
+        public final String structureStatus,geometryStatus;
+        Verification(String archive,BsaEntryInspector.Profile profile){
+            BsaEntryInspector.Result details=profile.header;
+            totalBlocks=profile.blocks==null?-1:profile.blocks.blockCount;
+            rootBlocks=profile.blocks==null?-1:profile.blocks.rootCount;
+            meshCandidates=profile.blocks==null?-1:profile.blocks.meshCandidateCount;
+            staticParts=profile.staticParts==null?0:profile.staticParts.available;
+            structureStatus=profile.blockIssue;
+            geometryStatus=profile.geometryIssue;
             this.archive=archive;
             path=details.path;
             format=details.header.format;
@@ -28,19 +37,34 @@ public final class Tes4MatchedNifVerifier {
             offset=details.recordOffset;
         }
         public String report(){
-            return String.format(Locale.ROOT,
+            StringBuilder s=new StringBuilder(String.format(Locale.ROOT,
                 "• %s\n  BSA: %s · offset %d · %d → %d байт · %s\n  NIF-заголовок: РАСПОЗНАН (%s)",
                 path,archive,offset,storedBytes,decodedBytes,
-                compressed?"LZ4":"без сжатия",format);
+                compressed?"LZ4":"без сжатия",format));
+            if(totalBlocks<0)
+                s.append("\n  Таблица NIF: не разобрана (")
+                 .append(structureStatus).append(")");
+            else{
+                s.append("\n  Таблица NIF: ").append(totalBlocks)
+                 .append(" блоков, ").append(rootBlocks)
+                 .append(" корней, ").append(meshCandidates)
+                 .append(" потенциальных геометрических блоков");
+                if(meshCandidates>0){
+                    s.append("\n  Статическая геометрия BSTriShape: ")
+                     .append(staticParts).append(" частей разобрано");
+                    if(geometryStatus!=null)
+                        s.append(" · ограничение: ").append(geometryStatus);
+                }else s.append("\n  Статическая геометрия BSTriShape: не обнаружена");
+            }
+            s.append("\n  Геометрия ещё не помещена в игровой мир или Vulkan.");
+            return s.toString();
         }
     }
 
     public static Verification verify(InputStream in,BsaCatalogReader.Entry entry,
                                       long archiveFlags,String archive)throws IOException{
         if(archive==null||archive.trim().isEmpty())throw new IOException("Имя архива не задано");
-        BsaEntryInspector.Result parsed=BsaEntryInspector.inspect(in,entry,archiveFlags);
-        if(!parsed.header.recognized||!"NIF".equals(parsed.header.format))
-            throw new IOException("Данные BSA не содержат корректный заголовок NIF");
+        BsaEntryInspector.Profile parsed=BsaEntryInspector.inspectProfile(in,entry,archiveFlags);
         return new Verification(archive,parsed);
     }
 }

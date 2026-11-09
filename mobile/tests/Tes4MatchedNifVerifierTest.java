@@ -50,6 +50,8 @@ public final class Tes4MatchedNifVerifierTest {
             0x83,"Skyrim - Meshes0.bsa");
         assert !uncompressed.compressed&&uncompressed.decodedBytes==plain.length;
         assert uncompressed.report().contains("NIF-заголовок: РАСПОЗНАН");
+        assert uncompressed.totalBlocks==-1;
+        assert uncompressed.report().contains("Таблица NIF: не разобрана");
         byte[] lz4=packed(plain);
         var compressed=Tes4MatchedNifVerifier.verify(
             new ByteArrayInputStream(place(lz4,offset)),
@@ -57,6 +59,7 @@ public final class Tes4MatchedNifVerifierTest {
             0x83,"Skyrim - Meshes0.bsa");
         assert compressed.compressed&&compressed.storedBytes==lz4.length;
         assert compressed.decodedBytes==plain.length&&compressed.report().contains("LZ4");
+        assert compressed.totalBlocks==-1 && compressed.staticParts==0;
         byte[] invalid="NOT A NIF HEADER".getBytes(StandardCharsets.US_ASCII);
         fails(place(invalid,offset),offset,invalid.length,false);
         byte[] broken=lz4.clone();broken[0]=0;broken[1]=0;
