@@ -12,7 +12,7 @@ public final class SkyrimAutoDiscoveryTest {
         assert SkyrimAutoDiscovery.childDataDirectory(
             Arrays.asList("Profiles","DATA","Screenshots")).equals("DATA");
         assert SkyrimAutoDiscovery.childDataDirectory(
-            Arrays.asList("Meshes","Skyrim")).equals(null);
+            Arrays.asList("Meshes","Skyrim"))==null;
         assert SkyrimAutoDiscovery.mainMaster(
             Arrays.asList("Update.esm","Skyrim.esm","ccBGSSSE001-Fish.esm"))
             .equals("Skyrim.esm");
