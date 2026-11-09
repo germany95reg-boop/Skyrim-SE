@@ -15,10 +15,10 @@ assert '"запускается автоматически..."' in ui
 assert 'final long verification=++nifVerificationSequence;' in ui
 assert 'verification==nifVerificationSequence' in ui
 assert 'Проверка содержимого найденных NIF' in ui
-assert 'Tes4MatchedNifVerifier.verify(in,candidate.entry,' in ui
+assert 'BsaEntryInspector.inspectProfile(' in ui
 assert 'BsaEntryInspector.inspectProfile(in,entry,archiveFlags)' in verifier
 assert 'MAX_PACKED = 8 * 1024 * 1024' in entry
 assert 'MAX_DECODED = 16 * 1024 * 1024' in entry
 assert 'v236_nif_auto_contract_test.py' in wf
-assert "versionCode 61" in gradle and "versionName '2.38.0'" in gradle
+assert "versionCode 62" in gradle and "versionName '2.39.0'" in gradle
 print("PASS v2.36 automatic bounded NIF content verification after Data scan")

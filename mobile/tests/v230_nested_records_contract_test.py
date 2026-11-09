@@ -18,6 +18,6 @@ assert "readAllBytes" not in src and "Inflater" not in src
 assert "PICK_NESTED_CELL=711" in ui and "PICK_NESTED_WRLD=712" in ui
 assert "Tes4NestedRecordSampler.scan(in,section,fileSize)" in ui
 assert "Tes4NestedRecordSampler" in jvm
-assert "versionCode 61" in gradle and "versionName '2.38.0'" in gradle
+assert "versionCode 62" in gradle and "versionName '2.39.0'" in gradle
 assert "v230_nested_records_contract_test.py" in wf
 print("PASS v2.30 bounded nested record sample integration")

@@ -29,6 +29,9 @@ public final class ResourceInspectorActivity extends Activity {
     public static final String PREF_REPORT="resource_inspector_report";
     private SharedPreferences prefs;
     private TextView report,folderStatus;
+    private Button previewButton;
+    private Tes4PlacedNifScene.Preview lastPreview;
+    private java.util.List<Tes4PlacementSubrecordReader.Placement> lastPlacements=java.util.Collections.emptyList();
     private volatile boolean closed=false;
     private volatile long automaticAnalysisSequence=0;
     private Tes4BaseFormResolver.Result lastBaseRecords;
@@ -67,6 +70,8 @@ public final class ResourceInspectorActivity extends Activity {
         folderStatus.setPadding(dp(6),dp(5),dp(6),dp(14));
         root.addView(folderStatus);
         addPrimaryButton(root,"Проверить Skyrim автоматически",this::startAutomaticAnalysis);
+        previewButton=addButton(root,"Просмотреть найденный объект в 3D",this::openPlacedPreview);
+        previewButton.setVisibility(View.GONE);
         addButton(root,"Выбрать папку Skyrim",this::selectFolder);
         addButton(root,"Скопировать отчёт",()->{
             ClipboardManager cb=(ClipboardManager)getSystemService(Context.CLIPBOARD_SERVICE);
@@ -103,9 +108,10 @@ public final class ResourceInspectorActivity extends Activity {
             scroll.post(this::selectPlugin);
     }
     private int dp(float d){return (int)(getResources().getDisplayMetrics().density*d+.5f);}
-    private void addButton(LinearLayout p,String label,Runnable action){
+    private Button addButton(LinearLayout p,String label,Runnable action){
         Button b=new Button(this);b.setText(label);b.setAllCaps(false);b.setOnClickListener(v->action.run());
         LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,dp(47));lp.bottomMargin=dp(6);p.addView(b,lp);
+        return b;
     }
     private void addPrimaryButton(LinearLayout p,String title,Runnable action){
         Button b=new Button(this);
@@ -118,6 +124,20 @@ public final class ResourceInspectorActivity extends Activity {
         b.setOnClickListener(v->action.run());
         LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,dp(60));
         lp.bottomMargin=dp(12);p.addView(b,lp);
+    }
+    private void clearPlacedPreview(){
+        lastPreview=null;
+        if(previewButton!=null)previewButton.setVisibility(View.GONE);
+    }
+    private void openPlacedPreview(){
+        Tes4PlacedNifScene.Preview preview=lastPreview;
+        if(preview==null){
+            update(text+"\n\n3D-предпросмотр пока не готов. Проверь Skyrim автоматически.");
+            return;
+        }
+        NifGeometryTransfer.offer(preview.lines,preview.triangles,
+            preview.label,preview.details);
+        startActivity(new Intent(this,VulkanSceneActivity.class));
     }
     private void refreshFolderStatus(){
         if(folderStatus==null)return;
@@ -289,6 +309,8 @@ public final class ResourceInspectorActivity extends Activity {
         nifVerificationSequence++;
         lastBaseRecords=null;
         lastNestedReport="";
+        lastPlacements=java.util.Collections.emptyList();
+        clearPlacedPreview();
         lastNifCandidates=java.util.Collections.emptyList();
         lastMultiBsaReport="";
         update("Автоматическая проверка Skyrim SE\nШаг 1/4: ищу Data и Skyrim.esm...");
@@ -346,6 +368,11 @@ public final class ResourceInspectorActivity extends Activity {
     private void verifyFoundModels(){
         java.util.List<ModelProbeCandidate> candidates=new java.util.ArrayList<>(lastNifCandidates);
         final String searchReport=lastMultiBsaReport;
+        final java.util.List<Tes4PlacementSubrecordReader.Placement> linkedPoses=
+            new java.util.ArrayList<>(lastPlacements);
+        final java.util.Map<Long,Tes4BaseFormResolver.Base> linkedBases=
+            lastBaseRecords==null?java.util.Collections.emptyMap():lastBaseRecords.found;
+        clearPlacedPreview();
         if(candidates.isEmpty()){
             update("Сначала нажми «Найти MODL во всех BSA папки Data». "
                   +"Нужны найденные записи NIF, а не только имена из Skyrim.esm.");
@@ -358,6 +385,8 @@ public final class ResourceInspectorActivity extends Activity {
             StringBuilder sb=new StringBuilder(searchReport);
             sb.append("\n\nПроверка содержимого найденных NIF · только чтение\n");
             int inspected=0,valid=0;
+            Tes4PlacedNifScene.Preview preparedPreview=null;
+            String previewNote="";
             for(ModelProbeCandidate candidate:candidates){
                 if(inspected>=Tes4MatchedNifVerifier.MAX_MODELS)break;
                 if(sequence!=multiArchiveScanSequence||
@@ -371,11 +400,31 @@ public final class ResourceInspectorActivity extends Activity {
                                progress+" / "+candidates.size()+"...");
                 });
                 try(InputStream in=getContentResolver().openInputStream(candidate.archiveUri)){
+                    BsaEntryInspector.Profile profile=BsaEntryInspector.inspectProfile(
+                        in,candidate.entry,candidate.flags);
                     Tes4MatchedNifVerifier.Verification result=
-                        Tes4MatchedNifVerifier.verify(in,candidate.entry,
-                            candidate.flags,candidate.archiveName);
+                        new Tes4MatchedNifVerifier.Verification(candidate.archiveName,profile);
                     sb.append(result.report()).append('\n');
                     valid++;
+                    if(preparedPreview==null&&profile.staticParts!=null&&
+                       profile.staticParts.available>0){
+                        Tes4PlacedNifScene.Link link=Tes4PlacedNifScene.findVisible(
+                            linkedPoses,linkedBases,candidate.entry.path);
+                        if(link!=null){
+                            try{
+                                preparedPreview=Tes4PlacedNifScene.compose(
+                                    profile.staticParts,link);
+                                previewNote="3D-предпросмотр подготовлен: "+
+                                    link.base.editorId+" · REFR 0x"+
+                                    Long.toHexString(link.pose.recordFormId).toUpperCase(Locale.ROOT)+
+                                    " · "+preparedPreview.shapes+" частей · "+
+                                    preparedPreview.triangleCount+" треугольников.";
+                            }catch(java.io.IOException previewError){
+                                previewNote="3D-предпросмотр этой модели ограничен: "+
+                                    previewError.getMessage();
+                            }
+                        }
+                    }
                 }catch(Exception e){
                     sb.append("• ").append(candidate.entry.path).append(" · ")
                       .append(candidate.archiveName).append(" · ОШИБКА: ")
@@ -385,13 +434,24 @@ public final class ResourceInspectorActivity extends Activity {
             }
             sb.append("Проверено: ").append(inspected)
               .append(" · распознано NIF: ").append(valid).append('\n');
-            sb.append("Распаковка только в памяти; без записи ресурсов и рендеринга.");
+            if(preparedPreview!=null)sb.append(previewNote).append('\n');
+            else sb.append(previewNote.isEmpty()?
+                "3D-предпросмотр не готов: нет подходящего видимого REFR/NIF в выборке.":
+                previewNote).append('\n');
+            sb.append("Распаковка и подготовка только в памяти; "+
+                "Vulkan-просмотр открывается отдельно, исходные файлы не изменены.");
             String finalReport=sb.toString().replace(
                 "Содержимое NIF: следующий этап (до 3 моделей)",
                 "Содержимое NIF: распознано "+valid+" из "+inspected);
+            final Tes4PlacedNifScene.Preview readyPreview=preparedPreview;
             runOnUiThread(()->{
-                if(sequence==multiArchiveScanSequence&&
-                   verification==nifVerificationSequence)update(finalReport);
+                if(!closed&&sequence==multiArchiveScanSequence&&
+                   verification==nifVerificationSequence){
+                    lastPreview=readyPreview;
+                    if(previewButton!=null)
+                        previewButton.setVisibility(readyPreview==null?View.GONE:View.VISIBLE);
+                    update(finalReport);
+                }
             });
         },"tes4-bsa-nif-verify").start();
     }
@@ -405,6 +465,7 @@ public final class ResourceInspectorActivity extends Activity {
         final long sequence=++multiArchiveScanSequence;
         lastNifCandidates=java.util.Collections.emptyList();
         lastMultiBsaReport="";
+        clearPlacedPreview();
         update(baseReport+"\n\nИщу модели в каталогах BSA папки Data...");
         new Thread(()->{
             try{
@@ -547,6 +608,8 @@ public final class ResourceInspectorActivity extends Activity {
         lastMultiBsaReport="";
         lastBaseRecords=null;
         lastNestedReport="";
+        lastPlacements=java.util.Collections.emptyList();
+        clearPlacedPreview();
         update("Читаю вложенные заголовки "+section+" · ограниченный образец...");
         new Thread(()->{
             try{
@@ -581,6 +644,7 @@ public final class ResourceInspectorActivity extends Activity {
                     if(closed||sampleSequence!=multiArchiveScanSequence||
                        (autoTree!=null&&automaticSequence!=automaticAnalysisSequence))return;
                     lastBaseRecords=readyBases;
+                    lastPlacements=new java.util.ArrayList<>(result.placements);
                     lastNestedReport=message;
                     if(autoTree!=null&&readyBases!=null){
                         update("Автоматическая проверка Skyrim SE\n"+

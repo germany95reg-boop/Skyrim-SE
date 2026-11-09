@@ -10,11 +10,11 @@ wf=r("../.github/workflows/android-quality-gates.yml")
 assert "BsaEntryInspector.inspectProfile(in,entry,archiveFlags)" in verify
 assert "MAX_MODELS=3" in verify
 assert '!"NIF".equals(header.format)' in r("app/src/main/java/dev/skyrimsemobile/launcher/BsaEntryInspector.java")
-assert "Tes4MatchedNifVerifier.verify(in,candidate.entry," in ui
-assert "candidate.flags,candidate.archiveName)" in ui
+assert "BsaEntryInspector.inspectProfile(" in ui
+assert "candidate.flags)" in ui and "candidate.archiveName,profile)" in ui
 assert "Повторно проверить содержимое NIF" in ui
 assert "readAllBytes" not in ui
 assert "Tes4MatchedNifVerifier" in jvm
 assert "v235_nif_validation_contract_test.py" in wf
-assert "versionCode 61" in gradle and "versionName '2.38.0'" in gradle
+assert "versionCode 62" in gradle and "versionName '2.39.0'" in gradle
 print("PASS v2.35 bounded existing BSA-NIF decoder integrated")

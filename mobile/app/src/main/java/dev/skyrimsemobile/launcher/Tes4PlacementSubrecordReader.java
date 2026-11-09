@@ -17,18 +17,19 @@ public final class Tes4PlacementSubrecordReader {
         public final String type;
         public final long recordFormId, baseFormId;
         public final boolean hasBase, hasPose;
-        public final float x,y,z,rx,ry,rz;
+        public final float x,y,z,rx,ry,rz,scale;
         private Placement(String type,long formId,long base,boolean hasBase,boolean hasPose,
-                          float x,float y,float z,float rx,float ry,float rz) {
+                          float x,float y,float z,float rx,float ry,float rz,float scale) {
             this.type=type;this.recordFormId=formId;this.baseFormId=base;
             this.hasBase=hasBase;this.hasPose=hasPose;
             this.x=x;this.y=y;this.z=z;this.rx=rx;this.ry=ry;this.rz=rz;
+            this.scale=scale;
         }
         public boolean complete(){return hasBase&&hasPose;}
         public String format(){
             return String.format(Locale.ROOT,
-                "%s 0x%08X → NAME 0x%08X · xyz [%.2f, %.2f, %.2f] · поворот [%.3f, %.3f, %.3f] рад",
-                type,recordFormId,baseFormId,x,y,z,rx,ry,rz);
+                "%s 0x%08X → NAME 0x%08X · xyz [%.2f, %.2f, %.2f] · поворот [%.3f, %.3f, %.3f] рад · XSCL %.3f",
+                type,recordFormId,baseFormId,x,y,z,rx,ry,rz,scale);
         }
     }
 
@@ -39,8 +40,8 @@ public final class Tes4PlacementSubrecordReader {
         if(payload==null||payload.length>MAX_BODY)
             throw new IOException("Подзапись слишком велика");
         long base=0,extended=-1;
-        boolean hasBase=false,hasPose=false;
-        float x=0,y=0,z=0,rx=0,ry=0,rz=0;
+        boolean hasBase=false,hasPose=false,hasScale=false;
+        float x=0,y=0,z=0,rx=0,ry=0,rz=0,scale=1f;
         int pos=0, fields=0;
         while(pos<payload.length){
             if(++fields>8192||payload.length-pos<6)
@@ -71,11 +72,17 @@ public final class Tes4PlacementSubrecordReader {
                    ||!Float.isFinite(rx)||!Float.isFinite(ry)||!Float.isFinite(rz))
                     throw new IOException("Недопустимые координаты или вращение");
                 hasPose=true;
+            }else if("XSCL".equals(key)){
+                if(bytes!=4||hasScale)throw new IOException("Некорректный или повторный XSCL");
+                scale=f32(payload,pos);
+                if(!Float.isFinite(scale)||scale<0.01f||scale>100f)
+                    throw new IOException("Масштаб XSCL вне безопасного диапазона");
+                hasScale=true;
             }
             pos+=bytes;
         }
         if(extended>=0)throw new IOException("XXXX не сопровождается полем");
-        return new Placement(recordType,formId,base,hasBase,hasPose,x,y,z,rx,ry,rz);
+        return new Placement(recordType,formId,base,hasBase,hasPose,x,y,z,rx,ry,rz,scale);
     }
 
     private static int u16(byte[] b,int p){return (b[p]&255)|((b[p+1]&255)<<8);}

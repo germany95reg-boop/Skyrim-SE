@@ -31,6 +31,17 @@ public final class Tes4PlacementSubrecordReaderTest {
         assert p.complete()&&p.recordFormId==0x120030&&p.baseFormId==0x00ABCDEFL;
         assert Math.abs(p.x-100.25f)<0.01&&Math.abs(p.y+204.5f)<0.01;
         assert p.format().contains("NAME 0x00ABCDEF");
+        assert p.scale==1f;
+        ByteArrayOutputStream scaled=new ByteArrayOutputStream();
+        field(scaled,"NAME",i32(1));field(scaled,"DATA",pose(1,2,3));
+        field(scaled,"XSCL",i32(Float.floatToIntBits(1.5f)));
+        assert Tes4PlacementSubrecordReader.inspect("REFR",99,scaled.toByteArray()).scale==1.5f;
+        field(scaled,"XSCL",i32(Float.floatToIntBits(2f)));
+        fail(scaled.toByteArray());
+        ByteArrayOutputStream invalidScale=new ByteArrayOutputStream();
+        field(invalidScale,"NAME",i32(1));field(invalidScale,"DATA",pose(1,2,3));
+        field(invalidScale,"XSCL",i32(Float.floatToIntBits(Float.NaN)));
+        fail(invalidScale.toByteArray());
         var actor=Tes4PlacementSubrecordReader.inspect("ACHR",7,b.toByteArray());
         assert actor.complete()&&actor.type.equals("ACHR");
         ByteArrayOutputStream ext=new ByteArrayOutputStream();
