@@ -1,0 +1,46 @@
+name: Skyrim Cheat Overlay v0.3 APK
+on:
+  push:
+    branches: [build/skyrim-cheat-keyboard]
+    paths:
+      - 'tools/skyrim-cheat-overlay/**'
+      - '.github/workflows/skyrim-cheat-overlay.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: SDK
+        run: |
+          SDKMANAGER=$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | head -n 1)
+          test -n "$SDKMANAGER"
+          "$SDKMANAGER" --install 'platforms;android-35' 'build-tools;35.0.0'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.7'
+      - name: Build APK
+        working-directory: tools/skyrim-cheat-overlay
+        run: gradle --no-daemon :app:assembleDebug
+      - name: Verify signature
+        run: $ANDROID_HOME/build-tools/35.0.0/apksigner verify --verbose tools/skyrim-cheat-overlay/app/build/outputs/apk/debug/app-debug.apk
+      - name: Publish APK
+        if: github.ref == 'refs/heads/build/skyrim-cheat-keyboard'
+        run: |
+          mkdir -p deliverables
+          cp tools/skyrim-cheat-overlay/app/build/outputs/apk/debug/app-debug.apk deliverables/Skyrim-Cheat-Overlay-v0.3.apk
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
+          git add -f deliverables/Skyrim-Cheat-Overlay-v0.3.apk
+          git commit -m "build: publish Skyrim Cheat Overlay v0.3 [skip ci]"
+          git push origin HEAD:build/skyrim-cheat-keyboard
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Skyrim-Cheat-Overlay-v0.3-APK
+          path: tools/skyrim-cheat-overlay/app/build/outputs/apk/debug/app-debug.apk
