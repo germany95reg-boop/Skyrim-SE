@@ -24,11 +24,13 @@ import java.util.Locale;
 
 /** Read-only Skyrim SE file inspector via Android Storage Access Framework. */
 public final class ResourceInspectorActivity extends Activity {
-    private static final int PICK_DATA=707, PICK_RESOURCE=708, PICK_PLUGIN=709, PICK_GROUPS=710, PICK_NESTED_CELL=711, PICK_NESTED_WRLD=712;
+    private static final int PICK_DATA=707, PICK_RESOURCE=708, PICK_PLUGIN=709, PICK_GROUPS=710, PICK_NESTED_CELL=711, PICK_NESTED_WRLD=712, PICK_MODEL_BSA=713;
     public static final String PREF_REPORT="resource_inspector_report";
     private SharedPreferences prefs;
     private TextView report;
     private boolean closed=false;
+    private Tes4BaseFormResolver.Result lastBaseRecords;
+    private String lastNestedReport="";
     private String text="Готово к проверке. Выберите папку Data или отдельный файл BSA/NIF.\nФайлы не изменяются.";
     @Override public void onCreate(Bundle saved){
         super.onCreate(saved);
@@ -52,6 +54,8 @@ public final class ResourceInspectorActivity extends Activity {
         addButton(root,"Индекс ESM / ESP / ESL · группы GRUP",()->selectGroupFile());
         addButton(root,"Записи CELL · FormID / базовые модели (образец)",()->selectNestedFile(PICK_NESTED_CELL));
         addButton(root,"Записи WRLD · FormID / базовые модели (образец)",()->selectNestedFile(PICK_NESTED_WRLD));
+        addButton(root,"Сопоставить модели MODL с BSA",()->matchSelectedBsa(false));
+        addButton(root,"Выбрать другой BSA для моделей",()->matchSelectedBsa(true));
         addButton(root,"Каталог BSA v105 · выбор и проверка NIF",()->startActivity(new Intent(this,BsaCatalogActivity.class)));
         addButton(root,"Скопировать отчёт",()->{
             ClipboardManager cb=(ClipboardManager)getSystemService(Context.CLIPBOARD_SERVICE);
@@ -119,6 +123,12 @@ public final class ResourceInspectorActivity extends Activity {
         else if(req==PICK_GROUPS)inspectPluginGroups(uri);
         else if(req==PICK_NESTED_CELL)inspectNested(uri,"CELL");
         else if(req==PICK_NESTED_WRLD)inspectNested(uri,"WRLD");
+        else if(req==PICK_MODEL_BSA){
+            String archiveName=getName(uri);
+            BsaSessionStore session=new BsaSessionStore(this);
+            if(session.retainReadPermission(uri))session.saveArchive(uri,archiveName);
+            inspectModelArchive(uri,archiveName);
+        }
     }
     private void scanCurrent(){
         String saved=prefs.getString("resource_data_uri","");
@@ -187,7 +197,54 @@ public final class ResourceInspectorActivity extends Activity {
             }
         },"tes4-grup-index").start();
     }
+    private void matchSelectedBsa(boolean forcePicker){
+        if(lastBaseRecords==null){
+            update("Сначала проверь записи CELL или WRLD в ESM/ESP/ESL, "
+                   +"чтобы получить базовые FormID и пути MODL.");
+            return;
+        }
+        if(!forcePicker){
+            BsaSessionStore session=new BsaSessionStore(this);
+            Uri saved=new BsaSessionStore(this).lastArchive();
+            if(saved!=null){
+                inspectModelArchive(saved,session.archiveDisplayName());
+                return;
+            }
+        }
+        Intent intent=new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType("*/*");
+        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION|
+                        Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
+        startActivityForResult(intent,PICK_MODEL_BSA);
+    }
+    private void inspectModelArchive(Uri uri,String archiveName){
+        final Tes4BaseFormResolver.Result baseRecords=lastBaseRecords;
+        final String baseReport=lastNestedReport;
+        if(baseRecords==null){update("Нет результатов базовых записей.");return;}
+        if(archiveName==null||!archiveName.toLowerCase(Locale.ROOT).endsWith(".bsa")){
+            update(baseReport+"\n\nДля проверки выберите архив с расширением .bsa");
+            return;
+        }
+        update(baseReport+"\n\nСопоставляю пути MODL с каталогом "+archiveName+"...");
+        new Thread(()->{
+            try(InputStream in=getContentResolver().openInputStream(uri)){
+                BsaCatalogReader.Catalog catalogue=BsaCatalogReader.read(in);
+                Tes4BsaModelMatcher.Result matches=Tes4BsaModelMatcher.match(
+                    baseRecords.found.values(),catalogue,archiveName);
+                String message=baseReport+"\n\n"+matches+
+                    "\nИсходные файлы не изменялись.";
+                runOnUiThread(()->update(message));
+            }catch(Exception e){
+                String message=baseReport+"\n\nОшибка проверки BSA: "+
+                    e.getClass().getSimpleName()+": "+e.getMessage();
+                runOnUiThread(()->update(message));
+            }
+        },"tes4-bsa-model-match").start();
+    }
     private void inspectNested(Uri uri,String section){
+        lastBaseRecords=null;
+        lastNestedReport="";
         update("Читаю вложенные заголовки "+section+" · ограниченный образец...");
         new Thread(()->{
             try{
@@ -202,11 +259,13 @@ public final class ResourceInspectorActivity extends Activity {
                 }
                 StringBuilder output=new StringBuilder("Файл: ").append(name)
                     .append("\n").append(result);
+                Tes4BaseFormResolver.Result bases=null;
                 if(!result.placements.isEmpty()){
                     try(InputStream baseIn=getContentResolver().openInputStream(uri)){
                         Tes4BaseFormResolver.Result resolved=
                             Tes4BaseFormResolver.resolve(baseIn,result.placements,fileSize);
                         output.append("\n\n").append(resolved.report(result.placements));
+                        bases=resolved;
                     }catch(Exception lookupError){
                         output.append("\n\nБазовые записи: чтение не удалось: ")
                             .append(lookupError.getClass().getSimpleName())
@@ -215,7 +274,12 @@ public final class ResourceInspectorActivity extends Activity {
                 }
                 output.append("\nИсходные файлы не изменялись.");
                 String message=output.toString();
-                runOnUiThread(()->update(message));
+                final Tes4BaseFormResolver.Result readyBases=bases;
+                runOnUiThread(()->{
+                    lastBaseRecords=readyBases;
+                    lastNestedReport=message;
+                    update(message);
+                });
             }catch(Exception e){
                 String message="Ошибка вложенных записей "+section+": "+e.getClass().getSimpleName()+": "+e.getMessage();
                 runOnUiThread(()->update(message));

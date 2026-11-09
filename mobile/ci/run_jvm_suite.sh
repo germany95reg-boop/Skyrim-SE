@@ -36,7 +36,7 @@ sources=(
   PreviewMaterial RecentNifPaths ResourceHeaderInspector SceneFraming
   DeviceSelfTestReport FpsAutotestSequence VulkanFrameSanity
   Tes4PluginHeaderReader Tes4TopLevelGroupReader Tes4NestedRecordSampler
-  Tes4PlacementSubrecordReader Tes4BaseFormResolver
+  Tes4PlacementSubrecordReader Tes4BaseFormResolver Tes4BsaModelMatcher
 )
 args=()
 for name in "${sources[@]}"; do
