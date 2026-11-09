@@ -28,9 +28,10 @@ public final class ResourceInspectorActivity extends Activity {
     public static final String PREF_REPORT="resource_inspector_report";
     private SharedPreferences prefs;
     private TextView report;
-    private boolean closed=false;
+    private volatile boolean closed=false;
     private Tes4BaseFormResolver.Result lastBaseRecords;
-    private long multiArchiveScanSequence=0;
+    private volatile long multiArchiveScanSequence=0;
+    private volatile long nifVerificationSequence=0;
     private String lastNestedReport="";
     private String lastMultiBsaReport="";
     private java.util.List<ModelProbeCandidate> lastNifCandidates=java.util.Collections.emptyList();
@@ -255,6 +256,7 @@ public final class ResourceInspectorActivity extends Activity {
             return;
         }
         final long sequence=multiArchiveScanSequence;
+        final long verification=++nifVerificationSequence;
         update(searchReport+"\n\nЧитаю первые найденные NIF (не более 3 записей)...");
         new Thread(()->{
             StringBuilder sb=new StringBuilder(searchReport);
@@ -262,7 +264,16 @@ public final class ResourceInspectorActivity extends Activity {
             int inspected=0,valid=0;
             for(ModelProbeCandidate candidate:candidates){
                 if(inspected>=Tes4MatchedNifVerifier.MAX_MODELS)break;
+                if(sequence!=multiArchiveScanSequence||
+                   verification!=nifVerificationSequence||closed)return;
                 inspected++;
+                final int progress=inspected;
+                runOnUiThread(()->{
+                    if(sequence==multiArchiveScanSequence&&
+                       verification==nifVerificationSequence)
+                        update(searchReport+"\n\nПроверка содержимого NIF: "+
+                               progress+" / "+candidates.size()+"...");
+                });
                 try(InputStream in=getContentResolver().openInputStream(candidate.archiveUri)){
                     Tes4MatchedNifVerifier.Verification result=
                         Tes4MatchedNifVerifier.verify(in,candidate.entry,
@@ -281,7 +292,8 @@ public final class ResourceInspectorActivity extends Activity {
             sb.append("Распаковка только в памяти; без записи ресурсов и рендеринга.");
             String finalReport=sb.toString();
             runOnUiThread(()->{
-                if(sequence==multiArchiveScanSequence)update(finalReport);
+                if(sequence==multiArchiveScanSequence&&
+                   verification==nifVerificationSequence)update(finalReport);
             });
         },"tes4-bsa-nif-verify").start();
     }
@@ -350,7 +362,14 @@ public final class ResourceInspectorActivity extends Activity {
                         lastNifCandidates=java.util.Collections.unmodifiableList(
                             new java.util.ArrayList<>(verifiedCandidates));
                         lastMultiBsaReport=full;
-                        update(full);
+                        if(lastNifCandidates.isEmpty()){
+                            update(full+"\n\nПроверка содержимого NIF: "+
+                                "нечего проверять — совпадений NIF нет.");
+                        }else{
+                            update(full+"\n\nПроверка содержимого NIF "+
+                                "запускается автоматически...");
+                            verifyFoundModels();
+                        }
                     }
                 });
             }catch(Exception e){
@@ -409,6 +428,7 @@ public final class ResourceInspectorActivity extends Activity {
     }
     private void inspectNested(Uri uri,String section){
         multiArchiveScanSequence++;
+        nifVerificationSequence++;
         lastNifCandidates=java.util.Collections.emptyList();
         lastMultiBsaReport="";
         lastBaseRecords=null;
@@ -533,5 +553,5 @@ public final class ResourceInspectorActivity extends Activity {
         }
         return items;
     }
-    @Override protected void onDestroy(){closed=true;super.onDestroy();}
+    @Override protected void onDestroy(){closed=true;multiArchiveScanSequence++;nifVerificationSequence++;super.onDestroy();}
 }
