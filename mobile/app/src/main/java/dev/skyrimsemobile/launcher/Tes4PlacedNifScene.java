@@ -2,6 +2,8 @@ package dev.skyrimsemobile.launcher;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Locale;
 import java.util.Map;
 
@@ -22,19 +24,30 @@ public final class Tes4PlacedNifScene {
     }
     public static Link findVisible(List<Tes4PlacementSubrecordReader.Placement> poses,
                                    Map<Long,Tes4BaseFormResolver.Base> bases,
-                                   String nifPath)throws IOException{
-        if(poses==null||bases==null)return null;
+                                   String nifPath)throws IOException {
+        List<Link> links=findVisibleAll(poses,bases,nifPath);
+        return links.isEmpty()?null:links.get(0);
+    }
+    /** All visible static REFR instances matching one NIF; preserve source order. */
+    public static List<Link> findVisibleAll(List<Tes4PlacementSubrecordReader.Placement> poses,
+                                            Map<Long,Tes4BaseFormResolver.Base> bases,
+                                            String nifPath)throws IOException {
+        if(poses==null||bases==null)return Collections.emptyList();
         String path=Tes4BsaModelMatcher.canonicalNif(nifPath);
-        for(Tes4PlacementSubrecordReader.Placement pose:poses){
+        List<Link> links=new ArrayList<>();
+        for(Tes4PlacementSubrecordReader.Placement pose:poses) {
             if(!"REFR".equals(pose.type)||!pose.complete())continue;
             Tes4BaseFormResolver.Base base=bases.get(pose.baseFormId);
             if(base==null||base.modelPath==null||base.modelPath.isEmpty())continue;
-            if(base.editorId.toLowerCase(Locale.ROOT).contains("marker")||
-               base.editorId.toLowerCase(Locale.ROOT).contains("collision"))continue;
-            if(!path.equals(Tes4BsaModelMatcher.canonicalNif(base.modelPath)))continue;
-            return new Link(pose,base,path);
+            String editor=base.editorId==null?"":base.editorId.toLowerCase(Locale.ROOT);
+            if(editor.contains("marker")||editor.contains("collision"))continue;
+            try{
+                if(!path.equals(Tes4BsaModelMatcher.canonicalNif(base.modelPath)))continue;
+            }catch(IOException malformed){continue;}
+            links.add(new Link(pose,base,path));
+            if(links.size()>=64)break;
         }
-        return null;
+        return Collections.unmodifiableList(links);
     }
 
     public static final class Preview {
@@ -42,7 +55,7 @@ public final class Tes4PlacedNifScene {
         public final float[] triangles;
         public final int shapes,skipped,triangleCount;
         public final String label,details;
-        private Preview(ObjWireParser.Model lines,float[] triangles,int shapes,int skipped,
+        Preview(ObjWireParser.Model lines,float[] triangles,int shapes,int skipped,
                         int triangleCount,String label,String details){
             this.lines=lines;this.triangles=triangles;
             this.shapes=shapes;this.skipped=skipped;this.triangleCount=triangleCount;
@@ -141,7 +154,7 @@ public final class Tes4PlacedNifScene {
             throw new IOException("Переполнение мировых координат");
         return new double[]{wx,wy,wz};
     }
-    private static double[] worldVertex(NifGeometryDecoder.Mesh mesh,float[] array,int offset,
+    static double[] worldVertex(NifGeometryDecoder.Mesh mesh,float[] array,int offset,
                                         NifHierarchyTransforms.Transform parent,
                                         Tes4PlacementSubrecordReader.Placement p)throws IOException{
         double x=mesh.localMin[0]+((double)array[offset]*0.5+0.5)*mesh.localSpan;

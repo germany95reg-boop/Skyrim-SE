@@ -24,7 +24,7 @@ public final class Tes4BaseFormResolver {
     private static final int MAX_HEADERS=60000;
     private static final long MAX_SCANNED_BYTES=24L*1024*1024;
     private static final int MAX_RECORD_BODY=65536;
-    private static final int MAX_TARGET_IDS=16;
+    private static final int MAX_TARGET_IDS=32;
     private static final Charset TEXT=Charset.forName("windows-1252");
     private static final Set<String> TYPES;
     static{

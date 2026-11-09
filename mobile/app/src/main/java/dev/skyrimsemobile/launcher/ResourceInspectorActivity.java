@@ -431,6 +431,9 @@ public final class ResourceInspectorActivity extends Activity {
             sb.append("\n\nПроверка содержимого найденных NIF · только чтение\n");
             int inspected=0,valid=0;
             Tes4PlacedNifScene.Preview preparedPreview=null;
+            Tes4LocalWorldScene.Builder localScene=new Tes4LocalWorldScene.Builder();
+            Tes4PlacedNifScene.Link fallbackLink=null;
+            NifGeometryDecoder.Parts fallbackParts=null;
             String previewNote="";
             for(ModelProbeCandidate candidate:candidates){
                 if(inspected>=Tes4MatchedNifVerifier.MAX_MODELS)break;
@@ -451,22 +454,22 @@ public final class ResourceInspectorActivity extends Activity {
                         new Tes4MatchedNifVerifier.Verification(candidate.archiveName,profile);
                     sb.append(result.report()).append('\n');
                     valid++;
-                    if(preparedPreview==null&&profile.staticParts!=null&&
-                       profile.staticParts.available>0){
-                        Tes4PlacedNifScene.Link link=Tes4PlacedNifScene.findVisible(
-                            linkedPoses,linkedBases,candidate.entry.path);
-                        if(link!=null){
+                    if(profile.staticParts!=null&&profile.staticParts.available>0){
+                        java.util.List<Tes4PlacedNifScene.Link> links=
+                            Tes4PlacedNifScene.findVisibleAll(
+                                linkedPoses,linkedBases,candidate.entry.path);
+                        if(!links.isEmpty()&&fallbackLink==null){
+                            fallbackLink=Tes4PlacedNifScene.findVisible(
+                                linkedPoses,linkedBases,candidate.entry.path);
+                            fallbackParts=profile.staticParts;
+                        }
+                        for(Tes4PlacedNifScene.Link link:links){
                             try{
-                                preparedPreview=Tes4PlacedNifScene.compose(
-                                    profile.staticParts,link);
-                                previewNote="3D-предпросмотр подготовлен: "+
-                                    link.base.editorId+" · REFR 0x"+
-                                    Long.toHexString(link.pose.recordFormId).toUpperCase(Locale.ROOT)+
-                                    " · "+preparedPreview.shapes+" частей · "+
-                                    preparedPreview.triangleCount+" треугольников.";
-                            }catch(java.io.IOException previewError){
-                                previewNote="3D-предпросмотр этой модели ограничен: "+
-                                    previewError.getMessage();
+                                localScene.add(profile.staticParts,link);
+                            }catch(java.io.IOException problem){
+                                sb.append("3D: REFR 0x")
+                                  .append(Long.toHexString(link.pose.recordFormId).toUpperCase(Locale.ROOT))
+                                  .append(" пропущен: ").append(problem.getMessage()).append('\n');
                             }
                         }
                     }
@@ -475,6 +478,24 @@ public final class ResourceInspectorActivity extends Activity {
                       .append(candidate.archiveName).append(" · ОШИБКА: ")
                       .append(e.getClass().getSimpleName()).append(": ")
                       .append(e.getMessage()).append('\n');
+                }
+            }
+            if(localScene.instances()>0){
+                try{
+                    preparedPreview=localScene.build();
+                    previewNote="3D-предпросмотр подготовлен: "+localScene.summary();
+                }catch(java.io.IOException error){
+                    previewNote="Локальная 3D-сцена ограничена: "+error.getMessage();
+                }
+            }
+            if(preparedPreview==null&&fallbackLink!=null&&fallbackParts!=null){
+                try{
+                    preparedPreview=Tes4PlacedNifScene.compose(fallbackParts,fallbackLink);
+                    previewNote="3D-предпросмотр одного объекта: "+
+                        fallbackLink.base.editorId+" · "+
+                        preparedPreview.triangleCount+" треугольников.";
+                }catch(java.io.IOException error){
+                    previewNote="3D-предпросмотр не готов: "+error.getMessage();
                 }
             }
             sb.append("Проверено: ").append(inspected)

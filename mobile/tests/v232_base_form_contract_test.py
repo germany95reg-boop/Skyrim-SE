@@ -8,7 +8,7 @@ jvm=r("ci/run_jvm_suite.sh")
 gradle=r("app/build.gradle")
 wf=r("../.github/workflows/android-quality-gates.yml")
 checks={
-"target limited":'MAX_TARGET_IDS=16' in src,
+"target limited":'MAX_TARGET_IDS=32' in src,
 "record limit":'MAX_HEADERS=60000' in src,
 "byte limit":'MAX_SCANNED_BYTES=24L*1024*1024' in src,
 "payload limit":'MAX_RECORD_BODY=65536' in src,
@@ -21,7 +21,7 @@ checks={
 "no whole game load":'readAllBytes' not in src,
 "UI reopens selected plugin":'Tes4BaseFormResolver.resolve(baseIn,result.placements,fileSize)' in ui,
 "JVM test":'Tes4BaseFormResolver' in jvm,
-"package version":"versionCode 63" in gradle and "versionName '2.40.0'" in gradle,
+"package version":"versionCode 64" in gradle and "versionName '2.41.0'" in gradle,
 "CI contract":'v232_base_form_contract_test.py' in wf,
 }
 assert all(checks.values()),[k for k,v in checks.items() if not v]

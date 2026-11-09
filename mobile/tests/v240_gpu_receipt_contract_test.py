@@ -22,5 +22,5 @@ assert 'nifDimensions=nif.details' in vulkan
 assert 'счётчики Vulkan' in receipt
 assert 'VulkanPlacedPreviewReceiptTest' in r("tests/VulkanPlacedPreviewReceiptTest.java")
 assert "v240_gpu_receipt_contract_test.py" in wf
-assert "versionCode 63" in gradle and "versionName '2.40.0'" in gradle
+assert "versionCode 64" in gradle and "versionName '2.41.0'" in gradle
 print("PASS v2.40 model-matched real Vulkan frame receipt without pixel claims")

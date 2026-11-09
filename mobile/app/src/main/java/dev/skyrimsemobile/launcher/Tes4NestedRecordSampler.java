@@ -22,8 +22,8 @@ public final class Tes4NestedRecordSampler {
     private static final int MAX_DEPTH=24;
     private static final long MAX_SECTION_BYTES=16L*1024*1024;
     private static final int MAX_SAMPLES=16;
-    private static final int MAX_PLACEMENTS=8;
-    private static final int MAX_PLACEMENT_PROBES=40;
+    private static final int MAX_PLACEMENTS=20;
+    private static final int MAX_PLACEMENT_PROBES=60;
     private Tes4NestedRecordSampler(){}
 
     public static final class Record {

@@ -20,7 +20,7 @@ checks={
 "no payload rewrite":'openOutputStream' not in nested,
 "test fixtures":'static void main(String[] a)' in test,
 "JVM CI includes parser":'Tes4PlacementSubrecordReader' in jvm,
-"upgrade identity":"versionCode 63" in gradle and "versionName '2.40.0'" in gradle,
+"upgrade identity":"versionCode 64" in gradle and "versionName '2.41.0'" in gradle,
 "CI contract":'v231_placement_contract_test.py' in workflow,
 }
 assert all(checks.values()),[k for k,v in checks.items() if not v]
