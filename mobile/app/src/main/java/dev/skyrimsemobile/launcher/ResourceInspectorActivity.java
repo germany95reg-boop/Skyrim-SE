@@ -129,7 +129,10 @@ public final class ResourceInspectorActivity extends Activity {
     }
     private void clearPlacedPreview(){
         lastPreview=null;
-        if(previewButton!=null)previewButton.setVisibility(View.GONE);
+        if(previewButton!=null){
+            previewButton.setVisibility(View.GONE);
+            previewButton.setText("Просмотреть найденный объект в 3D");
+        }
     }
     private void openPlacedPreview(){
         Tes4PlacedNifScene.Preview preview=lastPreview;
@@ -432,6 +435,7 @@ public final class ResourceInspectorActivity extends Activity {
             int inspected=0,valid=0;
             Tes4PlacedNifScene.Preview preparedPreview=null;
             Tes4LocalWorldScene.Builder localScene=new Tes4LocalWorldScene.Builder();
+            Tes4LocalWorldScene.Planner sceneCandidates=new Tes4LocalWorldScene.Planner();
             Tes4PlacedNifScene.Link fallbackLink=null;
             NifGeometryDecoder.Parts fallbackParts=null;
             String previewNote="";
@@ -465,7 +469,7 @@ public final class ResourceInspectorActivity extends Activity {
                         }
                         for(Tes4PlacedNifScene.Link link:links){
                             try{
-                                localScene.add(profile.staticParts,link);
+                                sceneCandidates.offer(profile.staticParts,link);
                             }catch(java.io.IOException problem){
                                 sb.append("3D: REFR 0x")
                                   .append(Long.toHexString(link.pose.recordFormId).toUpperCase(Locale.ROOT))
@@ -480,10 +484,16 @@ public final class ResourceInspectorActivity extends Activity {
                       .append(e.getMessage()).append('\n');
                 }
             }
+            try{
+                localScene=sceneCandidates.best();
+            }catch(java.io.IOException error){
+                sb.append("Выбор локальной 3D-сцены: ").append(error.getMessage()).append('\n');
+            }
             if(localScene.instances()>0){
                 try{
                     preparedPreview=localScene.build();
-                    previewNote="3D-предпросмотр подготовлен: "+localScene.summary();
+                    previewNote="3D-предпросмотр подготовлен: "+localScene.summary()+
+                        "\nВыбор группы: "+sceneCandidates.summary();
                 }catch(java.io.IOException error){
                     previewNote="Локальная 3D-сцена ограничена: "+error.getMessage();
                 }
@@ -514,8 +524,13 @@ public final class ResourceInspectorActivity extends Activity {
                 if(!closed&&sequence==multiArchiveScanSequence&&
                    verification==nifVerificationSequence){
                     lastPreview=readyPreview;
-                    if(previewButton!=null)
+                    if(previewButton!=null){
                         previewButton.setVisibility(readyPreview==null?View.GONE:View.VISIBLE);
+                        if(readyPreview!=null)
+                            previewButton.setText(readyPreview.label.contains("локальная 3D-сцена")?
+                                "Просмотреть локальную сцену в 3D":
+                                "Просмотреть найденный объект в 3D");
+                    }
                     update(finalReport);
                 }
             });
