@@ -23,10 +23,10 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-      - name: Android SDK
-        uses: android-actions/setup-android@v3
       - name: Install SDK packages
-        run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
+        run: |
+          echo "SDK at $ANDROID_HOME"
+          sdkmanager --install 'platforms;android-35' 'build-tools;35.0.0'
       - name: Gradle 8.7
         uses: gradle/actions/setup-gradle@v4
         with:
@@ -34,7 +34,7 @@ jobs:
       - name: Compile debug APK
         working-directory: tools/skyrim-cheat-keyboard
         run: gradle --no-daemon :app:assembleDebug
-      - name: Verify APK certificate
+      - name: Verify APK signature
         run: $ANDROID_HOME/build-tools/35.0.0/apksigner verify --verbose tools/skyrim-cheat-keyboard/app/build/outputs/apk/debug/app-debug.apk
       - name: Publish APK for download on branch
         if: github.event_name == 'push' && github.ref == 'refs/heads/build/skyrim-cheat-keyboard'
