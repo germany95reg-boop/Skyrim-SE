@@ -7,7 +7,7 @@ ui=r("app/src/main/java/dev/skyrimsemobile/launcher/ResourceInspectorActivity.ja
 jvm=r("ci/run_jvm_suite.sh")
 gradle=r("app/build.gradle")
 wf=r("../.github/workflows/android-quality-gates.yml")
-assert "BsaEntryInspector.inspect(in,entry,archiveFlags)" in verify
+assert "BsaEntryInspector.inspectProfile(in,entry,archiveFlags)" in verify
 assert "MAX_MODELS=3" in verify
 assert '!"NIF".equals(parsed.header.format)' in verify
 assert "Tes4MatchedNifVerifier.verify(in,candidate.entry," in ui
