@@ -16,7 +16,7 @@ assert 'final long verification=++nifVerificationSequence;' in ui
 assert 'verification==nifVerificationSequence' in ui
 assert 'Проверка содержимого найденных NIF' in ui
 assert 'Tes4MatchedNifVerifier.verify(in,candidate.entry,' in ui
-assert 'BsaEntryInspector.inspect(in,entry,archiveFlags)' in verifier
+assert 'BsaEntryInspector.inspectProfile(in,entry,archiveFlags)' in verifier
 assert 'MAX_PACKED = 8 * 1024 * 1024' in entry
 assert 'MAX_DECODED = 16 * 1024 * 1024' in entry
 assert 'v236_nif_auto_contract_test.py' in wf

@@ -9,7 +9,7 @@ gradle=r("app/build.gradle")
 wf=r("../.github/workflows/android-quality-gates.yml")
 assert "BsaEntryInspector.inspectProfile(in,entry,archiveFlags)" in verify
 assert "MAX_MODELS=3" in verify
-assert '!"NIF".equals(parsed.header.format)' in verify
+assert '!"NIF".equals(header.format)' in r("app/src/main/java/dev/skyrimsemobile/launcher/BsaEntryInspector.java")
 assert "Tes4MatchedNifVerifier.verify(in,candidate.entry," in ui
 assert "candidate.flags,candidate.archiveName)" in ui
 assert "Повторно проверить содержимое NIF" in ui
