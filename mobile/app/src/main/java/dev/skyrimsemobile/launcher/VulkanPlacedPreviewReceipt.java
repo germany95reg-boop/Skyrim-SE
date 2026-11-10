@@ -39,4 +39,48 @@ public final class VulkanPlacedPreviewReceipt {
             "проверки нужен скриншот с телефона.");
         return new Result(ok,report);
     }
+    /**
+     * v2.43: native counters and on-device PixelCopy are distinct checks.
+     * PixelCopy only detects pixels unlike the Vulkan clear background.
+     * It cannot verify that geometry, textures or game lighting are correct.
+     */
+    public static Result assessWithPixelCopy(String expected,String actual,boolean running,
+           boolean error,long frames,int edges,int triangles,int width,int height,
+           double fps,String captureStatus,String captureNote,
+           int nonBackground,int sampledPixels,int foregroundWidth,int foregroundHeight){
+        Result nativeReceipt=assess(expected,actual,running,error,
+            frames,edges,triangles,width,height,fps);
+        String status=captureStatus==null?"not-requested":captureStatus;
+        String image;
+        boolean pixelMismatch=false;
+        if("visible".equals(status)||"small".equals(status)){
+            if(sampledPixels<=0||nonBackground<0||nonBackground>sampledPixels||
+               foregroundWidth<1||foregroundHeight<1){
+                image="Недостоверные счётчики PixelCopy — изображение не подтверждено.";
+            }else{
+                image=String.format(Locale.ROOT,
+                    "PixelCopy: %s · %d/%d отличающихся от фона пикселей · "+
+                    "границы %d×%d. Это эвристический признак, а не сверка Skyrim.",
+                    "small".equals(status)?"WARN: изображение слишком мало":
+                                   "обнаружен рисунок на Vulkan-поверхности",
+                    nonBackground,sampledPixels,foregroundWidth,foregroundHeight);
+            }
+        }else if("blank".equals(status)){
+            pixelMismatch=true;
+            image="PixelCopy: WARN — реальный Vulkan-кадр не содержит "+
+                  "достаточных признаков видимой геометрии.";
+        }else if("timeout".equals(status)){
+            image="PixelCopy: WARN — копирование кадра превысило лимит ожидания.";
+        }else if("error".equals(status)){
+            image="PixelCopy: WARN — не удалось прочитать кадр Vulkan.";
+        }else{
+            image="PixelCopy: не проверен; нативные счётчики не подтверждают изображение.";
+        }
+        if(captureNote!=null&&!captureNote.isEmpty())
+            image+="\nДетали PixelCopy: "+captureNote;
+        if(pixelMismatch&&nativeReceipt.passed)
+            return new Result(false,nativeReceipt.report+"\n"+image);
+        return new Result(nativeReceipt.passed,nativeReceipt.report+"\n"+image);
+    }
+
 }
