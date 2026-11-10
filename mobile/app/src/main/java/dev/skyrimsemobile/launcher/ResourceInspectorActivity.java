@@ -605,6 +605,103 @@ public final class ResourceInspectorActivity extends Activity {
             });
         },"tes4-bsa-nif-verify").start();
     }
+
+    private static final class LocalSceneDds {
+        final java.util.Map<String,DdsBcDecoder.Image> decoded;
+        final int archivesChecked;
+        LocalSceneDds(java.util.Map<String,DdsBcDecoder.Image> decoded,int checked){
+            this.decoded=decoded;archivesChecked=checked;
+        }
+    }
+    private static final class SceneDdsFile {
+        final Uri uri;
+        final BsaCatalogReader.Entry entry;
+        final long flags;
+        SceneDdsFile(Uri uri,BsaCatalogReader.Entry entry,long flags){
+            this.uri=uri;this.entry=entry;this.flags=flags;
+        }
+    }
+
+    /**
+     * v2.44: resolve exact NIF-declared diffuse DDS names in the same granted
+     * Skyrim/Data tree. Index up to 24 BSA (texture archives first), decode at
+     * most 15 first mips and 4 MiPixels. No path guessing or file writes.
+     * All failures are optional: callers retain their untextured scene.
+     */
+    private LocalSceneDds loadLocalSceneDds(
+            java.util.List<String> requested,long sequence,long verification)
+            throws java.io.IOException{
+        java.util.Map<String,DdsBcDecoder.Image> decoded=
+            new java.util.LinkedHashMap<>();
+        if(requested==null||requested.isEmpty())
+            return new LocalSceneDds(decoded,0);
+        Uri tree=persistedDataTree();
+        if(tree==null)throw new java.io.IOException("нет доступа к папке Skyrim/Data");
+        String rootId=DocumentsContract.getTreeDocumentId(tree);
+        String dataId=rootId;
+        if(!SkyrimAutoDiscovery.dataDirectory(nameDocument(tree,rootId))){
+            String child=findFolder(tree,rootId,"Data");
+            if(child!=null)dataId=child;
+        }
+        java.util.ArrayList<Item> entries=readChildren(tree,dataId,4096);
+        java.util.ArrayList<Item> archives=new java.util.ArrayList<>();
+        for(Item entry:entries)
+            if(!entry.directory&&entry.name.toLowerCase(Locale.ROOT).endsWith(".bsa"))
+                archives.add(entry);
+        archives.sort((a,b)->{
+            boolean ta=a.name.toLowerCase(Locale.ROOT).contains("textures");
+            boolean tb=b.name.toLowerCase(Locale.ROOT).contains("textures");
+            if(ta!=tb)return ta?-1:1;
+            return a.name.compareToIgnoreCase(b.name);
+        });
+        java.util.Map<String,String> wanted=new java.util.LinkedHashMap<>(
+            DdsArchiveFinder.targets(requested));
+        java.util.Map<String,SceneDdsFile> found=new java.util.LinkedHashMap<>();
+        int checked=0;
+        for(Item archive:archives){
+            if(wanted.isEmpty()||checked>=24)break;
+            if(closed||sequence!=multiArchiveScanSequence||
+               verification!=nifVerificationSequence)
+                throw new java.io.IOException("Поиск DDS отменён новым сканированием");
+            checked++;
+            Uri uri=DocumentsContract.buildDocumentUriUsingTree(tree,archive.id);
+            try(InputStream in=getContentResolver().openInputStream(uri)){
+                if(in==null)continue;
+                BsaCatalogReader.Catalog catalog=BsaCatalogReader.read(in);
+                for(DdsArchiveFinder.Hit hit:DdsArchiveFinder.find(
+                        catalog,wanted,archive.name)){
+                    String key=DdsArchiveFinder.normalizeDds(hit.declaredPath);
+                    if(found.containsKey(key))continue;
+                    found.put(key,new SceneDdsFile(uri,
+                        new BsaCatalogReader.Entry(
+                            hit.entryPath,hit.storedBytes,hit.offset,hit.compressed),
+                        catalog.flags));
+                    wanted.remove(key);
+                }
+            }catch(java.io.IOException unsupported){
+                // Missing/corrupt archives are not grounds to discard NIF meshes.
+            }
+        }
+        long totalPixels=0;
+        for(java.util.Map.Entry<String,SceneDdsFile> match:found.entrySet()){
+            if(closed||sequence!=multiArchiveScanSequence||
+               verification!=nifVerificationSequence)
+                throw new java.io.IOException("Загрузка DDS отменена");
+            try(InputStream in=getContentResolver().openInputStream(match.getValue().uri)){
+                if(in==null)continue;
+                DdsBcDecoder.Image image=BsaDdsPixelReader.preview(
+                    in,match.getValue().entry,match.getValue().flags);
+                long pixels=(long)image.width*image.height;
+                if(pixels<=0||totalPixels+pixels>4L*1024*1024)continue;
+                totalPixels+=pixels;
+                decoded.put(match.getKey(),image);
+            }catch(java.io.IOException corrupt){
+                // Neutral atlas material for this specific missing DDS.
+            }
+        }
+        return new LocalSceneDds(decoded,checked);
+    }
+
     private void scanAllModelArchives(Uri tree){
         scanAllModelArchives(tree,null);
     }
