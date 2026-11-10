@@ -198,6 +198,9 @@ public final class Tes4LocalWorldSceneTest {
         var colorAtlas=colorOnly.diffuseAtlas(
             java.util.Collections.emptyMap(),java.util.Collections.emptyMap());
         assert colorAtlas!=null:"RGBA-only geometry lost without DDS";
+        var nullMapsAtlas=colorOnly.diffuseAtlas(null,null);
+        assert nullMapsAtlas!=null&&nullMapsAtlas.vertexColorTriangles==1:
+            "RGBA-only geometry must survive absent material maps";
         assert colorAtlas.textureCount==0&&colorAtlas.vertexColorTriangles==1;
         assert colorAtlas.vertexColors.length==12;
         assert colorAtlas.uvAndSlot[2]==-1f;
