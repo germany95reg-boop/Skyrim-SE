@@ -41,8 +41,8 @@ checks={
  "normal-safe still used":'normal-safe' in native,
  "fps modes unchanged":'recordFpsModes(stats,completed)' in activity,
  "no internet permission":'android.permission.INTERNET' not in manifest,
- "APK in-place update":"versionCode 69" in gradle and
-      "versionName '2.46.0'" in gradle,
+ "APK in-place update":"versionCode 70" in gradle and
+      "versionName '2.47.0'" in gradle,
  "stable package id":"applicationId 'dev.skyrimsemobile.launcher'" in gradle,
  "source check mandatory":"v223_geometry_camera_contract_test.py" in workflow,
 }

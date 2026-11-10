@@ -16,7 +16,7 @@ checks={
  "Android SAF selector":'selectPlugin()' in ui,
  "UI parser output":'Tes4PluginHeaderReader.inspect(in)' in ui,
  "JVM coverage":'Tes4PluginHeaderReader' in jvm,
- "signed update":"versionCode 69" in gradle and "versionName '2.46.0'" in gradle,
+ "signed update":"versionCode 70" in gradle and "versionName '2.47.0'" in gradle,
  "CI":'v227_tes4_plugin_contract_test.py' in workflow,
 }
 assert all(checks.values()),[k for k,v in checks.items() if not v]

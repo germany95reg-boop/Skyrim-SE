@@ -50,8 +50,8 @@ checks={
  "legacy model transfer preserved":'static synchronized void offerTextured(' in transfer,
  "user footer remains removed":'Отчёт не отправлялся автоматически' not in report,
  "never adds network/upload permission":'android.permission.INTERNET' not in manifest,
- "stable upgrade and package identity":'versionCode 69' in gradle and
-     "versionName '2.46.0'" in gradle and
+ "stable upgrade and package identity":'versionCode 70' in gradle and
+     "versionName '2.47.0'" in gradle and
      "applicationId 'dev.skyrimsemobile.launcher'" in gradle,
  "CI always checks this correction":'v226_manual_viewport_contract_test.py' in workflow,
 }

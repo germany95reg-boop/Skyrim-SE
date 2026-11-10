@@ -10,7 +10,7 @@ resolver=r("app/src/main/java/dev/skyrimsemobile/launcher/Tes4BaseFormResolver.j
 jvm=r("ci/run_jvm_suite.sh")
 wf=r("../.github/workflows/android-quality-gates.yml")
 gradle=r("app/build.gradle")
-assert "MAX_INSTANCES=8" in world and "MAX_DISTANCE=8192.0" in world
+assert "MAX_INSTANCES=8" in world and "MAX_DISTANCE=2048.0" in world
 assert "NifSceneComposer.MAX_TRIANGLES" in world
 assert "Tes4PlacedNifScene.worldVertex(" in world
 assert "new Tes4LocalWorldScene.Builder()" in ui
@@ -23,5 +23,5 @@ assert "MAX_TARGET_IDS=32" in resolver
 assert "MAX_BASES=32" in matcher
 assert "Tes4LocalWorldScene" in jvm
 assert "v241_local_scene_contract_test.py" in wf
-assert "versionCode 69" in gradle and "versionName '2.46.0'" in gradle
+assert "versionCode 70" in gradle and "versionName '2.47.0'" in gradle
 print("PASS v2.41 multiple real REFR local scene, capped distances and one-click pipeline")

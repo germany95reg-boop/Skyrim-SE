@@ -524,7 +524,7 @@ public final class ResourceInspectorActivity extends Activity {
         new Thread(()->{
             StringBuilder sb=new StringBuilder(searchReport);
             sb.append("\n\nПроверка содержимого найденных NIF · только чтение\n");
-            int inspected=0,valid=0;
+            int inspected=0,valid=0,skippedEditorOnly=0;
             Tes4PlacedNifScene.Preview preparedPreview=null;
             Tes4LocalWorldScene.Builder localScene=new Tes4LocalWorldScene.Builder();
             Tes4LocalWorldScene.Planner sceneCandidates=new Tes4LocalWorldScene.Planner();
@@ -539,6 +539,26 @@ public final class ResourceInspectorActivity extends Activity {
                 if(inspected>=Tes4MatchedNifVerifier.MAX_MODELS)break;
                 if(sequence!=multiArchiveScanSequence||
                    verification!=nifVerificationSequence||closed)return;
+                // Decoding arbitrary NIF by alphabetic BSA offset squandered
+                // our 8-model safety limit on non-world editor markers.
+                // A mesh with triangles is not necessarily visible in Skyrim.
+                java.util.List<Tes4PlacedNifScene.Link> visibleLinks;
+                try{
+                    visibleLinks=Tes4PlacedNifScene.findVisibleAll(
+                        linkedPoses,linkedBases,candidate.entry.path);
+                }catch(java.io.IOException invalid){
+                    skippedEditorOnly++;
+                    sb.append("• ").append(candidate.entry.path)
+                      .append(" · неверный путь NIF; пропущен\n");
+                    continue;
+                }
+                if(visibleLinks.isEmpty()){
+                    skippedEditorOnly++;
+                    sb.append("• ").append(candidate.entry.path)
+                      .append(" · нет видимого REFR (служебный маркер либо "+
+                          "не подтверждён в выборке)\n");
+                    continue;
+                }
                 inspected++;
                 final int progress=inspected;
                 runOnUiThread(()->{
@@ -579,9 +599,7 @@ public final class ResourceInspectorActivity extends Activity {
                             sb.append("DDS-связи ").append(candidate.entry.path)
                                 .append(": недоступны; сохранён каркас и поверхность\n");
                         }
-                        java.util.List<Tes4PlacedNifScene.Link> links=
-                            Tes4PlacedNifScene.findVisibleAll(
-                                linkedPoses,linkedBases,candidate.entry.path);
+                        java.util.List<Tes4PlacedNifScene.Link> links=visibleLinks;
                         if(!links.isEmpty()&&fallbackLink==null){
                             fallbackLink=Tes4PlacedNifScene.findVisible(
                                 linkedPoses,linkedBases,candidate.entry.path);
@@ -614,7 +632,10 @@ public final class ResourceInspectorActivity extends Activity {
                 try{
                     preparedPreview=localScene.build();
                     previewNote="3D-предпросмотр подготовлен: "+localScene.summary()+
-                        "\nВыбор группы: "+sceneCandidates.summary();
+                        "\nВыбор группы: "+sceneCandidates.summary()+
+                        (localScene.instances()==1?
+                        "\n[WARN] Один размещённый NIF — демонстрация объекта, "+
+                            "не восстановленная локация Skyrim.":"");
                 }catch(java.io.IOException error){
                     previewNote="Локальная 3D-сцена ограничена: "+error.getMessage();
                 }
@@ -658,8 +679,10 @@ public final class ResourceInspectorActivity extends Activity {
                         "; геометрия сохранена.";
                 }
             }
-            sb.append("Проверено: ").append(inspected)
-              .append(" · распознано NIF: ").append(valid).append('\n');
+            sb.append("Проверено реальных размещаемых NIF: ").append(inspected)
+              .append(" · распознано NIF: ").append(valid)
+              .append(" · служебных/неподтверждённых пропущено: ")
+              .append(skippedEditorOnly).append('\n');
             if(preparedPreview!=null)sb.append(previewNote).append('\n');
             else sb.append(previewNote.isEmpty()?
                 "3D-предпросмотр не готов: нет подходящего видимого REFR/NIF в выборке.":

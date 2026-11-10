@@ -55,6 +55,32 @@ public final class Tes4PlacedNifSceneTest {
         // Unresolved base and no visible shapes must not create a preview.
         assert Tes4PlacedNifScene.findVisible(Arrays.asList(sample),
             new LinkedHashMap<>(),"meshes/clutter/stockade/barricade.nif")==null;
+        // Device report v2.46 selected two editor markers as a "world scene":
+        // DragonPerchRockL02/MarkerRock and DragonPerchWordwall/MarkerWordWallTower.
+        // Their NIF contains triangles but must NEVER become world architecture.
+        bases.put(0xAA934L,new Tes4BaseFormResolver.Base(
+            0xAA934L,"FURN","DragonPerchRockL02",
+            "Furniture/DragonFurniture/MarkerRock.nif",false));
+        bases.put(0x1CC4AL,new Tes4BaseFormResolver.Base(
+            0x1CC4AL,"FURN","DragonPerchWordwall",
+            "Furniture/DragonFurniture/MarkerWordWallTower.nif",false));
+        var editorRock=pose(0x10ff37,0xAA934,58468,-48523,36815,0,0,0,1);
+        var editorTower=pose(0x10ff36,0x1CC4A,55748,-46388,36642,0,0,0,1);
+        assert !Tes4PlacedNifScene.isWorldVisibleBase(bases.get(0xAA934L));
+        assert !Tes4PlacedNifScene.isWorldVisibleBase(bases.get(0x1CC4AL));
+        assert Tes4PlacedNifScene.findVisibleAll(
+            Arrays.asList(editorRock,editorTower),bases,
+            "meshes/furniture/dragonfurniture/markerrock.nif").isEmpty();
+        assert Tes4PlacedNifScene.findVisibleAll(
+            Arrays.asList(editorRock,editorTower),bases,
+            "meshes/furniture/dragonfurniture/markerwordwalltower.nif").isEmpty();
+        bases.put(0x6A166L,new Tes4BaseFormResolver.Base(
+            0x6A166L,"ACTI","WRDrawBridge01",
+            "Architecture/WhiteRun/WRDrawBridge01.nif",false));
+        assert Tes4PlacedNifScene.isWorldVisibleBase(bases.get(0x6A166L));
+        assert Tes4PlacedNifScene.findVisibleAll(
+            Arrays.asList(pose(0x17055,0x6A166,18095,-5330,-3802,0,0,0,1)),
+            bases,"meshes/architecture/whiterun/wrdrawbridge01.nif").size()==1;
         System.out.println("PASS TES4 REFR pose & scale -> matched NIF BSTriShape -> bounded Vulkan preview");
     }
 }

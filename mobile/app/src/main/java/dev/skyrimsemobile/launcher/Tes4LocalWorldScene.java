@@ -15,7 +15,7 @@ import java.util.Set;
  */
 public final class Tes4LocalWorldScene {
     public static final int MAX_INSTANCES=8;
-    public static final double MAX_DISTANCE=8192.0; // Skyrim world units, not metres
+    public static final double MAX_DISTANCE=2048.0; // local cell-like cluster, Skyrim units
     private Tes4LocalWorldScene(){}
 
     private static final class Instance {
@@ -52,6 +52,7 @@ public final class Tes4LocalWorldScene {
         public Builder best()throws IOException{
             Builder winner=new Builder();
             int bestCount=0;
+            long bestScore=-1;
             double bestDistance=Double.POSITIVE_INFINITY;
             long bestId=Long.MAX_VALUE;
             for(Instance anchor:candidates){
@@ -71,12 +72,15 @@ public final class Tes4LocalWorldScene {
                         squaredDistance+=distanceSquared(neighbour.link.pose,anchor.link.pose);
                 }
                 int count=proposal.instances();
+                long score=proposal.sceneQualityScore();
                 long id=anchor.link.pose.recordFormId;
-                if(count>bestCount ||
-                   (count==bestCount && (squaredDistance<bestDistance ||
-                    (squaredDistance==bestDistance && id<bestId)))){
+                if(score>bestScore ||
+                   (score==bestScore && (count>bestCount ||
+                    (count==bestCount && (squaredDistance<bestDistance ||
+                     (squaredDistance==bestDistance && id<bestId)))))){
                     winner=proposal;
                     bestCount=count;
+                    bestScore=score;
                     bestDistance=squaredDistance;
                     bestId=id;
                 }
@@ -87,7 +91,8 @@ public final class Tes4LocalWorldScene {
         public String summary(){
             return candidates.size()+" реальных пригодных REFR проверено, "+
                 "повторов "+duplicates+", сверх лимита кандидатов "+overflow+
-                "; выбран наиболее плотный доступный локальный фрагмент";
+                "; выбран приоритет реальной архитектуры и геометрии, "+
+                "затем число близких размещений (служебные NIF исключены)";
         }
     }
 
@@ -106,6 +111,31 @@ public final class Tes4LocalWorldScene {
         public int instances(){return selected.size();}
         public int distantCount(){return far;}
         public int overLimitCount(){return budget;}
+        /**
+         * Prefer meaningful world architecture over nearby editor-only or
+         * tiny props. A single large real bridge can be a better diagnostic
+         * than two adjacent utility models. This is a selection heuristic,
+         * not proof of a complete CELL/world.
+         */
+        public long sceneQualityScore(){
+            long score=0;
+            for(Instance i:selected){
+                String path=i.link.canonicalPath.toLowerCase(Locale.ROOT);
+                long weight;
+                if(path.startsWith("meshes/architecture/"))weight=10000;
+                else if(path.startsWith("meshes/dungeons/"))weight=9000;
+                else if(path.startsWith("meshes/landscape/"))weight=8000;
+                else if(path.startsWith("meshes/terrain/"))weight=8000;
+                else if(path.startsWith("meshes/clutter/"))weight=550;
+                else if(path.startsWith("meshes/furniture/"))weight=300;
+                else weight=400;
+                int tris=0;
+                for(NifGeometryDecoder.Part part:i.parts.items)
+                    if(part.mesh!=null)tris+=part.mesh.triangles;
+                score+=weight+Math.min(500,tris/20);
+            }
+            return score;
+        }
 
         public boolean add(NifGeometryDecoder.Parts parts,
                            Tes4PlacedNifScene.Link link)throws IOException{

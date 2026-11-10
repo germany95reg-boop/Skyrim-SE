@@ -18,5 +18,5 @@ assert "scanAllModelArchives" in ui
 assert "PICK_DATA_MODELS=714" in ui
 assert "Tes4MultiBsaModelMatcher" in jvm
 assert "v234_multi_bsa_contract_test.py" in wf
-assert "versionCode 69" in gradle and "versionName '2.46.0'" in gradle
+assert "versionCode 70" in gradle and "versionName '2.47.0'" in gradle
 print("PASS v2.34 SAF multi-BSA exact model discovery and upgrade")

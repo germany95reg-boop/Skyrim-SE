@@ -22,6 +22,31 @@ public final class Tes4PlacedNifScene {
             this.pose=pose;this.base=base;this.canonicalPath=path;
         }
     }
+    /**
+     * v2.47: Editor markers can have real BSTriShape triangles (e.g.
+     * Furniture/DragonFurniture/MarkerRock.nif). A visible NIF payload is
+     * NOT evidence that the object should appear in the player's world.
+     * Check both EDID and canonical filename before selecting REFR.
+     */
+    public static boolean isWorldVisibleBase(Tes4BaseFormResolver.Base base){
+        if(base==null||base.modelPath==null||base.modelPath.isEmpty())return false;
+        String editor=base.editorId==null?"":base.editorId.toLowerCase(Locale.ROOT);
+        if(editor.contains("marker")||editor.contains("collision")||
+           editor.contains("trigger")||editor.contains("editoronly"))
+            return false;
+        final String path;
+        try{
+            path=Tes4BsaModelMatcher.canonicalNif(base.modelPath);
+        }catch(IOException invalid){return false;}
+        int slash=path.lastIndexOf('/');
+        String basename=path.substring(slash+1);
+        if(basename.startsWith("marker")||
+           basename.startsWith("collision")||
+           basename.startsWith("trigger")||
+           basename.endsWith("marker.nif"))return false;
+        return true;
+    }
+
     public static Link findVisible(List<Tes4PlacementSubrecordReader.Placement> poses,
                                    Map<Long,Tes4BaseFormResolver.Base> bases,
                                    String nifPath)throws IOException {
@@ -38,9 +63,7 @@ public final class Tes4PlacedNifScene {
         for(Tes4PlacementSubrecordReader.Placement pose:poses) {
             if(!"REFR".equals(pose.type)||!pose.complete())continue;
             Tes4BaseFormResolver.Base base=bases.get(pose.baseFormId);
-            if(base==null||base.modelPath==null||base.modelPath.isEmpty())continue;
-            String editor=base.editorId==null?"":base.editorId.toLowerCase(Locale.ROOT);
-            if(editor.contains("marker")||editor.contains("collision"))continue;
+            if(!isWorldVisibleBase(base))continue;
             try{
                 if(!path.equals(Tes4BsaModelMatcher.canonicalNif(base.modelPath)))continue;
             }catch(IOException malformed){continue;}

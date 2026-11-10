@@ -134,6 +134,33 @@ public final class Tes4LocalWorldSceneTest {
             sceneDds.diffuseAtlas(materialPaths,invalidPixels);
             throw new AssertionError("Accepted invalid DDS pixel count");
         }catch(java.io.IOException expected){}
+        // v2.47: do not score a sparse pair of small clutter props above
+        // one real architecture object; no arbitrary marker fragments.
+        var clutter1=pose(301,10,500,0,0,1);
+        var clutter2=pose(302,10,505,0,0,1);
+        bases.put(20L,new Tes4BaseFormResolver.Base(
+            20L,"ACTI","WRDrawBridge01",
+            "Architecture/WhiteRun/WRDrawBridge01.nif",false));
+        var architecture=pose(303,20,10000,0,0,1);
+        var sameClutter=Tes4PlacedNifScene.findVisibleAll(
+            Arrays.asList(clutter1,clutter2,architecture),bases,
+            "meshes/clutter/test.nif");
+        var archLinks=Tes4PlacedNifScene.findVisibleAll(
+            Arrays.asList(clutter1,clutter2,architecture),bases,
+            "meshes/architecture/whiterun/wrdrawbridge01.nif");
+        assert sameClutter.size()==2 && archLinks.size()==1;
+        var priority=new Tes4LocalWorldScene.Planner();
+        for(var one:sameClutter)priority.offer(parts,one);
+        priority.offer(parts,archLinks.get(0));
+        var chosen=priority.best();
+        assert chosen.instances()==1:"real architecture has semantic priority";
+        assert chosen.build().details.contains("WRDrawBridge01");
+        var smallScene=new Tes4LocalWorldScene.Builder();
+        assert smallScene.add(parts,sameClutter.get(0));
+        assert smallScene.add(parts,sameClutter.get(1));
+        assert smallScene.sceneQualityScore()<chosen.sceneQualityScore();
+        assert Tes4LocalWorldScene.MAX_DISTANCE<=2048:
+            "excessive world spacing made tiny floating meshes";
         System.out.println("PASS bounded nearby Skyrim REFR multi-mesh local scene and safe distant exclusion");
     }
 }

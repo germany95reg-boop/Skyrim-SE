@@ -31,8 +31,8 @@ checks={
  "regression distinct normal slots":"different normal DDS make distinct pairs" in tests,
  "regression neutral normal":"missing normal uses neutral tile" in tests,
  "regression identical pair dedup":"identical diffuse+normal pair reuses tile" in tests,
- "signed version 42":"versionCode 69" in gradle,
- "version 2.19":"versionName '2.46.0'" in gradle,
+ "signed version 42":"versionCode 70" in gradle,
+ "version 2.19":"versionName '2.47.0'" in gradle,
  "one-tap still present":"checkNifAndDds(" in runner,
  "code included in CI":"v219_paired_material_contract_test.py" in workflow,
  "emulator not required":"android-emulator-ui:" not in workflow

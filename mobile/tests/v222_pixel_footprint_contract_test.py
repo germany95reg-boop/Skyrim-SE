@@ -41,7 +41,7 @@ checks={
  "normal GPU retained": 'report.pass("Normal DDS GPU"' in activity,
  "previous user requested footer remains gone": "Отчёт не отправлялся автоматически" not in report,
  "package identity": "applicationId 'dev.skyrimsemobile.launcher'" in gradle,
- "stable update code": "versionCode 69" in gradle and "versionName '2.46.0'" in gradle,
+ "stable update code": "versionCode 70" in gradle and "versionName '2.47.0'" in gradle,
  "workflow source check mandatory": "v222_pixel_footprint_contract_test.py" in workflow,
  "prior alpha test mandatory": "v221_dds_alpha_contract_test.py" in workflow,
 }

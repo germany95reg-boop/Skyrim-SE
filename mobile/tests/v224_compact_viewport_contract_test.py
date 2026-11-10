@@ -42,7 +42,7 @@ checks={
  "compact landscape fixture":"fitsProjected(slim,0.3f,0.85f,true,2915,1440,130,85)" in jvm,
  "larger free viewport test":'hudFit.visibleFraction>panelFit.visibleFraction+0.25f' in jvm,
  "safe closer fit test":'hudFit.distance<panelFit.distance' in jvm,
- "Android version upgrade":'versionCode 69' in gradle and "versionName '2.46.0'" in gradle,
+ "Android version upgrade":'versionCode 70' in gradle and "versionName '2.47.0'" in gradle,
  "same stable package":'applicationId \'dev.skyrimsemobile.launcher\'' in gradle,
  "read-only no network":'android.permission.INTERNET' not in manifest,
  "CI must run new source guard":'v224_compact_viewport_contract_test.py' in workflow,
