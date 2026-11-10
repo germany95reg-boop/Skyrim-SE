@@ -56,7 +56,8 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
      * PixelCopy copies the Vulkan surface, not the Android controls layered on it.
      */
     private void requestVisualCapture(){
-        if(!deviceAutotest||visualRequested||destroyed||!surfaceReady||
+        if((!deviceAutotest&&(placedPreviewToken==null||placedPreviewToken.isEmpty()))||
+           visualRequested||destroyed||!surfaceReady||
            !hasSurface||frameSurface==null)return;
         visualRequested=true;
         visualRequestedAtMs=SystemClock.elapsedRealtime();
@@ -310,9 +311,21 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
                         String actual=info.optString("geometry","");
                         int edges=info.optInt("edges",0);
                         int tris=info.optInt("triangles",0);
-                        boolean ready=error||(running&&frames>=2&&w>0&&h>0&&
+                        boolean matched=running&&frames>=2&&w>0&&h>0&&
                             edges>0&&tris>0&&
-                            actual.equals(placedPreviewExpectedLabel));
+                            actual.equals(placedPreviewExpectedLabel);
+                        // Capture the actual Vulkan SurfaceView once: native
+                        // frame counters alone cannot prove visible pixels.
+                        if(!error&&matched&&!visualRequested)
+                            requestVisualCapture();
+                        boolean capturing="capturing".equals(visualStatus);
+                        if(capturing&&SystemClock.elapsedRealtime()-
+                           visualRequestedAtMs>=1500){
+                            visualStatus="timeout";
+                            visualNote="PixelCopy не завершён за 1.5 секунды";
+                            capturing=false;
+                        }
+                        boolean ready=error||(matched&&!capturing);
                         if(ready){
                             JSONObject proof=new JSONObject();
                             proof.put("token",placedPreviewToken);
@@ -325,6 +338,14 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
                             proof.put("triangles",tris);
                             proof.put("width",w);
                             proof.put("height",h);
+                            proof.put("frameCaptureStatus",visualStatus);
+                            proof.put("frameCaptureNote",visualNote);
+                            if(visualResult!=null){
+                                proof.put("frameSamplePixels",visualResult.sampledPixels);
+                                proof.put("frameNonBackground",visualResult.nonBackground);
+                                proof.put("frameForegroundWidth",visualResult.foregroundWidth);
+                                proof.put("frameForegroundHeight",visualResult.foregroundHeight);
+                            }
                             getSharedPreferences("launcher_state",MODE_PRIVATE).edit()
                                 .putString(PREF_PLACED_RESULT,proof.toString()).apply();
                             placedReceiptSaved=true;
