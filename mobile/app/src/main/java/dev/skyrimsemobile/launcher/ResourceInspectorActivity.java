@@ -164,7 +164,7 @@ public final class ResourceInspectorActivity extends Activity {
                        "Проверь, открывался ли 3D-экран и были ли кадры.";
             else{
                 VulkanPlacedPreviewReceipt.Result checked=
-                    VulkanPlacedPreviewReceipt.assess(expected,
+                    VulkanPlacedPreviewReceipt.assessWithPixelCopy(expected,
                         payload.optString("geometry",""),
                         payload.optBoolean("running"),
                         payload.optBoolean("error"),
@@ -173,7 +173,13 @@ public final class ResourceInspectorActivity extends Activity {
                         payload.optInt("triangles"),
                         payload.optInt("width"),
                         payload.optInt("height"),
-                        payload.optDouble("fps",0));
+                        payload.optDouble("fps",0),
+                        payload.optString("frameCaptureStatus","not-requested"),
+                        payload.optString("frameCaptureNote",""),
+                        payload.optInt("frameNonBackground",0),
+                        payload.optInt("frameSamplePixels",0),
+                        payload.optInt("frameForegroundWidth",0),
+                        payload.optInt("frameForegroundHeight",0));
                 report=checked.report;
             }
         }catch(Exception missing){
