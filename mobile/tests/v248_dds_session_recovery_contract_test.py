@@ -30,7 +30,7 @@ assert "if(automaticPlacedTest&&!deviceAutotestFinished)" in gpu
 assert "Дождись завершения трёх режимов FPS" in gpu
 assert "if(!token.equals(delivered))" in ui
 assert "Автоматический Vulkan-тест прерван" in ui
-assert "versionCode 71" in gradle and "versionName '2.48.0'" in gradle
-assert "Skyrim-SE-Mobile-v2.48.0-ARM64.apk" in workflow
+assert "versionCode 72" in gradle and "versionName '2.49.0'" in gradle
+assert "Skyrim-SE-Mobile-v2.49.0-ARM64.apk" in workflow
 assert "v248_dds_session_recovery_contract_test.py" in workflow
 print("PASS v2.48 bounded DDS previews, full session backup + explicit interrupted GPS test")

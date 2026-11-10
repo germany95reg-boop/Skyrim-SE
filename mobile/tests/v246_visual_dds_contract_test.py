@@ -28,6 +28,6 @@ assert 'Tes4AutomaticSceneReceipt.withVisualQuality(' in inspect
 assert 'public static Result withVisualQuality(' in result
 assert 'Покрытие материалов' in result and 'Крупность сцены' in result
 assert 'v246_visual_dds_contract_test.py' in wf
-assert 'versionCode 71' in gradle and "versionName '2.48.0'" in gradle
-assert 'Skyrim-SE-Mobile-v2.48.0-ARM64.apk' in wf
+assert 'versionCode 72' in gradle and "versionName '2.49.0'" in gradle
+assert 'Skyrim-SE-Mobile-v2.49.0-ARM64.apk' in wf
 print("PASS v2.46 BC7 decode, enlarged real NIF sample, auto camera and visual completeness")

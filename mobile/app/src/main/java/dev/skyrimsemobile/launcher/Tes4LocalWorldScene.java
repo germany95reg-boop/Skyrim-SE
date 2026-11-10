@@ -290,6 +290,89 @@ public final class Tes4LocalWorldScene {
                 packed,pixels,side,grid,tiles.size()-1,neutralParts,texturedFaces);
         }
 
+        /**
+         * v2.49: explain every neutral BSTriShape in the SELECTED scene, not
+         * just the global DDS count. One shader/texture error must not hide
+         * unrelated geometry. Reads only the validated in-memory NIF snapshot.
+         */
+        public String materialDiagnostics(
+                java.util.Map<String,java.util.Map<Integer,String>> byNif,
+                java.util.Map<String,java.util.Map<Integer,String>> errorsByNif,
+                java.util.Map<String,DdsBcDecoder.Image> decoded){
+            StringBuilder details=new StringBuilder();
+            long textured=0,noUv=0,noLink=0,noDds=0;
+            int shown=0,hidden=0;
+            for(Instance instance:selected){
+                java.util.Map<Integer,String> diffuse=byNif==null?null:
+                    byNif.get(instance.link.canonicalPath);
+                java.util.Map<Integer,String> errors=errorsByNif==null?null:
+                    errorsByNif.get(instance.link.canonicalPath);
+                for(NifGeometryDecoder.Part part:instance.parts.items){
+                    if(part.mesh==null)continue;
+                    NifGeometryDecoder.Mesh mesh=part.mesh;
+                    int facesHere=mesh.triangles;
+                    boolean uv=mesh.surfaceUVs.length==(long)facesHere*6;
+                    if(uv)for(float value:mesh.surfaceUVs)
+                        if(!Float.isFinite(value)||Math.abs(value)>8192f){
+                            uv=false;break;
+                        }
+                    String state;
+                    if(!uv){
+                        noUv+=facesHere;
+                        state="НЕТ UV (flags=0x"+
+                            Integer.toHexString(mesh.vertexFlags)+")";
+                    }else{
+                        String raw=diffuse==null?null:diffuse.get(part.blockIndex);
+                        if(raw==null||raw.isEmpty()){
+                            noLink+=facesHere;
+                            String why=errors==null?null:errors.get(part.blockIndex);
+                            state="НЕТ ДИФФУЗНОЙ СВЯЗИ"+
+                                (why==null?"":" ("+why+")");
+                        }else{
+                            String canonical;
+                            try{canonical=DdsArchiveFinder.normalizeDds(raw);}
+                            catch(IOException bad){canonical=null;}
+                            if(canonical==null){
+                                noLink+=facesHere;
+                                state="НЕВЕРНЫЙ ПУТЬ DDS";
+                            }else if(decoded==null||!decoded.containsKey(canonical)){
+                                noDds+=facesHere;
+                                state="DDS НЕ ДЕКОДИРОВАНА: "+canonical;
+                            }else{
+                                textured+=facesHere;
+                                state="DDS ОК: "+canonical;
+                            }
+                        }
+                    }
+                    if(shown<32&&details.length()<6500){
+                        details.append("• REFR 0x")
+                            .append(Long.toHexString(instance.link.pose.recordFormId)
+                                .toUpperCase(Locale.ROOT))
+                            .append(" · BSTriShape #").append(part.blockIndex)
+                            .append(" · ").append(facesHere)
+                            .append(" треугольников · ").append(state)
+                            .append('\n');
+                        shown++;
+                    }else hidden++;
+                }
+            }
+            StringBuilder report=new StringBuilder("Аудит покрытий BSTriShape v2.49 (реальные связи):\n");
+            report.append("• с DDS: ").append(textured)
+                .append(" · без UV: ").append(noUv)
+                .append(" · без ссылки shader→diffuse: ").append(noLink)
+                .append(" · отсутствует декодированная DDS: ").append(noDds)
+                .append(" · сумма: ").append(textured+noUv+noLink+noDds)
+                .append(" / ").append(faces).append(" треугольников\n");
+            report.append(details);
+            if(hidden>0)report.append("• ещё ").append(hidden)
+                .append(" частей скрыты лимитом диагностического отчёта\n");
+            if(textured+noUv+noLink+noDds!=faces)
+                report.append("[FAIL] Несовпадение подсчёта материала и геометрии\n");
+            report.append("Отсутствующие UV/шейдеры не заменены вымышленными DDS; "+
+                "материализация Skyrim целиком этим тестом не подтверждается.");
+            return report.toString();
+        }
+
         public Tes4PlacedNifScene.Preview build()throws IOException {
             if(selected.isEmpty())throw new IOException("Нет подходящих соседних REFR/NIF");
             double[] lo={Double.POSITIVE_INFINITY,Double.POSITIVE_INFINITY,Double.POSITIVE_INFINITY};

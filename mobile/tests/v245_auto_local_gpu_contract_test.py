@@ -33,6 +33,6 @@ assert "Вместо ожидаемой сцены" in receipt
 assert "String model=" in test and '"atlas-safe","visible"' in test
 assert "Tes4AutomaticSceneReceipt" in jvm
 assert "v245_auto_local_gpu_contract_test.py" in wf
-assert "Skyrim-SE-Mobile-v2.48.0-ARM64.apk" in wf
-assert "versionCode 71" in gradle and "versionName '2.48.0'" in gradle
+assert "Skyrim-SE-Mobile-v2.49.0-ARM64.apk" in wf
+assert "versionCode 72" in gradle and "versionName '2.49.0'" in gradle
 print("PASS v2.45 automatic REAL REFR Vulkan on-device scene, auto return and complete bounded evidence")

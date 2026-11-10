@@ -20,5 +20,5 @@ assert 'BsaEntryInspector.inspectProfile(in,entry,archiveFlags)' in verifier
 assert 'MAX_PACKED = 8 * 1024 * 1024' in entry
 assert 'MAX_DECODED = 16 * 1024 * 1024' in entry
 assert 'v236_nif_auto_contract_test.py' in wf
-assert "versionCode 71" in gradle and "versionName '2.48.0'" in gradle
+assert "versionCode 72" in gradle and "versionName '2.49.0'" in gradle
 print("PASS v2.36 automatic bounded NIF content verification after Data scan")

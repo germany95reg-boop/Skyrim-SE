@@ -115,6 +115,30 @@ public final class Tes4LocalWorldSceneTest {
         assert diffuse!=null;
         assert diffuse.textureCount==1 && diffuse.neutralParts==1;
         assert diffuse.texturedTriangles==2:"two textured instances, third neutral";
+        String completeAudit=sceneDds.materialDiagnostics(materialPaths,
+            java.util.Collections.emptyMap(),pixels);
+        assert completeAudit.contains("с DDS: 2 · без UV: 1"):
+            completeAudit;
+        assert completeAudit.contains("BSTriShape #0"):
+            completeAudit;
+        assert completeAudit.contains("DDS ОК: textures/clutter/rock.dds"):
+            completeAudit;
+        String missingDecoded=sceneDds.materialDiagnostics(materialPaths,
+            java.util.Collections.emptyMap(),java.util.Collections.emptyMap());
+        assert missingDecoded.contains("отсутствует декодированная DDS: 2"):
+            missingDecoded;
+        Map<String,Map<Integer,String>> problemsByNif=new LinkedHashMap<>();
+        Map<Integer,String> perPartProblems=new LinkedHashMap<>();
+        perPartProblems.put(0,"BSEffectShaderProperty — только специальный эффект");
+        problemsByNif.put(nifPath,perPartProblems);
+        String missingLink=sceneDds.materialDiagnostics(
+            java.util.Collections.emptyMap(),problemsByNif,pixels);
+        assert missingLink.contains("без ссылки shader→diffuse: 2"):
+            missingLink;
+        assert missingLink.contains("BSEffectShaderProperty"):
+            missingLink;
+        assert missingLink.contains("сумма: 3 / 3"):
+            missingLink;
         assert diffuse.grid==2 && diffuse.width==1024;
         assert diffuse.uvAndSlot.length==sceneDds.build().triangles.length;
         for(int v=0;v<6;v++)assert diffuse.uvAndSlot[v*3+2]==1f;

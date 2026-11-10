@@ -23,5 +23,5 @@ assert "MAX_TARGET_IDS=32" in resolver
 assert "MAX_BASES=32" in matcher
 assert "Tes4LocalWorldScene" in jvm
 assert "v241_local_scene_contract_test.py" in wf
-assert "versionCode 71" in gradle and "versionName '2.48.0'" in gradle
+assert "versionCode 72" in gradle and "versionName '2.49.0'" in gradle
 print("PASS v2.41 multiple real REFR local scene, capped distances and one-click pipeline")

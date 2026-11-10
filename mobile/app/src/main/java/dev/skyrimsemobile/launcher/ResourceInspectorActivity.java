@@ -301,7 +301,7 @@ public final class ResourceInspectorActivity extends Activity {
     }
     private void update(String s){text=s;if(closed)return;
         if(report!=null)report.setText(s);
-        if(prefs!=null)prefs.edit().putString(PREF_REPORT,s.substring(0,Math.min(s.length(),10000))).apply();
+        if(prefs!=null)prefs.edit().putString(PREF_REPORT,s.substring(0,Math.min(s.length(),28000))).apply();
     }
     private void selectFolder(){
         Intent i=new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
@@ -561,6 +561,8 @@ public final class ResourceInspectorActivity extends Activity {
             String previewNote="";
             java.util.Map<String,java.util.Map<Integer,String>> materialByNif=
                 new java.util.LinkedHashMap<>();
+            java.util.Map<String,java.util.Map<Integer,String>> materialProblems=
+                new java.util.LinkedHashMap<>();
             NifCompositeDdsAtlas.Result preparedAtlas=null;
             int requestedDds=0,decodedDds=0;
             for(ModelProbeCandidate candidate:candidates){
@@ -612,17 +614,29 @@ public final class ResourceInspectorActivity extends Activity {
                                     materials,candidate.entry,candidate.flags);
                             java.util.Map<Integer,String> diffuse=
                                 new java.util.LinkedHashMap<>();
+                            java.util.Map<Integer,String> problems=
+                                new java.util.LinkedHashMap<>();
                             for(NifMaterialLinkInspector.Link link:linksByShape.links){
-                                if(!link.resolved()||link.diffuse==null||
-                                   link.diffuse.isEmpty())continue;
+                                if(!link.resolved()){
+                                    problems.put(link.shape,link.problem);
+                                    continue;
+                                }
+                                if(link.diffuse==null||link.diffuse.isEmpty()){
+                                    problems.put(link.shape,"BSShaderTextureSet без DDS [0]");
+                                    continue;
+                                }
                                 try{
                                     diffuse.put(link.shape,
                                         DdsArchiveFinder.normalizeDds(link.diffuse));
-                                }catch(java.io.IOException badTexture){}
+                                }catch(java.io.IOException badTexture){
+                                    problems.put(link.shape,"Некорректный путь DDS [0]: "+
+                                        badTexture.getMessage());
+                                }
                             }
-                            materialByNif.put(
-                                Tes4BsaModelMatcher.canonicalNif(candidate.entry.path),
-                                diffuse);
+                            String canonicalNif=Tes4BsaModelMatcher.canonicalNif(
+                                candidate.entry.path);
+                            materialByNif.put(canonicalNif,diffuse);
+                            materialProblems.put(canonicalNif,problems);
                         }catch(Exception noMaterial){
                             sb.append("DDS-связи ").append(candidate.entry.path)
                                 .append(": недоступны; сохранён каркас и поверхность\n");
@@ -683,12 +697,15 @@ public final class ResourceInspectorActivity extends Activity {
             if(preparedPreview!=null){
                 // Bounded, read-only search of exact DDS paths in Data BSA
                 // archives. A corrupt/missing texture never hides the REFR scene.
+                java.util.Map<String,DdsBcDecoder.Image> decodedForAudit=
+                    java.util.Collections.emptyMap();
                 try{
                     java.util.List<String> requested=textureOwner.materialPaths(materialByNif);
                     requestedDds=requested.size();
                     if(!requested.isEmpty()){
                         LocalSceneDds found=loadLocalSceneDds(
                             requested,sequence,verification);
+                        decodedForAudit=found.decoded;
                         preparedAtlas=textureOwner.diffuseAtlas(materialByNif,found.decoded);
                         decodedDds=found.decoded.size();
                         previewNote+="\nDDS: "+decodedDds+" / "+
@@ -706,6 +723,8 @@ public final class ResourceInspectorActivity extends Activity {
                     previewNote+="\nDDS пропущены: "+materialError.getMessage()+
                         "; геометрия сохранена.";
                 }
+                previewNote+="\n"+textureOwner.materialDiagnostics(
+                    materialByNif,materialProblems,decodedForAudit);
             }
             sb.append("Проверено реальных размещаемых NIF: ").append(inspected)
               .append(" · распознано NIF: ").append(valid)

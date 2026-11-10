@@ -111,8 +111,12 @@ public final class NifMaterialLinkInspectorTest {
 
         byte[] wrongType=file.clone();
         set(wrongType,blocks.blocks.get(0).byteOffset+92,5);
-        ok(NifMaterialLinkInspector.inspect(wrongType).resolved==1,
+        NifMaterialLinkInspector.Result wrongShader=
+            NifMaterialLinkInspector.inspect(wrongType);
+        ok(wrongShader.resolved==1,
             "shape referring to a texture set is not a shader");
+        ok(wrongShader.links.get(0).problem.contains("BSShaderTextureSet"),
+            "unsupported shader points at actual NIF block type, not generic error");
 
         byte[] wrongSet=file.clone();
         set(wrongSet,blocks.blocks.get(2).byteOffset+40,3);

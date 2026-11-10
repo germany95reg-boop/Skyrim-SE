@@ -96,8 +96,14 @@ public final class NifMaterialLinkInspector {
         if(shaderId<0)return new Link(shape.index,-1,-1,"","",
             "Нет ссылки на шейдер у BSTriShape");
         NifBlockInspector.Block shader=expect(blocks,shaderId,"BSLightingShaderProperty");
-        if(shader==null)return new Link(shape.index,shaderId,-1,"","",
-            "Шейдер не является BSLightingShaderProperty или индекс недопустим");
+        if(shader==null){
+            String type=shaderId>=0&&shaderId<blocks.size()?
+                blocks.get(shaderId).type:"вне таблицы NIF";
+            return new Link(shape.index,shaderId,-1,"","",
+                "Ссылка указывает на "+type+" #"+shaderId+
+                ", а не BSLightingShaderProperty; такой шейдер пока "+
+                "не преобразуется в диффузный DDS-материал");
+        }
 
         // In SSE, ONLY BSLightingShaderProperty adds a 4-byte Shader Type
         // BEFORE NiObjectNET. The shape does not have this leading field.
