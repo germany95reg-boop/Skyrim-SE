@@ -314,8 +314,9 @@ public final class Tes4LocalWorldScene {
             }
             details.append("Сохранены относительные позиции и размеры объектов. ")
                 .append("Одна общая нормализация выполнена для Vulkan.\n")
-                .append("Euler Rz*Ry*Rx предварительный; текстуры, ")
-                .append("ландшафт, NPC и игровой движок не загружены.");
+                .append("Euler Rz*Ry*Rx предварительный; материалы DDS могут ")
+                .append("подключаться отдельно; ландшафт, NPC и игровой ")
+                .append("движок не загружены.");
             return new Tes4PlacedNifScene.Preview(
                 new ObjWireParser.Model(lines,vertices,edges),
                 triangles,shapes,unsupported,faces,
