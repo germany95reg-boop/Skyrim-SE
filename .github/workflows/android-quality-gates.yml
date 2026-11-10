@@ -34,50 +34,32 @@ jobs:
       - name: Run v2.52 UV-less material contract independently
         id: v252-contract
         run: python3 mobile/tests/v252_uvless_tint_contract_test.py
-      - name: Validate current UI, Vulkan source, assets and upgrade identity
+      - name: Validate all source contracts with per-test failure reporting
+        id: source-contracts
+        shell: bash
         run: |
-          python3 mobile/tests/v213_contract_test.py
-          python3 mobile/tests/v214_vulkan_fallback_contract_test.py
-          python3 mobile/tests/v215_device_autotest_contract_test.py
-          python3 mobile/tests/v216_fps_matrix_contract_test.py
-          python3 mobile/tests/v217_nif_hierarchy_contract_test.py
-          python3 mobile/tests/v218_normal_atlas_contract_test.py
-          python3 mobile/tests/v219_paired_material_contract_test.py
-          python3 mobile/tests/v220_frame_pixelcopy_contract_test.py
-          python3 mobile/tests/v221_dds_alpha_contract_test.py
-          python3 mobile/tests/v222_pixel_footprint_contract_test.py
-          python3 mobile/tests/v223_geometry_camera_contract_test.py
-          python3 mobile/tests/v224_compact_viewport_contract_test.py
-          python3 mobile/tests/v225_optional_alpha_blend_contract_test.py
-          python3 mobile/tests/v226_manual_viewport_contract_test.py
-          python3 mobile/tests/v227_tes4_plugin_contract_test.py
-          python3 mobile/tests/v228_runtime_version_contract_test.py
-          python3 mobile/tests/v229_grup_index_contract_test.py
-          python3 mobile/tests/v230_nested_records_contract_test.py
-          python3 mobile/tests/v231_placement_contract_test.py
-          python3 mobile/tests/v232_base_form_contract_test.py
-          python3 mobile/tests/v233_bsa_model_match_contract_test.py
-          python3 mobile/tests/v234_multi_bsa_contract_test.py
-          python3 mobile/tests/v235_nif_validation_contract_test.py
-          python3 mobile/tests/v236_nif_auto_contract_test.py
-          python3 mobile/tests/v237_one_button_contract_test.py
-          python3 mobile/tests/v238_deep_nif_contract_test.py
-          python3 mobile/tests/v239_placed_preview_contract_test.py
-          python3 mobile/tests/v240_gpu_receipt_contract_test.py
-          python3 mobile/tests/v241_local_scene_contract_test.py
-          python3 mobile/tests/v242_local_scene_selection_contract_test.py
-          python3 mobile/tests/v243_pixelcopy_release_contract_test.py
-          python3 mobile/tests/v244_local_scene_dds_contract_test.py
-          python3 mobile/tests/v245_auto_local_gpu_contract_test.py
-          python3 mobile/tests/v246_visual_dds_contract_test.py
-          python3 mobile/tests/v247_real_world_selection_contract_test.py
-          python3 mobile/tests/v248_dds_session_recovery_contract_test.py
-          python3 mobile/tests/v249_shape_material_audit_contract_test.py
-          python3 mobile/tests/v250_sse_vertex_rgba_contract_test.py
-          python3 mobile/tests/v251_vertex_tint_lighting_contract_test.py
-          python3 mobile/tests/v252_uvless_tint_contract_test.py
-          python3 mobile/tests/release_signing_contract_test.py
-          python3 mobile/tests/ci_quality_contract_test.py
+          set -uo pipefail
+          failed=0
+          {
+            echo "### Source contract results"
+            echo "| Test | Result |"
+            echo "|---|---|"
+          } >> "$GITHUB_STEP_SUMMARY"
+          for test in mobile/tests/*contract_test.py; do
+            echo "::group::$test"
+            if python3 "$test"; then
+              echo "| \`$(basename "$test")\` | PASS |" >> "$GITHUB_STEP_SUMMARY"
+            else
+              echo "::error file=$test,title=Source contract failed::$test failed"
+              echo "| \`$(basename "$test")\` | FAIL |" >> "$GITHUB_STEP_SUMMARY"
+              failed=$((failed+1))
+            fi
+            echo "::endgroup::"
+          done
+          if (( failed > 0 )); then
+            echo "::error title=Source contract gate::$failed contract(s) failed"
+            exit 1
+          fi
       - name: Download project's pinned LZ4 dependency through Gradle
         id: dependency
         run: gradle --no-daemon -p mobile :app:resolveRuntimeJars
