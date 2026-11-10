@@ -38,7 +38,7 @@ sources=(
   Tes4PluginHeaderReader Tes4TopLevelGroupReader Tes4NestedRecordSampler
   Tes4PlacementSubrecordReader Tes4BaseFormResolver Tes4BsaModelMatcher
   Tes4MultiBsaModelMatcher Tes4MatchedNifVerifier Tes4PlacedNifScene
-  Tes4LocalWorldScene
+  Tes4LocalWorldScene Tes4AutomaticSceneReceipt
   VulkanPlacedPreviewReceipt SkyrimAutoDiscovery
 )
 args=()

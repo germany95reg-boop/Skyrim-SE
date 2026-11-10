@@ -36,12 +36,15 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
     public static final String PREF_PLACED_RESULT="skyrim_placed_vulkan_result";
     public static final String EXTRA_PLACED_PREVIEW_TOKEN="skyrim_placed_preview_token";
     public static final String EXTRA_PLACED_PREVIEW_LABEL="skyrim_placed_preview_label";
+    public static final String EXTRA_AUTOMATIC_PLACED_TEST="skyrim_auto_placed_gpu_test";
+    public static final String EXTRA_AUTOMATIC_PLACED_TOKEN="skyrim_auto_placed_result_token";
     private String placedPreviewToken,placedPreviewExpectedLabel;
     private boolean placedReceiptSaved=false;
     public static final String EXTRA_DEVICE_AUTOTEST = "dev.skyrimsemobile.launcher.DEVICE_AUTOTEST";
     public static final String EXTRA_DEVICE_AUTOTEST_RESULT = "deviceAutotestVulkanJson";
     public static final String EXTRA_DEVICE_AUTOTEST_ERROR = "deviceAutotestError";
     private boolean deviceAutotest=false,deviceAutotestFinished=false;
+    private boolean automaticPlacedTest=false;
     private final FpsAutotestSequence fpsSequence=new FpsAutotestSequence();
     private long deviceAutotestStarted;
     private boolean visualRequested=false;
@@ -161,6 +164,8 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
         }
         result.putExtra(EXTRA_DEVICE_AUTOTEST_RESULT,
             attachFpsMeasurements(snapshot));
+        if(automaticPlacedTest)
+            result.putExtra(EXTRA_AUTOMATIC_PLACED_TOKEN,placedPreviewToken);
         if(!success)result.putExtra(EXTRA_DEVICE_AUTOTEST_ERROR,error);
         setResult(success?RESULT_OK:RESULT_CANCELED,result);
         finish();
@@ -281,7 +286,13 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
                     // must reach the GPU before we return a test result.
                     if(deviceAutotest&&!deviceAutotestFinished){
                         if(error)completeDeviceAutotest(false,json,message);
-                        else {
+                        else if(automaticPlacedTest&&running&&frames>=2&&
+                                (!info.optString("geometry","").equals(
+                                    placedPreviewExpectedLabel)||
+                                 info.optInt("triangles",0)<1)){
+                            completeDeviceAutotest(false,json,
+                                "Vulkan не загрузил ожидаемую реальную REFR/NIF-сцену");
+                        }else {
                             FpsAutotestSequence.Result measured=fpsSequence.sample(
                                 SystemClock.elapsedRealtime(),frames,
                                 info.optInt("fpsCap",-1),fps,running);
@@ -379,7 +390,10 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
 
     @Override public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        deviceAutotest=getIntent().getBooleanExtra(EXTRA_DEVICE_AUTOTEST,false);
+        automaticPlacedTest=getIntent().getBooleanExtra(
+            EXTRA_AUTOMATIC_PLACED_TEST,false);
+        deviceAutotest=automaticPlacedTest||
+            getIntent().getBooleanExtra(EXTRA_DEVICE_AUTOTEST,false);
         placedPreviewToken=getIntent().getStringExtra(EXTRA_PLACED_PREVIEW_TOKEN);
         placedPreviewExpectedLabel=getIntent().getStringExtra(EXTRA_PLACED_PREVIEW_LABEL);
         // Process-global JNI state can survive a previous manual preview.
@@ -673,11 +687,25 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
             ui.post(poll);
             NifGeometryTransfer.Selected nif=NifGeometryTransfer.take();
             if(nif != null){
+                if(automaticPlacedTest&&(placedPreviewExpectedLabel==null||
+                    placedPreviewToken==null||
+                    !nif.label.equals(placedPreviewExpectedLabel)))
+                    ui.post(()->completeDeviceAutotest(false,null,
+                        "Автоматический GPU-тест получил не тот NIF/REFR"));
+                else {
                 nifDimensions=nif.details;
                 activateModel(nif.model,nif.label,null,nif.surfaceTriangles,
                     nif.surfaceUVs,nif.argb,nif.textureWidth,nif.textureHeight,
                     nif.normalArgb,nif.normalWidth,nif.normalHeight,
                     nif.materialSlots,nif.diffuseAtlasGrid);
+                if(automaticPlacedTest&&!hasSurface)
+                    ui.post(()->completeDeviceAutotest(false,null,
+                        "Реальная NIF-сцена не передана в поверхностный Vulkan-рендерер"));
+                }
+            }
+            else if(automaticPlacedTest){
+                ui.post(()->completeDeviceAutotest(false,null,
+                    "Не передана выбранная NIF/REFR-сцена; встроенный куб не допускается"));
             }
             else if(deviceAutotest){
                 // Deterministic GPU probe when no saved BSA/NIF was available.

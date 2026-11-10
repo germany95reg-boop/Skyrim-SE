@@ -34,6 +34,7 @@ public final class ResourceInspectorActivity extends Activity {
     private Tes4PlacedNifScene.Preview lastPreview;
     private NifCompositeDdsAtlas.Result lastSceneDiffuseAtlas;
     private String placedPreviewToken,placedPreviewExpected;
+    private boolean automaticScenePending=false,automaticPlacedPreviewActive=false;
     private java.util.List<Tes4PlacementSubrecordReader.Placement> lastPlacements=java.util.Collections.emptyList();
     private volatile boolean closed=false;
     private volatile long automaticAnalysisSequence=0;
@@ -52,7 +53,7 @@ public final class ResourceInspectorActivity extends Activity {
             archiveUri=uri;archiveName=name;this.entry=entry;this.flags=flags;
         }
     }
-    private String text="Выбери папку Skyrim SE один раз, затем нажимай «Проверить Skyrim автоматически».\nИсходные файлы игры не изменяются.";
+    private String text="Подключи папку Skyrim SE один раз. При следующем входе приложение само проверит файлы, откроет локальную сцену в Vulkan и вернёт аппаратный отчёт.\nИсходные файлы игры не изменяются.";
     @Override public void onCreate(Bundle saved){
         super.onCreate(saved);
         prefs=getSharedPreferences("launcher_state",MODE_PRIVATE);
@@ -109,6 +110,8 @@ public final class ResourceInspectorActivity extends Activity {
             scroll.post(this::selectGroupFile);
         else if(getIntent()!=null && getIntent().getBooleanExtra("open_tes4",false))
             scroll.post(this::selectPlugin);
+        else if(saved==null&&persistedDataTree()!=null)
+            scroll.post(this::startAutomaticAnalysis);
     }
     private int dp(float d){return (int)(getResources().getDisplayMetrics().density*d+.5f);}
     private Button addButton(LinearLayout p,String label,Runnable action){
@@ -137,6 +140,9 @@ public final class ResourceInspectorActivity extends Activity {
         }
     }
     private void openPlacedPreview(){
+        openPlacedPreview(false);
+    }
+    private void openPlacedPreview(boolean automatic){
         Tes4PlacedNifScene.Preview preview=lastPreview;
         if(preview==null){
             update(text+"\n\n3D-предпросмотр пока не готов. Проверь Skyrim автоматически.");
@@ -148,12 +154,15 @@ public final class ResourceInspectorActivity extends Activity {
         else
             NifGeometryTransfer.offer(preview.lines,preview.triangles,
                 preview.label,preview.details);
+        automaticPlacedPreviewActive=automatic;
         placedPreviewToken=Long.toHexString(System.nanoTime());
         placedPreviewExpected=preview.label;
         prefs.edit().remove(VulkanSceneActivity.PREF_PLACED_RESULT).apply();
         Intent i=new Intent(this,VulkanSceneActivity.class);
         i.putExtra(VulkanSceneActivity.EXTRA_PLACED_PREVIEW_TOKEN,placedPreviewToken);
         i.putExtra(VulkanSceneActivity.EXTRA_PLACED_PREVIEW_LABEL,placedPreviewExpected);
+        if(automatic)
+            i.putExtra(VulkanSceneActivity.EXTRA_AUTOMATIC_PLACED_TEST,true);
         startActivityForResult(i,PICK_VULKAN_PREVIEW);
     }
     private void appendVulkanPreviewReceipt(){
@@ -194,6 +203,56 @@ public final class ResourceInspectorActivity extends Activity {
         }
         prefs.edit().remove(VulkanSceneActivity.PREF_PLACED_RESULT).apply();
         update(text+"\n\n"+report);
+    }
+    /**
+     * On-device automatic REFR check returns real native GPU statistics, all
+     * three FPS modes and one PixelCopy sample. Distinguish missing evidence
+     * from successful rendering; never call an untested texture "correct".
+     */
+    private void appendAutomaticSceneReceipt(int resultCode,Intent data){
+        String token=placedPreviewToken,expected=placedPreviewExpected;
+        placedPreviewToken=null;
+        placedPreviewExpected=null;
+        if(expected==null||token==null)return;
+        try{
+            String delivered=data==null?"":data.getStringExtra(
+                VulkanSceneActivity.EXTRA_AUTOMATIC_PLACED_TOKEN);
+            JSONObject stats=new JSONObject(data==null?"{}":data.getStringExtra(
+                VulkanSceneActivity.EXTRA_DEVICE_AUTOTEST_RESULT));
+            if(!token.equals(delivered))throw new java.io.IOException(
+                "Нет подписанного результатом токена текущей сцены");
+            org.json.JSONArray stages=stats.optJSONArray("fpsStages");
+            int count=stages==null?0:stages.length();
+            int[] caps=new int[count];boolean[] passed=new boolean[count];
+            for(int i=0;i<count;i++){
+                JSONObject stage=stages.optJSONObject(i);
+                caps[i]=stage==null?-1:stage.optInt("cap",-1);
+                passed[i]=stage!=null&&stage.optBoolean("passed",false)&&
+                    stage.optBoolean("capConfirmed",false)&&
+                    stage.optLong("frames",0)>0&&stage.optLong("sampleMillis",0)>=1800;
+            }
+            Tes4PlacedNifScene.Preview preview=lastPreview;
+            Tes4AutomaticSceneReceipt.Result checked=Tes4AutomaticSceneReceipt.assess(
+                expected,stats.optString("geometry",""),
+                resultCode==RESULT_OK,stats.optBoolean("running",false),
+                stats.optBoolean("error",true),stats.optLong("frames",0),
+                stats.optInt("edges",0),stats.optInt("triangles",0),
+                preview==null?-1:preview.triangleCount,
+                stats.optInt("width",0),stats.optInt("height",0),
+                stats.optDouble("fps",0),lastSceneDiffuseAtlas!=null,
+                stats.optString("textureMode","off"),
+                stats.optString("frameCaptureStatus","not-requested"),
+                stats.optInt("frameNonBackground",0),
+                stats.optInt("frameSamplePixels",0),
+                caps,passed,stats.optString("frameCaptureNote",""),
+                data==null?"Vulkan был закрыт без отчёта":
+                    data.getStringExtra(VulkanSceneActivity.EXTRA_DEVICE_AUTOTEST_ERROR));
+            update(text+"\n\n"+checked.report);
+        }catch(Exception invalid){
+            update(text+"\n\n[FAIL] Автоматический Vulkan-тест локальной сцены: "+
+                invalid.getMessage()+"\nПопробуй повторить проверку. "+
+                "Приложение не может считать неподтверждённые кадры успешными.");
+        }
     }
     private void refreshFolderStatus(){
         if(folderStatus==null)return;
@@ -237,7 +296,11 @@ public final class ResourceInspectorActivity extends Activity {
     @Override protected void onActivityResult(int req,int result,Intent data){
         super.onActivityResult(req,result,data);
         if(req==PICK_VULKAN_PREVIEW){
-            appendVulkanPreviewReceipt();
+            if(automaticPlacedPreviewActive)
+                appendAutomaticSceneReceipt(result,data);
+            else
+                appendVulkanPreviewReceipt();
+            automaticPlacedPreviewActive=false;
             return;
         }
         if(result!=RESULT_OK||data==null||data.getData()==null)return;
@@ -365,6 +428,7 @@ public final class ResourceInspectorActivity extends Activity {
     }
     private void analyzeAutomaticFolder(Uri tree){
         final long sequence=++automaticAnalysisSequence;
+        automaticScenePending=true;
         multiArchiveScanSequence++;
         nifVerificationSequence++;
         lastBaseRecords=null;
@@ -407,7 +471,10 @@ public final class ResourceInspectorActivity extends Activity {
                 String error="Автоматическая проверка: "+e.getMessage()+
                     "\nПри необходимости нажми «Выбрать папку Skyrim».";
                 runOnUiThread(()->{
-                    if(!closed&&sequence==automaticAnalysisSequence)update(error);
+                    if(!closed&&sequence==automaticAnalysisSequence){
+                        automaticScenePending=false;
+                        update(error);
+                    }
                 });
             }
         },"skyrim-auto-locate-data").start();
@@ -434,6 +501,7 @@ public final class ResourceInspectorActivity extends Activity {
             lastBaseRecords==null?java.util.Collections.emptyMap():lastBaseRecords.found;
         clearPlacedPreview();
         if(candidates.isEmpty()){
+            automaticScenePending=false;
             update("Сначала нажми «Найти MODL во всех BSA папки Data». "
                   +"Нужны найденные записи NIF, а не только имена из Skyrim.esm.");
             return;
@@ -580,7 +648,8 @@ public final class ResourceInspectorActivity extends Activity {
                 "3D-предпросмотр не готов: нет подходящего видимого REFR/NIF в выборке.":
                 previewNote).append('\n');
             sb.append("Распаковка и подготовка только в памяти; "+
-                "Vulkan-просмотр открывается отдельно, исходные файлы не изменены.");
+                "автоматический Vulkan-тест запускается для найденной сцены, "+
+                "исходные файлы не изменены.");
             String finalReport=sb.toString().replace(
                 "Содержимое NIF: следующий этап (до 3 моделей)",
                 "Содержимое NIF: распознано "+valid+" из "+inspected);
@@ -600,7 +669,16 @@ public final class ResourceInspectorActivity extends Activity {
                                 (readyAtlas==null?"Просмотреть найденный объект в 3D":
                                     "Просмотреть найденный объект с DDS в 3D"));
                     }
-                    update(finalReport);
+                    boolean auto=automaticScenePending;
+                    automaticScenePending=false;
+                    if(auto&&readyPreview!=null){
+                        update(finalReport+"\n\nШаг 4/4: автоматически открываю локальную "+
+                            "сцену для проверки GPU, DDS, FPS и PixelCopy…");
+                        openPlacedPreview(true);
+                    }else if(auto){
+                        update(finalReport+"\n\n[FAIL] Автотест локальной сцены: "+
+                            "пригодный REFR/NIF не найден, GPU не запускался.");
+                    }else update(finalReport);
                 }
             });
         },"tes4-bsa-nif-verify").start();
