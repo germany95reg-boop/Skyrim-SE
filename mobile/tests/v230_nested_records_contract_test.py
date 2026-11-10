@@ -7,7 +7,7 @@ ui=r("app/src/main/java/dev/skyrimsemobile/launcher/ResourceInspectorActivity.ja
 jvm=r("ci/run_jvm_suite.sh")
 gradle=r("app/build.gradle")
 wf=r("../.github/workflows/android-quality-gates.yml")
-assert "MAX_HEADERS=1000" in src
+assert "MAX_HEADERS=2400" in src
 assert "MAX_SECTION_BYTES=16L*1024*1024" in src
 assert "MAX_DEPTH=24" in src
 assert "Tes4PluginHeaderReader.inspect(in)" in src
