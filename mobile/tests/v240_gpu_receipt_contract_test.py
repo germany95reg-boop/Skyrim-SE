@@ -10,7 +10,8 @@ wf=r("../.github/workflows/android-quality-gates.yml")
 gradle=r("app/build.gradle")
 assert 'VulkanSceneActivity.EXTRA_PLACED_PREVIEW_TOKEN' in ui
 assert 'VulkanSceneActivity.PREF_PLACED_RESULT' in ui
-assert 'VulkanPlacedPreviewReceipt.assess(' in ui
+assert 'VulkanPlacedPreviewReceipt.assessWithPixelCopy(' in ui
+assert 'VulkanPlacedPreviewReceipt.assess(' in receipt
 assert 'startActivityForResult(i,PICK_VULKAN_PREVIEW)' in ui
 assert 'if(req==PICK_VULKAN_PREVIEW)' in ui
 assert 'VulkanPlacedPreviewReceipt' in jvm
