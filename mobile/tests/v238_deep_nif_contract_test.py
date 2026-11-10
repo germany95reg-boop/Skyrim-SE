@@ -20,5 +20,5 @@ assert "NifGeometryDecoder.scan" not in ui
 assert "Содержимое NIF: распознано" in ui
 assert "Tes4NifStructureProfileTest" in read("tests/Tes4NifStructureProfileTest.java")
 assert "v238_deep_nif_contract_test.py" in wf
-assert "versionCode 66" in gradle and "versionName '2.43.0'" in gradle
+assert "versionCode 67" in gradle and "versionName '2.44.0'" in gradle
 print("PASS v2.38 automatic bounded NIF block inventory and static shape readiness")

@@ -18,6 +18,6 @@ assert 'Tes4BsaModelMatcher.match(' in ui and 'baseRecords.found.values(),catalo
 assert 'BsaCatalogReader.read(in)' in ui
 assert 'static void main(String[] args)' in tests
 assert 'Tes4BsaModelMatcher' in jvm
-assert "versionCode 66" in gradle and "versionName '2.43.0'" in gradle
+assert "versionCode 67" in gradle and "versionName '2.44.0'" in gradle
 assert "v233_bsa_model_match_contract_test.py" in wf
 print("PASS v2.33 model BSA exact match UI and upgrade contract")
