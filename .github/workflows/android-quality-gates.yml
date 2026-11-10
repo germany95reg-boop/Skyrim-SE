@@ -31,53 +31,70 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
+      - name: Run Python source contracts independently of JVM and Gradle
+        id: source-contracts
+        shell: bash
+        run: |
+          set -uo pipefail
+          failed=0
+          for test in mobile/tests/*contract_test.py; do
+            echo "::group::$test"
+            if python3 "$test"; then
+              echo "PASS $test"
+            else
+              echo "::error file=$test,title=Source contract failed::Inspect assertion output for $test"
+              failed=$((failed+1))
+            fi
+            echo "::endgroup::"
+          done
+          echo "Source contracts failed: $failed" >> "$GITHUB_STEP_SUMMARY"
+          test "$failed" -eq 0
       - name: Download project's pinned LZ4 dependency through Gradle
         run: gradle --no-daemon -p mobile :app:resolveRuntimeJars
       - name: Run ALL pure-Java regression programs, fail fast
         run: bash mobile/ci/run_jvm_suite.sh
-      - name: Validate current UI, Vulkan source, assets and upgrade identity
-        run: |
-          python3 mobile/tests/v213_contract_test.py
-          python3 mobile/tests/v214_vulkan_fallback_contract_test.py
-          python3 mobile/tests/v215_device_autotest_contract_test.py
-          python3 mobile/tests/v216_fps_matrix_contract_test.py
-          python3 mobile/tests/v217_nif_hierarchy_contract_test.py
-          python3 mobile/tests/v218_normal_atlas_contract_test.py
-          python3 mobile/tests/v219_paired_material_contract_test.py
-          python3 mobile/tests/v220_frame_pixelcopy_contract_test.py
-          python3 mobile/tests/v221_dds_alpha_contract_test.py
-          python3 mobile/tests/v222_pixel_footprint_contract_test.py
-          python3 mobile/tests/v223_geometry_camera_contract_test.py
-          python3 mobile/tests/v224_compact_viewport_contract_test.py
-          python3 mobile/tests/v225_optional_alpha_blend_contract_test.py
-          python3 mobile/tests/v226_manual_viewport_contract_test.py
-          python3 mobile/tests/v227_tes4_plugin_contract_test.py
-          python3 mobile/tests/v228_runtime_version_contract_test.py
-          python3 mobile/tests/v229_grup_index_contract_test.py
-          python3 mobile/tests/v230_nested_records_contract_test.py
-          python3 mobile/tests/v231_placement_contract_test.py
-          python3 mobile/tests/v232_base_form_contract_test.py
-          python3 mobile/tests/v233_bsa_model_match_contract_test.py
-          python3 mobile/tests/v234_multi_bsa_contract_test.py
-          python3 mobile/tests/v235_nif_validation_contract_test.py
-          python3 mobile/tests/v236_nif_auto_contract_test.py
-          python3 mobile/tests/v237_one_button_contract_test.py
-          python3 mobile/tests/v238_deep_nif_contract_test.py
-          python3 mobile/tests/v239_placed_preview_contract_test.py
-          python3 mobile/tests/v240_gpu_receipt_contract_test.py
-          python3 mobile/tests/v241_local_scene_contract_test.py
-          python3 mobile/tests/v242_local_scene_selection_contract_test.py
-          python3 mobile/tests/v243_pixelcopy_release_contract_test.py
-          python3 mobile/tests/v244_local_scene_dds_contract_test.py
-          python3 mobile/tests/v245_auto_local_gpu_contract_test.py
-          python3 mobile/tests/v246_visual_dds_contract_test.py
-          python3 mobile/tests/v247_real_world_selection_contract_test.py
-          python3 mobile/tests/v248_dds_session_recovery_contract_test.py
-          python3 mobile/tests/v249_shape_material_audit_contract_test.py
-          python3 mobile/tests/v250_sse_vertex_rgba_contract_test.py
-          python3 mobile/tests/v251_vertex_tint_lighting_contract_test.py
-          python3 mobile/tests/release_signing_contract_test.py
-          python3 mobile/tests/ci_quality_contract_test.py
+      # Explicit source-contract references are retained for legacy contract checks.
+      # python3 mobile/tests/v213_contract_test.py
+      # python3 mobile/tests/v214_vulkan_fallback_contract_test.py
+      # python3 mobile/tests/v215_device_autotest_contract_test.py
+      # python3 mobile/tests/v216_fps_matrix_contract_test.py
+      # python3 mobile/tests/v217_nif_hierarchy_contract_test.py
+      # python3 mobile/tests/v218_normal_atlas_contract_test.py
+      # python3 mobile/tests/v219_paired_material_contract_test.py
+      # python3 mobile/tests/v220_frame_pixelcopy_contract_test.py
+      # python3 mobile/tests/v221_dds_alpha_contract_test.py
+      # python3 mobile/tests/v222_pixel_footprint_contract_test.py
+      # python3 mobile/tests/v223_geometry_camera_contract_test.py
+      # python3 mobile/tests/v224_compact_viewport_contract_test.py
+      # python3 mobile/tests/v225_optional_alpha_blend_contract_test.py
+      # python3 mobile/tests/v226_manual_viewport_contract_test.py
+      # python3 mobile/tests/v227_tes4_plugin_contract_test.py
+      # python3 mobile/tests/v228_runtime_version_contract_test.py
+      # python3 mobile/tests/v229_grup_index_contract_test.py
+      # python3 mobile/tests/v230_nested_records_contract_test.py
+      # python3 mobile/tests/v231_placement_contract_test.py
+      # python3 mobile/tests/v232_base_form_contract_test.py
+      # python3 mobile/tests/v233_bsa_model_match_contract_test.py
+      # python3 mobile/tests/v234_multi_bsa_contract_test.py
+      # python3 mobile/tests/v235_nif_validation_contract_test.py
+      # python3 mobile/tests/v236_nif_auto_contract_test.py
+      # python3 mobile/tests/v237_one_button_contract_test.py
+      # python3 mobile/tests/v238_deep_nif_contract_test.py
+      # python3 mobile/tests/v239_placed_preview_contract_test.py
+      # python3 mobile/tests/v240_gpu_receipt_contract_test.py
+      # python3 mobile/tests/v241_local_scene_contract_test.py
+      # python3 mobile/tests/v242_local_scene_selection_contract_test.py
+      # python3 mobile/tests/v243_pixelcopy_release_contract_test.py
+      # python3 mobile/tests/v244_local_scene_dds_contract_test.py
+      # python3 mobile/tests/v245_auto_local_gpu_contract_test.py
+      # python3 mobile/tests/v246_visual_dds_contract_test.py
+      # python3 mobile/tests/v247_real_world_selection_contract_test.py
+      # python3 mobile/tests/v248_dds_session_recovery_contract_test.py
+      # python3 mobile/tests/v249_shape_material_audit_contract_test.py
+      # python3 mobile/tests/v250_sse_vertex_rgba_contract_test.py
+      # python3 mobile/tests/v251_vertex_tint_lighting_contract_test.py
+      # python3 mobile/tests/release_signing_contract_test.py
+      # python3 mobile/tests/ci_quality_contract_test.py
 
   android-arm64-apk:
     name: Compile Vulkan / sign / inspect ARM64 APK
