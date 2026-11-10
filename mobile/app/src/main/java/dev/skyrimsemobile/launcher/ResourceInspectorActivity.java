@@ -710,11 +710,13 @@ public final class ResourceInspectorActivity extends Activity {
                         decodedForAudit=found.decoded;
                         preparedAtlas=textureOwner.diffuseAtlas(materialByNif,found.decoded);
                         decodedDds=found.decoded.size();
-                        if(preparedAtlas!=null&&preparedAtlas.vertexColorTriangles>0)
+                        if(preparedAtlas!=null&&preparedAtlas.vertexColorTriangles>0){
                             previewNote+="\nSSE vertex RGBA: "+
                                 preparedAtlas.vertexColorTriangles+
                                 " треугольников без диффузных UV используют "+
-                                "цвета из NIF; не подменяются чужими DDS.";
+                                "оттенки NIF; не подменяются чужими DDS.";
+                            previewNote+="\n"+preparedAtlas.vertexColorNote;
+                        }
                         previewNote+="\nDDS: "+decodedDds+" / "+
                             requested.size()+" декодировано, найдено по каталогам "+
                             found.indexed+"; просмотр "+

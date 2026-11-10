@@ -40,9 +40,9 @@ assert "lastSceneVertexColorFaces" in reader
 assert "SSE vertex RGBA: подготовлены реальные цвета" in receipt
 assert "validColor()" in r("tests/NifGeometryDecoderTest.java")
 assert "vertexColorTriangles==1" in r("tests/Tes4LocalWorldSceneTest.java")
-assert "versionCode 73" in r("app/build.gradle")
-assert "2.50.0" in r("app/build.gradle")
+assert "versionCode 74" in r("app/build.gradle")
+assert "2.51.0" in r("app/build.gradle")
 wf=r("../.github/workflows/android-quality-gates.yml")
 assert "v250_sse_vertex_rgba_contract_test.py" in wf
-assert "Skyrim-SE-Mobile-v2.50.0-ARM64.apk" in wf
+assert "Skyrim-SE-Mobile-v2.51.0-ARM64.apk" in wf
 print("PASS real SSE vertex RGBA -> Java atlas -> JNI Vulkan shaders; pure-color fallback and no fake UV")

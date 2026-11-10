@@ -199,9 +199,18 @@ public final class Tes4LocalWorldSceneTest {
         assert mixed.vertexColors!=null&&mixed.vertexColors.length==24;
         assert mixed.uvAndSlot[2]==1f&&mixed.uvAndSlot[3*3+2]==-1f:
             "SSE RGBA uses separate -1 material slot without invented UV";
-        assert mixed.vertexColors[12]==1f&&mixed.vertexColors[13]==0f;
-        assert mixed.vertexColors[12+4+1]==1f;
-        assert mixed.vertexColors[12+8+2]==1f;
+        assert mixed.vertexColors[12]<.8f&&mixed.vertexColors[12]>.1f&&
+            mixed.vertexColors[13]==0f;
+        assert mixed.vertexColors[12+4+1]>.1f&&
+            mixed.vertexColors[12+4+1]<.8f;
+        assert mixed.vertexColors[12+8+2]>.1f&&
+            mixed.vertexColors[12+8+2]<.8f;
+        assert mixed.vertexColors[12+3]==128f/255f:
+            "SSE alpha preserved";
+        assert mixed.vertexColorNote.contains("исходный средний RGB"):
+            mixed.vertexColorNote;
+        assert rgbaParts.items.get(0).mesh.surfaceColors[0]==1f:
+            "original NIF vertex tint stays unmodified";
         var rgbaReport=rgbaScene.materialDiagnostics(
             materialPaths,java.util.Collections.emptyMap(),pixels);
         assert rgbaReport.contains("RGBA ВЕРШИН")&&

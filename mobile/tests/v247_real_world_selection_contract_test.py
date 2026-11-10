@@ -24,7 +24,7 @@ assert 'Один размещённый NIF' in ui
 assert 'MarkerRock.nif' in test and 'MarkerWordWallTower.nif' in test
 assert 'isWorldVisibleBase(bases.get(0xAA934L))' in test
 assert 'chosen.sceneQualityScore()' in world_test
-assert "versionCode 73" in gradle and "versionName '2.50.0'" in gradle
+assert "versionCode 74" in gradle and "versionName '2.51.0'" in gradle
 assert "v247_real_world_selection_contract_test.py" in workflow
-assert "Skyrim-SE-Mobile-v2.50.0-ARM64.apk" in workflow
+assert "Skyrim-SE-Mobile-v2.51.0-ARM64.apk" in workflow
 print("PASS v2.47 strict visible NIF filter, architecture priority and local-space sanity")

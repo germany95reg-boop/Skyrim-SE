@@ -296,9 +296,17 @@ public final class Tes4LocalWorldScene {
                     }
                 }
             }
+            // SSE RGB is a material TINT, not an emissive white texture.
+            // The atlas-safe shader is unlit; supply face-oriented neutral
+            // diagnostic illumination only for the explicit UV-less -1 slot.
+            // Unmodified raw RGBA remains in each NIF Mesh for the audit.
+            NifVertexTintPreview.Result tint=NifVertexTintPreview.shade(
+                build().surfaceTriangles,packed,vertexColors);
+            if(tint.tintedTriangles!=vertexColorFaces)
+                throw new IOException("SSE tint: число граней не соответствует сцене");
             return new NifCompositeDdsAtlas.Result(
                 packed,pixels,side,grid,tiles.size()-1,neutralParts,
-                texturedFaces,vertexColors,vertexColorFaces);
+                texturedFaces,tint.rgba,vertexColorFaces,tint.note());
         }
 
         /**
@@ -333,7 +341,8 @@ public final class Tes4LocalWorldScene {
                         state="НЕТ UV (flags=0x"+
                             Integer.toHexString(mesh.vertexFlags)+")"+
                             (mesh.surfaceColors.length==(long)facesHere*12?
-                                " · RGBA ВЕРШИН: доступен цветовой Vulkan-просмотр":
+                                " · RGBA ВЕРШИН: множитель материала; "+
+                                "диагностический свет, НЕ исходный diffuse":
                                 " · без цветов вершин");
                     }else{
                         String raw=diffuse==null?null:diffuse.get(part.blockIndex);

@@ -29,6 +29,8 @@ public final class NifCompositeDdsAtlas {
          */
         public final float[] vertexColors;
         public final int vertexColorTriangles;
+        /** Diagnostic report for UV-less RGBA tint and preview shading. */
+        public final String vertexColorNote;
         Result(float[] uvAndSlot,int[] argb,int side,int grid,int textures,int neutrals){
             this(uvAndSlot,argb,side,grid,textures,neutrals,-1,null,0);
         }
@@ -38,12 +40,19 @@ public final class NifCompositeDdsAtlas {
         }
         Result(float[] uvAndSlot,int[] argb,int side,int grid,int textures,
                int neutrals,int texturedTriangles,float[] colors,int vertexColorTriangles){
+            this(uvAndSlot,argb,side,grid,textures,neutrals,texturedTriangles,
+                 colors,vertexColorTriangles,"");
+        }
+        Result(float[] uvAndSlot,int[] argb,int side,int grid,int textures,
+               int neutrals,int texturedTriangles,float[] colors,int vertexColorTriangles,
+               String vertexColorNote){
             this.uvAndSlot=uvAndSlot;this.argb=argb;
             width=side;height=side;this.grid=grid;
             textureCount=textures;neutralParts=neutrals;
             this.texturedTriangles=texturedTriangles;
             this.vertexColors=colors==null?null:colors.clone();
             this.vertexColorTriangles=vertexColorTriangles;
+            this.vertexColorNote=vertexColorNote==null?"":vertexColorNote;
         }
     }
 

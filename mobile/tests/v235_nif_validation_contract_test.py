@@ -16,5 +16,5 @@ assert "Повторно проверить содержимое NIF" in ui
 assert "readAllBytes" not in ui
 assert "Tes4MatchedNifVerifier" in jvm
 assert "v235_nif_validation_contract_test.py" in wf
-assert "versionCode 73" in gradle and "versionName '2.50.0'" in gradle
+assert "versionCode 74" in gradle and "versionName '2.51.0'" in gradle
 print("PASS v2.35 bounded existing BSA-NIF decoder integrated")

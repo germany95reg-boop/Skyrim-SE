@@ -75,6 +75,7 @@ jobs:
           python3 mobile/tests/v248_dds_session_recovery_contract_test.py
           python3 mobile/tests/v249_shape_material_audit_contract_test.py
           python3 mobile/tests/v250_sse_vertex_rgba_contract_test.py
+          python3 mobile/tests/v251_vertex_tint_lighting_contract_test.py
           python3 mobile/tests/release_signing_contract_test.py
           python3 mobile/tests/ci_quality_contract_test.py
 
@@ -114,8 +115,8 @@ jobs:
         run: |
           set -euo pipefail
           APK="mobile/app/build/outputs/apk/debug/app-debug.apk"
-          TAG="skyrim-se-mobile-v2.50.0"
-          ASSET="Skyrim-SE-Mobile-v2.50.0-ARM64.apk"
+          TAG="skyrim-se-mobile-v2.51.0"
+          ASSET="Skyrim-SE-Mobile-v2.51.0-ARM64.apk"
           test -s "$APK"
           cp "$APK" "$ASSET" # GitHub CLI #suffix sets a label, not the asset filename.
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
@@ -123,7 +124,7 @@ jobs:
           else
             gh release create "$TAG" "$ASSET" \
               --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
-              --title "Skyrim SE Mobile v2.50.0 (ARM64 test APK)" \
+              --title "Skyrim SE Mobile v2.51.0 (ARM64 test APK)" \
               --notes "Signed test build of the diagnostic Skyrim SE Mobile Vulkan/NIF viewer. Not a playable SkyrimSE.exe port. APK package and testing certificate unchanged. PixelCopy only samples surface evidence; verify on a physical Android device." \
               --prerelease
           fi

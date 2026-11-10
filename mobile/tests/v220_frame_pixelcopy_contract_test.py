@@ -37,7 +37,7 @@ checks={
  "synthetic clear color test":"VulkanFrameSanityTest.java" in
       "\n".join(x.name for x in (root/"tests").glob("*.java")),
  "workflow includes contract":"v220_frame_pixelcopy_contract_test.py" in workflow,
- "ARM64 update code":"versionCode 73" in gradle and "versionName '2.50.0'" in gradle,
+ "ARM64 update code":"versionCode 74" in gradle and "versionName '2.51.0'" in gradle,
  "Vulkan native shader unchanged":"nativeGetStats" in scene and "selectedNormalAtlas" in source,
  "Android no network permission":"android.permission.INTERNET" not in manifest,
  "Android API 26 minSdk":"minSdk 26" in gradle,
