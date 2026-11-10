@@ -255,9 +255,10 @@ public final class Tes4LocalWorldScene {
                         }
                     }
                     boolean hasColor=mesh.surfaceColors.length==(long)verts*4;
-                    // SSE VF_COLORS=0x20 permits true per-vertex RGBA even when
-                    // VF_UV=0. Preserve real colors; NEVER invent UV coordinates.
-                    if(slot==0&&hasColor){
+                    // SSE VF_COLORS=0x20 permits true per-vertex RGBA without UV.
+                    // A UV-capable mesh with missing DDS must remain neutral:
+                    // tint is not a substitute for its missing diffuse map.
+                    if(slot==0&&!goodUv&&hasColor){
                         slot=-1;vertexColorFaces+=mesh.triangles;
                     }
                     if(slot==0)neutralParts++;
