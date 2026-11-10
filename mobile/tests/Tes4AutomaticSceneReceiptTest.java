@@ -43,6 +43,15 @@ public final class Tes4AutomaticSceneReceiptTest {
         assert screenshot.report.contains("декодировано 1 из 5");
         assert screenshot.report.contains("200 из 5879");
         assert screenshot.report.contains("6.2%");
+        var actualSseColors=Tes4AutomaticSceneReceipt.withVisualQuality(
+            all,1,5,5,1718,5879,2404,49152,4061);
+        assert actualSseColors.warnings==3 && actualSseColors.failedChecks==0:
+            actualSseColors.report;
+        assert actualSseColors.report.contains(
+            "SSE vertex RGBA: подготовлены реальные цвета для 4061 треугольников"):
+            actualSseColors.report;
+        assert actualSseColors.report.contains("цвета вершин или нейтральный материал"):
+            actualSseColors.report;
         var complete=Tes4AutomaticSceneReceipt.withVisualQuality(all,
             4,5,5,5879,5879,7000,49152);
         assert complete.warnings==0 && complete.passed:

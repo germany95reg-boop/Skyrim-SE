@@ -23,7 +23,7 @@ assert 'blocks.get(shaderId).type' in material
 assert 'wrongShader.links.get(0).problem.contains("BSShaderTextureSet")' in link_test
 assert 'String completeAudit=sceneDds.materialDiagnostics(' in test
 assert 'сумма: 3 / 3' in test
-assert 'versionCode 72' in gradle and "versionName '2.49.0'" in gradle
-assert 'Skyrim-SE-Mobile-v2.49.0-ARM64.apk' in wf
+assert 'versionCode 73' in gradle and "versionName '2.50.0'" in gradle
+assert 'Skyrim-SE-Mobile-v2.50.0-ARM64.apk' in wf
 assert "v249_shape_material_audit_contract_test.py" in wf
 print("PASS v2.49 real per-BSTriShape DDS/UV/shader audit and 28k report persistence")

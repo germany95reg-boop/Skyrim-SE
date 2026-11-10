@@ -6,6 +6,7 @@ layout(set=0,binding=0) uniform sampler2D diffuseSampler;
 layout(location=0) in vec2 uv;
 layout(location=1) in vec3 viewPosition;
 layout(location=2) flat in float materialSlot;
+layout(location=3) in vec4 vertexColor;
 layout(location=0) out vec4 fragColor;
 layout(push_constant) uniform NormalOptions {
     layout(offset=28) int atlasMode;
@@ -33,12 +34,13 @@ void main(){
             normalUV=vec2(diffuseUV.x,diffuseUV.y+0.5);
         }
     }
-    vec4 base=texture(diffuseSampler,diffuseUV);
+    vec4 base=materialSlot< -0.5 ? vec4(vertexColor.rgb,1.0) :
+        texture(diffuseSampler,diffuseUV);
     vec3 pDx=dFdx(viewPosition),pDy=dFdy(viewPosition);
     vec3 geoN=cross(pDx,pDy);
     float nl=length(geoN);
     vec3 n=nl>1e-7?geoN/nl:vec3(0.0,0.0,1.0);
-    if(options.normalEnabled!=0&&
+    if(materialSlot>=0.0&&options.normalEnabled!=0&&
        (options.atlasMode==1||options.atlasMode==3)){
         vec2 enc=texture(diffuseSampler,normalUV).rg*2.0-1.0;
         enc=clamp(enc*clamp(options.reliefStrength,0.5,1.5),

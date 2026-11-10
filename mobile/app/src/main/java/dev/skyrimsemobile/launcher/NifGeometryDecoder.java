@@ -123,6 +123,8 @@ public final class NifGeometryDecoder {
         public final float[] surfaceTriangles;
         /** SSE half-float UV pairs, expanded per triangle in the same vertex order. Empty when absent. */
         public final float[] surfaceUVs;
+        /** Real SSE RGBA vertex bytes, expanded in exactly triangle vertex order. */
+        public final float[] surfaceColors;
         public final int shapeIndex, triangles, stride, vertexFlags;
         public final String shapeType;
         public final float[] rawDimensions, localDimensions, translation;
@@ -130,11 +132,13 @@ public final class NifGeometryDecoder {
         /** Bounds of the used, locally transformed geometry BEFORE per-part normalization. */
         public final float[] localMin;
         public final float localSpan;
-        Mesh(ObjWireParser.Model lines,float[] surfaceTriangles,float[] surfaceUVs,int shapeIndex,int triangles,int stride,int flags,String type,
+        Mesh(ObjWireParser.Model lines,float[] surfaceTriangles,float[] surfaceUVs,
+             float[] surfaceColors,int shapeIndex,int triangles,int stride,int flags,String type,
              float[] rawDimensions,float[] localDimensions,float[] translation,float localScale,
              float[] localMin,float localSpan) {
             this.lines=lines;this.surfaceTriangles=surfaceTriangles.clone();
             this.surfaceUVs=surfaceUVs.clone();
+            this.surfaceColors=surfaceColors.clone();
             this.shapeIndex=shapeIndex;this.triangles=triangles;
             this.stride=stride;this.vertexFlags=flags;this.shapeType=type;
             this.rawDimensions=rawDimensions.clone();this.localDimensions=localDimensions.clone();
@@ -197,8 +201,12 @@ public final class NifGeometryDecoder {
         // UV1 offset is the THIRD nibble (bits 8..11), in four-byte words.
         // v2.1 mistakenly read the dynamic-size nibble and rejected vanilla SSE NIF.
         int uvOffset=(int)((desc>>>8)&15L)*4;
+        // BSVertexDesc nibble 6 (bits 24..27): RGBA byte offset / 4.
+        // Vertex attributes VF_COLORS=0x20, present in user's #100 (0x29).
+        int colorOffset=(int)((desc>>>24)&15L)*4;
         int attributes=(int)((desc>>>44)&0xfff);
         boolean hasUv=(attributes&2)!=0;
+        boolean hasColors=(attributes&0x20)!=0;
         int triangles=u16(b,descOffset+8,end);
         int vertices=u16(b,descOffset+10,end);
         long declaredSize=u32(b,descOffset+12,end);
@@ -210,6 +218,10 @@ public final class NifGeometryDecoder {
             throw new IOException("SSE UV: неверное смещение BSVertexDesc"+
                 " (desc=0x"+Long.toHexString(desc)+", stride="+stride+
                 ", uvOffset="+uvOffset+")");
+        if(hasColors&&(colorOffset<16||colorOffset+4>stride))
+            throw new IOException("SSE RGBA: неверное смещение BSVertexDesc"+
+                " (desc=0x"+Long.toHexString(desc)+", stride="+stride+
+                ", colorOffset="+colorOffset+")");
         long expected=(long)vertices*stride+(long)triangles*6;
         if(declaredSize != expected)
             throw new IOException("Data Size не совпадает с форматом вершин/граней: "+declaredSize+" / "+expected);
@@ -228,6 +240,7 @@ public final class NifGeometryDecoder {
             throw new IOException("Масштаб BSTriShape вне безопасного диапазона");
         float[] positions=new float[vertices*3];
         float[] uvs=hasUv?new float[vertices*2]:new float[0];
+        float[] colors=hasColors?new float[vertices*4]:new float[0];
         float[] rawLow={Float.POSITIVE_INFINITY,Float.POSITIVE_INFINITY,Float.POSITIVE_INFINITY};
         float[] rawHigh={Float.NEGATIVE_INFINITY,Float.NEGATIVE_INFINITY,Float.NEGATIVE_INFINITY};
         for(int v=0;v<vertices;v++) {
@@ -247,6 +260,10 @@ public final class NifGeometryDecoder {
                     throw new IOException("SSE UV: недопустимые half-float координаты вершины #"+v);
                 uvs[2*v]=u;
                 uvs[2*v+1]=vCoord;
+            }
+            if(hasColors){
+                for(int c=0;c<4;c++)
+                    colors[v*4+c]=(b[address+colorOffset+c]&255)/255f;
             }
             for(int row=0;row<3;row++) {
                 double transformed=translation[row]+(double)localScale*(
@@ -289,6 +306,7 @@ public final class NifGeometryDecoder {
         // a separately normalized surface: the two modes must overlap exactly.
         float[] surfaceTriangles=new float[indices.length*3];
         float[] surfaceUVs=hasUv?new float[indices.length*2]:new float[0];
+        float[] surfaceColors=hasColors?new float[indices.length*4]:new float[0];
         for(int i=0;i<indices.length;i++){
             for(int k=0;k<3;k++)
                 surfaceTriangles[i*3+k]=((positions[indices[i]*3+k]-low[k])/span-0.5f)*2f;
@@ -296,6 +314,8 @@ public final class NifGeometryDecoder {
                 surfaceUVs[i*2]=uvs[indices[i]*2];
                 surfaceUVs[i*2+1]=uvs[indices[i]*2+1];
             }
+            if(hasColors)for(int c=0;c<4;c++)
+                surfaceColors[i*4+c]=colors[indices[i]*4+c];
         }
         float[] rawDimensions=new float[3],localDimensions=new float[3];
         for(int k=0;k<3;k++){
@@ -303,7 +323,7 @@ public final class NifGeometryDecoder {
             localDimensions[k]=high[k]-low[k];
         }
         return new Mesh(new ObjWireParser.Model(segments,vertices,edges.size()),surfaceTriangles,surfaceUVs,
-            block.index,triangles,stride,attributes,block.type,rawDimensions,localDimensions,
+            surfaceColors,block.index,triangles,stride,attributes,block.type,rawDimensions,localDimensions,
             translation,localScale,low,span);
     }
     private static void edge(LinkedHashSet<Long> edges,int a,int b){

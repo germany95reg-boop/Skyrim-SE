@@ -221,7 +221,9 @@ public final class Tes4LocalWorldScene {
             List<DdsBcDecoder.Image> tiles=new ArrayList<>();
             tiles.add(null); // neutral material tile 0
             float[] packed=new float[faces*9]; // [U,V,materialSlot] per vertex
-            int offset=0,neutralParts=0,texturedFaces=0;
+            float[] vertexColors=new float[faces*12]; // actual SSE RGBA per vertex
+            java.util.Arrays.fill(vertexColors,1f);
+            int offset=0,neutralParts=0,texturedFaces=0,vertexColorFaces=0;
             for(Instance instance:selected){
                 java.util.Map<Integer,String> perPart=byNif.get(instance.link.canonicalPath);
                 for(NifGeometryDecoder.Part part:instance.parts.items){
@@ -252,10 +254,18 @@ public final class Tes4LocalWorldScene {
                             slot=tiles.size();slots.put(key,slot);tiles.add(image);
                         }
                     }
+                    boolean hasColor=mesh.surfaceColors.length==(long)verts*4;
+                    // SSE VF_COLORS=0x20 permits true per-vertex RGBA even when
+                    // VF_UV=0. Preserve real colors; NEVER invent UV coordinates.
+                    if(slot==0&&hasColor){
+                        slot=-1;vertexColorFaces+=mesh.triangles;
+                    }
                     if(slot==0)neutralParts++;
-                    else texturedFaces+=mesh.triangles;
+                    else if(slot>0)texturedFaces+=mesh.triangles;
                     for(int v=0;v<verts;v++){
                         int pos=(offset+v)*3;
+                        if(hasColor)for(int c=0;c<4;c++)
+                            vertexColors[(offset+v)*4+c]=mesh.surfaceColors[v*4+c];
                         if(goodUv){
                             packed[pos]=mesh.surfaceUVs[v*2];
                             packed[pos+1]=mesh.surfaceUVs[v*2+1];
@@ -287,7 +297,8 @@ public final class Tes4LocalWorldScene {
                 }
             }
             return new NifCompositeDdsAtlas.Result(
-                packed,pixels,side,grid,tiles.size()-1,neutralParts,texturedFaces);
+                packed,pixels,side,grid,tiles.size()-1,neutralParts,
+                texturedFaces,vertexColors,vertexColorFaces);
         }
 
         /**
@@ -320,7 +331,10 @@ public final class Tes4LocalWorldScene {
                     if(!uv){
                         noUv+=facesHere;
                         state="НЕТ UV (flags=0x"+
-                            Integer.toHexString(mesh.vertexFlags)+")";
+                            Integer.toHexString(mesh.vertexFlags)+")"+
+                            (mesh.surfaceColors.length==(long)facesHere*12?
+                                " · RGBA ВЕРШИН: доступен цветовой Vulkan-просмотр":
+                                " · без цветов вершин");
                     }else{
                         String raw=diffuse==null?null:diffuse.get(part.blockIndex);
                         if(raw==null||raw.isEmpty()){

@@ -12,15 +12,23 @@ final class NifGeometryTransfer {
         final int[] normalArgb;
         final int normalWidth,normalHeight;
         final float[] materialSlots;
+        final float[] vertexColors; // RGBA per triangle vertex, real SSE data only
         final int diffuseAtlasGrid;
         final String label, details;
         Selected(ObjWireParser.Model model,float[] surfaceTriangles,float[] uv,int[] pixels,
                  int width,int height,int[] normal,int nw,int nh,String label,String details,
                  float[] slots,int grid){
+            this(model,surfaceTriangles,uv,pixels,width,height,normal,nw,nh,
+                 label,details,slots,grid,null);
+        }
+        Selected(ObjWireParser.Model model,float[] surfaceTriangles,float[] uv,int[] pixels,
+                 int width,int height,int[] normal,int nw,int nh,String label,String details,
+                 float[] slots,int grid,float[] colors){
             this.model=model;this.surfaceTriangles=surfaceTriangles;
             this.surfaceUVs=uv;this.argb=pixels;textureWidth=width;textureHeight=height;
             normalArgb=normal;normalWidth=nw;normalHeight=nh;
             materialSlots=slots;diffuseAtlasGrid=grid;
+            vertexColors=colors;
             this.label=label;this.details=details;}
     }
     static synchronized void offer(ObjWireParser.Model model,float[] surfaceTriangles,String label,String details){
@@ -49,7 +57,9 @@ final class NifGeometryTransfer {
            (long)atlas.width*atlas.height!=atlas.argb.length||
            atlas.grid<1||atlas.grid>4||
            triangles.length<9||triangles.length%9!=0||
-           atlas.uvAndSlot.length!=(triangles.length/3)*3)
+           atlas.uvAndSlot.length!=(triangles.length/3)*3||
+           (atlas.vertexColors!=null&&
+            atlas.vertexColors.length!=(triangles.length/3)*4))
             throw new IllegalArgumentException("Composite NIF UV/atlas size mismatch");
         int verts=triangles.length/3;
         float[] uv=new float[verts*2],slots=new float[verts];
@@ -59,7 +69,8 @@ final class NifGeometryTransfer {
             slots[i]=atlas.uvAndSlot[i*3+2];
         }
         pending=new Selected(model,triangles.clone(),uv,atlas.argb.clone(),
-            atlas.width,atlas.height,null,0,0,label,details,slots,atlas.grid);
+            atlas.width,atlas.height,null,0,0,label,details,slots,atlas.grid,
+            atlas.vertexColors==null?null:atlas.vertexColors.clone());
     }
     /**
      * The v2.18 normal atlas is a full-height CPU-packed image with diffuse
@@ -78,7 +89,8 @@ final class NifGeometryTransfer {
         pending=new Selected(saved.model,saved.surfaceTriangles,saved.surfaceUVs,
             saved.argb,saved.textureWidth,saved.textureHeight,
             normals.stackedArgb.clone(),normals.width,normals.height,
-            saved.label,saved.details,saved.materialSlots,saved.diffuseAtlasGrid);
+            saved.label,saved.details,saved.materialSlots,saved.diffuseAtlasGrid,
+            saved.vertexColors);
     }
     static synchronized Selected take(){
         Selected result=pending;pending=null;return result;

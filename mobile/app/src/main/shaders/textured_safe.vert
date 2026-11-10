@@ -11,9 +11,11 @@ layout(push_constant) uniform SceneParams {
 layout(location=0) in vec3 inPosition;
 layout(location=1) in vec2 inUV;
 layout(location=2) in float inMaterialSlot;
+layout(location=3) in vec4 inVertexColor;
 layout(location=0) out vec2 uv;
 layout(location=1) out vec3 viewPosition;
 layout(location=2) flat out float materialSlot;
+layout(location=3) out vec4 vertexColor;
 void main(){
     float cy=cos(params.angle),sy=sin(params.angle);
     float cp=cos(params.pitch),sp=sin(params.pitch);
@@ -22,7 +24,8 @@ void main(){
     vec3 v=vec3(rotated.x,cp*rotated.y-sp*rotated.z,sp*rotated.y+cp*rotated.z);
     viewPosition=v;
     uv=inUV; // SSE half-float UV has been decoded by Java into float32.
-    materialSlot=inMaterialSlot; // Driver compatibility: float varying, no dynamic integer arithmetic.
+    materialSlot=inMaterialSlot; // Includes -1 for real vertex RGBA.
+    vertexColor=inVertexColor;
     float z=v.z+params.distance;
     gl_Position=vec4(3.2*v.x/max(params.aspect,0.2),
                      -3.2*v.y+params.focusOffsetY*z,z-0.5,z);

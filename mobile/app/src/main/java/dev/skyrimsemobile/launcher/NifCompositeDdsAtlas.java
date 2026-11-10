@@ -24,15 +24,26 @@ public final class NifCompositeDdsAtlas {
         public final int width,height,grid,textureCount,neutralParts;
         /** Actual diffuse-textured triangle count; -1 in legacy callers. */
         public final int texturedTriangles;
+        /** Actual SSE vertex RGBA expanded per triangle (4 float channels each).
+         * Null in legacy/standalone atlas builders that have no vertex colors.
+         */
+        public final float[] vertexColors;
+        public final int vertexColorTriangles;
         Result(float[] uvAndSlot,int[] argb,int side,int grid,int textures,int neutrals){
-            this(uvAndSlot,argb,side,grid,textures,neutrals,-1);
+            this(uvAndSlot,argb,side,grid,textures,neutrals,-1,null,0);
         }
         Result(float[] uvAndSlot,int[] argb,int side,int grid,int textures,
-               int neutrals,int coloredTriangles){
+               int neutrals,int texturedTriangles){
+            this(uvAndSlot,argb,side,grid,textures,neutrals,texturedTriangles,null,0);
+        }
+        Result(float[] uvAndSlot,int[] argb,int side,int grid,int textures,
+               int neutrals,int texturedTriangles,float[] colors,int vertexColorTriangles){
             this.uvAndSlot=uvAndSlot;this.argb=argb;
             width=side;height=side;this.grid=grid;
             textureCount=textures;neutralParts=neutrals;
-            texturedTriangles=coloredTriangles;
+            this.texturedTriangles=texturedTriangles;
+            this.vertexColors=colors==null?null:colors.clone();
+            this.vertexColorTriangles=vertexColorTriangles;
         }
     }
 

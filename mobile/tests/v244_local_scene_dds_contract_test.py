@@ -29,8 +29,8 @@ assert 'offerAtlas(ObjWireParser.Model model' in transfer
 assert 'var diffuse=sceneDds.diffuseAtlas(materialPaths,pixels);' in test
 assert 'diffuse.neutralParts==1' in test
 assert 'sceneDds.build().triangleCount==3' in test
-assert 'versionCode 72' in gradle and "versionName '2.49.0'" in gradle
-assert "versionCode='72'" in verify
+assert 'versionCode 73' in gradle and "versionName '2.50.0'" in gradle
+assert "versionCode='73'" in verify
 assert "v244_local_scene_dds_contract_test.py" in wf
-assert "Skyrim-SE-Mobile-v2.49.0-ARM64.apk" in wf
+assert "Skyrim-SE-Mobile-v2.50.0-ARM64.apk" in wf
 print("PASS v2.44 local-scene real DDS/UV and neutral fallback contract")

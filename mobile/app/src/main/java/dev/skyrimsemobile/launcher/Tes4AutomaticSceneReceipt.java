@@ -28,7 +28,16 @@ public final class Tes4AutomaticSceneReceipt {
     public static Result withVisualQuality(Result gpu,int placedRefs,
             int declaredDds,int decodedDds,int texturedTriangles,
             int totalTriangles,int nonBackground,int samplePixels){
+        return withVisualQuality(gpu,placedRefs,declaredDds,decodedDds,
+            texturedTriangles,totalTriangles,nonBackground,samplePixels,0);
+    }
+    public static Result withVisualQuality(Result gpu,int placedRefs,
+            int declaredDds,int decodedDds,int texturedTriangles,
+            int totalTriangles,int nonBackground,int samplePixels,
+            int vertexColorTriangles){
         if(gpu==null)throw new IllegalArgumentException("Нет базового отчёта GPU");
+        if(vertexColorTriangles<0||vertexColorTriangles>totalTriangles)
+            throw new IllegalArgumentException("Не соответствует количество цветов вершин");
         String raw=gpu.report;
         int cut=raw.indexOf("Итог: PASS ");
         String base=cut<0?raw:raw.substring(0,cut);
@@ -54,7 +63,17 @@ public final class Tes4AutomaticSceneReceipt {
                 .append(totalTriangles).append(" треугольников (")
                 .append(String.format(Locale.ROOT,"%.1f",
                     texturedTriangles*100.0/totalTriangles))
-                .append("%); остальные используют нейтральный цвет.\n");
+                .append("%); остальные используют ")
+                .append(vertexColorTriangles>0?
+                    "цвета вершин или нейтральный материал.\n":
+                    "нейтральный цвет.\n");
+        }
+        if(vertexColorTriangles>0){
+            out.append("[INFO] SSE vertex RGBA: подготовлены реальные цвета для ")
+               .append(vertexColorTriangles).append(" треугольников (")
+               .append(String.format(Locale.ROOT,"%.1f",
+                   100.0*vertexColorTriangles/Math.max(1,totalTriangles)))
+               .append("%). Не заменяет отсутствующие DDS/UV.\n");
         }
         if(samplePixels>0&&nonBackground>=0&&
            (long)nonBackground*100<8L*samplePixels){

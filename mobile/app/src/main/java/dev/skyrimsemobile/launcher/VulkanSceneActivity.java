@@ -205,6 +205,7 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
     private static native boolean nativeSetSolidMode(boolean enabled);
     private static native boolean nativeSetTexture(float[] uv,int[] argb,int width,int height);
     private static native boolean nativeSetDiffuseAtlas(float[] uv,float[] slots,int[] argb,int width,int height,int grid);
+    private static native boolean nativeSetVertexColors(float[] rgba);
     private static native boolean nativeSetDiffuseNormalAtlas(float[] uv,float[] slots,int[] stacked,int width,int height,int grid);
     private static native void nativeSetUseTexture(boolean enabled);
     private static native void nativeSetAlphaBlend(boolean enabled);
@@ -719,7 +720,7 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
                 activateModel(nif.model,nif.label,null,nif.surfaceTriangles,
                     nif.surfaceUVs,nif.argb,nif.textureWidth,nif.textureHeight,
                     nif.normalArgb,nif.normalWidth,nif.normalHeight,
-                    nif.materialSlots,nif.diffuseAtlasGrid);
+                    nif.materialSlots,nif.diffuseAtlasGrid,nif.vertexColors);
                 if(automaticPlacedTest&&!hasSurface)
                     ui.post(()->completeDeviceAutotest(false,null,
                         "Реальная NIF-сцена не передана в поверхностный Vulkan-рендерер"));
@@ -843,6 +844,13 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
     private void activateModel(ObjWireParser.Model model,String name,Uri persist,float[] triangles,
            float[] uv,int[] pixels,int textureW,int textureH,
            int[] normalPixels,int normalW,int normalH,float[] slots,int grid) {
+        activateModel(model,name,persist,triangles,uv,pixels,textureW,textureH,
+            normalPixels,normalW,normalH,slots,grid,null);
+    }
+    private void activateModel(ObjWireParser.Model model,String name,Uri persist,float[] triangles,
+           float[] uv,int[] pixels,int textureW,int textureH,
+           int[] normalPixels,int normalW,int normalH,float[] slots,int grid,
+           float[] vertexColors) {
         loadingModel=false;modelButton.setEnabled(true);
         if(destroyed || loadingError!=null)return;
         boolean accepted=nativeSetGeometry(model.segments,name);
@@ -854,6 +862,10 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
                     nativeSetDiffuseNormalAtlas(uv,slots,normalPixels,normalW,normalH,grid):
                     nativeSetDiffuseAtlas(uv,slots,pixels,textureW,textureH,grid)):
                 nativeSetTexture(uv,pixels,textureW,textureH));
+        // Colors are only uploaded for the new real SSE NIF atlas. They never
+        // replace absent DDS with invented UVs and do not affect legacy OBJ.
+        boolean colorsReady=hasTexture&&vertexColors!=null&&
+            nativeSetVertexColors(vertexColors);
         useTexture=hasTexture;
         nativeSetUseTexture(useTexture);
         hasNormalMap=hasTexture&&normalPixels!=null&&

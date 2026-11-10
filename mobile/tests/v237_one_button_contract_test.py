@@ -24,5 +24,5 @@ assert "readAllBytes" not in ui
 assert "SkyrimAutoDiscovery" in jvm
 assert "mainMaster(" in java and "static void main(String[] args)" in test
 assert "v237_one_button_contract_test.py" in wf
-assert "versionCode 72" in gradle and "versionName '2.49.0'" in gradle
+assert "versionCode 73" in gradle and "versionName '2.50.0'" in gradle
 print("PASS v2.37 one-folder auto scan, advanced UI and upgrade identity")

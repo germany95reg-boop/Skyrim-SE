@@ -4,6 +4,7 @@
 layout(set=0,binding=0) uniform sampler2D diffuseSampler;
 layout(location=0) in vec2 uv;
 layout(location=2) flat in float materialSlot;
+layout(location=3) in vec4 vertexColor;
 layout(location=0) out vec4 fragColor;
 layout(push_constant) uniform TextureOptions {
     layout(offset=28) int atlasMode;
@@ -23,7 +24,8 @@ void main() {
         sampleUV=(vec2(col,row)+within)/grid;
         if(options.atlasMode==3)sampleUV.y*=0.5;
     }
-    vec4 base=texture(diffuseSampler,sampleUV);
+    vec4 base=materialSlot< -0.5 ? vec4(vertexColor.rgb,1.0) :
+        texture(diffuseSampler,sampleUV);
     if(base.a < 0.05) discard; // Driver-safe cutout; no extra samplers.
     fragColor=base;
 }

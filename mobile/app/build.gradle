@@ -8,8 +8,8 @@ android {
         applicationId 'dev.skyrimsemobile.launcher'
         minSdk 26
         targetSdk 34
-        versionCode 72
-        versionName '2.49.0'
+        versionCode 73
+        versionName '2.50.0'
         testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
         ndk {
             // Release APK is ARM64-only; x86_64 is added only for emulator CI.

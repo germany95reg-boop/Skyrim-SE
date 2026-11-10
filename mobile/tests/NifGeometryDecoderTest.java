@@ -60,6 +60,29 @@ public final class NifGeometryDecoderTest {
         set64(expanded,blockPos+100,5L|(4L<<8)|(3L<<44)); // UV1 offset is nibble #2
         return expanded;
     }
+    /**
+     * Real SSE descriptor shape #100 reported flags=0x29:
+     * position + normal + RGBA colors, but deliberately NO UV.
+     */
+    static byte[] validColor(){
+        byte[] original=valid();
+        int oldBase=blockPos+116;
+        byte[] expanded=new byte[original.length+3*8];
+        System.arraycopy(original,0,expanded,0,oldBase);
+        int[][] rgba={{255,0,0,128},{0,255,0,64},{0,0,255,255}};
+        for(int i=0;i<3;i++){
+            int dst=oldBase+i*24;
+            System.arraycopy(original,oldBase+i*16,expanded,dst,16);
+            for(int j=0;j<4;j++)
+                expanded[dst+20+j]=(byte)rgba[i][j];
+        }
+        System.arraycopy(original,oldBase+3*16,expanded,oldBase+3*24,
+            original.length-(oldBase+3*16));
+        set32(expanded,sizePos,116+3*24+6);
+        set32(expanded,blockPos+112,3*24+6);
+        set64(expanded,blockPos+100,6L|(4L<<16)|(5L<<24)|(0x29L<<44));
+        return expanded;
+    }
     /** Two contiguous BSTriShape payloads and a correctly rebuilt NIF header. */
     static byte[] twoShapes(){
         byte[] single=valid();
@@ -157,6 +180,25 @@ public final class NifGeometryDecoderTest {
         ok(textured.surfaceUVs[0]==0f&&textured.surfaceUVs[1]==0f,"UV vertex zero");
         ok(textured.surfaceUVs[2]==1f&&textured.surfaceUVs[3]==0f,"UV vertex one");
         ok(textured.surfaceUVs[4]==0f&&textured.surfaceUVs[5]==1f,"UV vertex two");
+        byte[] colored=validColor();
+        NifGeometryDecoder.Mesh vertexColorMesh=NifGeometryDecoder.decode(colored);
+        ok(vertexColorMesh.vertexFlags==0x29,"real SSE 0x29 descriptor");
+        ok(vertexColorMesh.surfaceUVs.length==0,
+            "vertex-color-only shape must NEVER be assigned invented UV");
+        ok(vertexColorMesh.surfaceColors.length==12,
+            "RGBA expanded in triangle vertex order");
+        ok(vertexColorMesh.surfaceColors[0]==1f&&vertexColorMesh.surfaceColors[1]==0f,
+            "color #0 red");
+        ok(vertexColorMesh.surfaceColors[5]==1f,
+            "color #1 green");
+        ok(vertexColorMesh.surfaceColors[10]==1f,
+            "color #2 blue");
+        ok(Math.abs(vertexColorMesh.surfaceColors[3]-128f/255f)<1e-6,
+            "alpha retained without inventing transparency");
+        byte[] missingColor=colored.clone();
+        set64(missingColor,blockPos+100,
+            6L|(4L<<16)|(7L<<24)|(0x29L<<44));
+        bad(missingColor,"SSE color field outside declared vertex stride");
         // Regression: dynamic-vertex-size nibble (bits 4..7) must NOT be read as UV1.
         byte[] dynamicBytes=uvBytes.clone();
         set64(dynamicBytes,blockPos+100,5L|(2L<<4)|(4L<<8)|(3L<<44));

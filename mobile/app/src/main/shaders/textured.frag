@@ -3,6 +3,7 @@ layout(set=0,binding=0) uniform sampler2D diffuseSampler;
 layout(location=0) in vec2 uv;
 layout(location=1) in vec3 viewPosition;
 layout(location=2) flat in int materialSlot;
+layout(location=3) in vec4 vertexColor;
 layout(location=0) out vec4 fragColor;
 
 // The vertex stage reads the first 28 bytes of the SAME push-constant block.
@@ -38,7 +39,10 @@ void main(){
         vec2 inset=0.5/vec2(textureSize(diffuseSampler,0));
         diffuseUV=mix(tileMin+inset,tileMax-inset,tiled);
     }
-    vec4 base=texture(diffuseSampler,diffuseUV);
+    // Slot -1 means the original SSE BSTriShape has RGBA but no diffuse UV.
+    // Preserve actual interpolated RGB, not a guessed texture; alpha is informational.
+    vec4 base=materialSlot<0 ? vec4(vertexColor.rgb,1.0) :
+        texture(diffuseSampler,diffuseUV);
     vec3 dpdx=dFdx(viewPosition),dpdy=dFdy(viewPosition);
     vec2 dudx=dFdx(uv),dudy=dFdy(uv);
     vec3 crossN=cross(dpdx,dpdy);
@@ -57,7 +61,7 @@ void main(){
         vec2 tileMax=vec2((xy.x+1.0)/float(grid),0.5+(xy.y+1.0)/float(grid)*0.5);
         normalUV=mix(tileMin+inset,tileMax-inset,tiled);
     }
-    if((options.atlasMode==1||options.atlasMode==3)&&options.normalEnabled!=0){
+    if(materialSlot>=0&&(options.atlasMode==1||options.atlasMode==3)&&options.normalEnabled!=0){
         vec2 xy=texture(diffuseSampler,normalUV).rg*2.0-1.0;
         // Bounded normal-map emphasis; 100% matches the proven v2.2 preview.
         xy=clamp(xy*clamp(options.reliefStrength,0.5,1.5),
@@ -82,7 +86,7 @@ void main(){
     else if(options.lightMode==3)lightDirection=vec3(0.15,0.94,0.30);
     float diffuse=abs(dot(n,normalize(lightDirection)));
     vec3 shaded=base.rgb*(0.45+0.55*diffuse);
-    if((options.atlasMode==1||options.atlasMode==3)&&options.specularStrength>0.001){
+    if(materialSlot>=0&&(options.atlasMode==1||options.atlasMode==3)&&options.specularStrength>0.001){
         // Two-sided preview geometry: orient the shaded normal toward a
         // camera-facing view vector. Approximate lighting, not game PBR.
         vec3 viewDir=normalize(vec3(0.0,0.0,-1.0)-viewPosition*0.08);

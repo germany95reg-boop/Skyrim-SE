@@ -34,7 +34,7 @@ public final class ResourceInspectorActivity extends Activity {
     private Tes4PlacedNifScene.Preview lastPreview;
     private NifCompositeDdsAtlas.Result lastSceneDiffuseAtlas;
     private int lastSceneRefCount,lastSceneRequestedDds,lastSceneDecodedDds,
-        lastSceneTexturedFaces;
+        lastSceneTexturedFaces,lastSceneVertexColorFaces;
     private String placedPreviewToken,placedPreviewExpected;
     private boolean automaticScenePending=false,automaticPlacedPreviewActive=false;
     private java.util.List<Tes4PlacementSubrecordReader.Placement> lastPlacements=java.util.Collections.emptyList();
@@ -138,6 +138,7 @@ public final class ResourceInspectorActivity extends Activity {
         lastSceneDiffuseAtlas=null;
         lastSceneRefCount=0;lastSceneRequestedDds=0;
         lastSceneDecodedDds=0;lastSceneTexturedFaces=0;
+        lastSceneVertexColorFaces=0;
         if(previewButton!=null){
             previewButton.setVisibility(View.GONE);
             previewButton.setText("Просмотреть найденный объект в 3D");
@@ -280,7 +281,8 @@ public final class ResourceInspectorActivity extends Activity {
                 lastSceneDiffuseAtlas==null?0:lastSceneTexturedFaces,
                 preview==null?0:preview.triangleCount,
                 stats.optInt("frameNonBackground",0),
-                stats.optInt("frameSamplePixels",0));
+                stats.optInt("frameSamplePixels",0),
+                lastSceneVertexColorFaces);
             update(text+"\n\n"+
                 (recovered?"[INFO] Отчёт восстановлен из локального "+
                     "результата того же сеанса.\n":"")+
@@ -708,6 +710,11 @@ public final class ResourceInspectorActivity extends Activity {
                         decodedForAudit=found.decoded;
                         preparedAtlas=textureOwner.diffuseAtlas(materialByNif,found.decoded);
                         decodedDds=found.decoded.size();
+                        if(preparedAtlas!=null&&preparedAtlas.vertexColorTriangles>0)
+                            previewNote+="\nSSE vertex RGBA: "+
+                                preparedAtlas.vertexColorTriangles+
+                                " треугольников без диффузных UV используют "+
+                                "цвета из NIF; не подменяются чужими DDS.";
                         previewNote+="\nDDS: "+decodedDds+" / "+
                             requested.size()+" декодировано, найдено по каталогам "+
                             found.indexed+"; просмотр "+
@@ -754,6 +761,8 @@ public final class ResourceInspectorActivity extends Activity {
                     lastSceneDecodedDds=readyDecodedDds;
                     lastSceneTexturedFaces=readyAtlas==null?0:
                         readyAtlas.texturedTriangles;
+                    lastSceneVertexColorFaces=readyAtlas==null?0:
+                        readyAtlas.vertexColorTriangles;
                     if(previewButton!=null){
                         previewButton.setVisibility(readyPreview==null?View.GONE:View.VISIBLE);
                         if(readyPreview!=null)

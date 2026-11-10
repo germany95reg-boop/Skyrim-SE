@@ -49,6 +49,7 @@ std::vector<float> selectedGeometry;
 std::vector<float> selectedTriangles;
 std::vector<float> selectedUv;
 std::vector<float> selectedMaterialSlots; // one material tile per triangle vertex
+std::vector<float> selectedVertexColors; // v2.50: real SSE RGBA per triangle vertex
 int selectedDiffuseAtlasGrid=0;
 std::vector<uint8_t> selectedPixels;
 uint32_t selectedTextureWidth=0,selectedTextureHeight=0;
@@ -285,7 +286,7 @@ struct Renderer {
         vkGetDeviceQueue(device, family, 0, &queue);
         // Vertex geometry is copied from the Android document reader under a lock.
         std::vector<float> vertexData;
-        std::vector<float> triangleData,uvData,tileData;
+        std::vector<float> triangleData,uvData,tileData,colorData;
         std::vector<uint8_t> rgbaData;
         uint32_t texWidth=0,texHeight=0;
         bool normalAtlas=false;
@@ -294,6 +295,7 @@ struct Renderer {
             vertexData = selectedGeometry.empty() ? defaultCube() : selectedGeometry;
             triangleData = selectedTriangles;
             uvData=selectedUv;tileData=selectedMaterialSlots;
+            colorData=selectedVertexColors;
             rgbaData=selectedPixels;
             texWidth=selectedTextureWidth;texHeight=selectedTextureHeight;
             normalAtlas=selectedNormalAtlas;
@@ -304,6 +306,7 @@ struct Renderer {
             texWidth>0&&texHeight>0&&texWidth<=2048&&texHeight<=2048&&
             rgbaData.size()==static_cast<size_t>(texWidth)*texHeight*4&&
             (tileData.empty()||tileData.size()==triangleData.size()/3)&&
+            (colorData.empty()||colorData.size()==(triangleData.size()/3)*4)&&
             (tileData.empty()?diffuseAtlasGrid==0:(diffuseAtlasGrid>=1&&diffuseAtlasGrid<=4));
         hasNormalAtlas=textureReady&&normalAtlas;
         if(textureReady){
@@ -352,11 +355,16 @@ struct Renderer {
             uploadBuffer(triangleData,triangleBuffer,triangleMemory);
             if(textureReady){
                 std::vector<float> interleaved;
-                interleaved.reserve(static_cast<size_t>(triangleVertexCount)*6);
+                interleaved.reserve(static_cast<size_t>(triangleVertexCount)*10);
                 for(size_t i=0;i<triangleVertexCount;i++){
-                    interleaved.insert(interleaved.end(),{triangleData[i*3],triangleData[i*3+1],
-                        triangleData[i*3+2],uvData[i*2],uvData[i*2+1],
-                        tileData.empty()?0.0f:tileData[i]});
+                    interleaved.insert(interleaved.end(),{
+                        triangleData[i*3],triangleData[i*3+1],triangleData[i*3+2],
+                        uvData[i*2],uvData[i*2+1],
+                        tileData.empty()?0.0f:tileData[i],
+                        colorData.empty()?1.0f:colorData[i*4],
+                        colorData.empty()?1.0f:colorData[i*4+1],
+                        colorData.empty()?1.0f:colorData[i*4+2],
+                        colorData.empty()?1.0f:colorData[i*4+3]});
                 }
                 uploadBuffer(interleaved,texturedBuffer,texturedMemory);
             }
@@ -644,16 +652,19 @@ struct Renderer {
             texLayoutInfo.setLayoutCount=1;texLayoutInfo.pSetLayouts=&textureSetLayout;
             ck(vkCreatePipelineLayout(device,&texLayoutInfo,nullptr,&textureLayout),"texture pipeline layout");
             VkVertexInputBindingDescription uvBinding{};
-            uvBinding.binding=0;uvBinding.stride=6*sizeof(float);uvBinding.inputRate=VK_VERTEX_INPUT_RATE_VERTEX;
-            VkVertexInputAttributeDescription uvAttributes[3]{};
+            uvBinding.binding=0;uvBinding.stride=10*sizeof(float);uvBinding.inputRate=VK_VERTEX_INPUT_RATE_VERTEX;
+            VkVertexInputAttributeDescription uvAttributes[4]{};
             uvAttributes[0]=attribute;
             uvAttributes[1].location=1;uvAttributes[1].binding=0;
             uvAttributes[1].format=VK_FORMAT_R32G32_SFLOAT;uvAttributes[1].offset=3*sizeof(float);
             uvAttributes[2].location=2;uvAttributes[2].binding=0;
             uvAttributes[2].format=VK_FORMAT_R32_SFLOAT;uvAttributes[2].offset=5*sizeof(float);
+            uvAttributes[3].location=3;uvAttributes[3].binding=0;
+            uvAttributes[3].format=VK_FORMAT_R32G32B32A32_SFLOAT;
+            uvAttributes[3].offset=6*sizeof(float);
             VkPipelineVertexInputStateCreateInfo uvInput=vertexInput;
             uvInput.pVertexBindingDescriptions=&uvBinding;
-            uvInput.vertexAttributeDescriptionCount=3;uvInput.pVertexAttributeDescriptions=uvAttributes;
+            uvInput.vertexAttributeDescriptionCount=4;uvInput.pVertexAttributeDescriptions=uvAttributes;
             stages[0].module=textureVertexModule;
             stages[1].module=textureFragmentModule;
             pipelineInfo.pVertexInputState=&uvInput;
@@ -1190,6 +1201,7 @@ Java_dev_skyrimsemobile_launcher_VulkanSceneActivity_nativeSetGeometry(JNIEnv* e
         selectedGeometry=std::move(geometry);
         selectedTriangles.clear();
         selectedUv.clear();selectedPixels.clear();
+    selectedVertexColors.clear();
         selectedMaterialSlots.clear();selectedDiffuseAtlasGrid=0;
         selectedTextureWidth=selectedTextureHeight=0;
         selectedNormalAtlas=false;
@@ -1208,6 +1220,7 @@ Java_dev_skyrimsemobile_launcher_VulkanSceneActivity_nativeClearGeometry(JNIEnv*
     selectedGeometry.clear();
     selectedTriangles.clear();geometryTriangleCount=0;
     selectedUv.clear();selectedPixels.clear();
+    selectedVertexColors.clear();
         selectedMaterialSlots.clear();selectedDiffuseAtlasGrid=0;
     selectedTextureWidth=selectedTextureHeight=0;
     selectedNormalAtlas=false;
@@ -1233,6 +1246,7 @@ Java_dev_skyrimsemobile_launcher_VulkanSceneActivity_nativeSetSurfaceTriangles(J
     if(selectedGeometry.empty())return JNI_FALSE;
     selectedTriangles=std::move(geometry);
     selectedUv.clear();selectedPixels.clear();
+    selectedVertexColors.clear();
         selectedMaterialSlots.clear();selectedDiffuseAtlasGrid=0;
     selectedTextureWidth=selectedTextureHeight=0;
     selectedNormalAtlas=false;
@@ -1281,6 +1295,7 @@ Java_dev_skyrimsemobile_launcher_VulkanSceneActivity_nativeSetTexture(
     std::lock_guard<std::mutex> guard(geometryMutex);
     if(selectedTriangles.empty()||uv.size()!=(selectedTriangles.size()/3)*2)return JNI_FALSE;
     selectedUv=std::move(uv);
+    selectedVertexColors.clear();
     selectedPixels=std::move(rgba);
     selectedTextureWidth=static_cast<uint32_t>(width);
     selectedTextureHeight=static_cast<uint32_t>(height);
@@ -1312,7 +1327,7 @@ Java_dev_skyrimsemobile_launcher_VulkanSceneActivity_nativeSetDiffuseAtlas(
     if(env->ExceptionCheck())return JNI_FALSE;
     for(float v:uv)if(!std::isfinite(v)||std::abs(v)>8192.0f)return JNI_FALSE;
     for(float id:ids)
-        if(!std::isfinite(id)||id<0||id>=grid*grid||std::floor(id)!=id)
+        if(!std::isfinite(id)||id< -1||id>=grid*grid||std::floor(id)!=id)
             return JNI_FALSE;
     std::vector<jint> input(static_cast<size_t>(count));
     env->GetIntArrayRegion(image,0,static_cast<jsize>(count),input.data());
@@ -1330,12 +1345,38 @@ Java_dev_skyrimsemobile_launcher_VulkanSceneActivity_nativeSetDiffuseAtlas(
         return JNI_FALSE;
     selectedUv=std::move(uv);
     selectedMaterialSlots=std::move(ids);
+    selectedVertexColors.clear(); // each atlas must provide its own real SSE colors
     selectedPixels=std::move(rgba);
     selectedTextureWidth=static_cast<uint32_t>(width);
     selectedTextureHeight=static_cast<uint32_t>(height);
     selectedNormalAtlas=false;
     selectedDiffuseAtlasGrid=grid;
     useNormalMap.store(false,std::memory_order_relaxed);
+    return JNI_TRUE;
+}
+
+// v2.50: exact SSE RGBA 0..1, one color per drawn triangle vertex.
+// Separate from the DDS and slot upload to preserve older Android entrypoints.
+// Vertex alpha is decoded but currently NOT used for destructive transparency.
+extern "C" JNIEXPORT jboolean JNICALL
+Java_dev_skyrimsemobile_launcher_VulkanSceneActivity_nativeSetVertexColors(
+    JNIEnv* env,jclass,jfloatArray colors){
+    if(!colors)return JNI_FALSE;
+    jsize len=env->GetArrayLength(colors);
+    if(len<12||len>30000*3*4||len%12!=0)return JNI_FALSE;
+    std::vector<float> data(static_cast<size_t>(len));
+    env->GetFloatArrayRegion(colors,0,len,data.data());
+    if(env->ExceptionCheck())return JNI_FALSE;
+    for(float component:data)
+        if(!std::isfinite(component)||component<0.0f||component>1.0f)
+            return JNI_FALSE;
+    std::lock_guard<std::mutex> guard(geometryMutex);
+    if(selectedTriangles.empty()||
+       len!=static_cast<jsize>(selectedTriangles.size()/3*4)||
+       selectedUv.size()!=(selectedTriangles.size()/3)*2||
+       selectedMaterialSlots.size()!=selectedTriangles.size()/3)
+        return JNI_FALSE;
+    selectedVertexColors=std::move(data);
     return JNI_TRUE;
 }
 

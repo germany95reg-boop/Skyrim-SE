@@ -185,6 +185,27 @@ public final class Tes4LocalWorldSceneTest {
         assert smallScene.sceneQualityScore()<chosen.sceneQualityScore();
         assert Tes4LocalWorldScene.MAX_DISTANCE<=2048:
             "excessive world spacing made tiny floating meshes";
+        // v2.50: original SSE VF_COLORS 0x29 is a true per-vertex RGBA
+        // fallback for shapes WITHOUT UV. Never spread another part's DDS.
+        var rgbaParts=NifGeometryDecoder.scan(NifGeometryDecoderTest.validColor());
+        var rgbaScene=new Tes4LocalWorldScene.Builder();
+        assert rgbaScene.add(withUv,denseLinks.get(1));
+        assert rgbaScene.add(rgbaParts,denseLinks.get(2));
+        var mixed=rgbaScene.diffuseAtlas(materialPaths,pixels);
+        assert mixed!=null&&mixed.texturedTriangles==1:
+            "UV+DDS remains correctly textured";
+        assert mixed.vertexColorTriangles==1:
+            "Color-only SSE geometry is no longer forced neutral gray";
+        assert mixed.vertexColors!=null&&mixed.vertexColors.length==24;
+        assert mixed.uvAndSlot[2]==1f&&mixed.uvAndSlot[3*3+2]==-1f:
+            "SSE RGBA uses separate -1 material slot without invented UV";
+        assert mixed.vertexColors[12]==1f&&mixed.vertexColors[13]==0f;
+        assert mixed.vertexColors[12+4+1]==1f;
+        assert mixed.vertexColors[12+8+2]==1f;
+        var rgbaReport=rgbaScene.materialDiagnostics(
+            materialPaths,java.util.Collections.emptyMap(),pixels);
+        assert rgbaReport.contains("RGBA ВЕРШИН")&&
+            rgbaReport.contains("с DDS: 1 · без UV: 1"):rgbaReport;
         System.out.println("PASS bounded nearby Skyrim REFR multi-mesh local scene and safe distant exclusion");
     }
 }

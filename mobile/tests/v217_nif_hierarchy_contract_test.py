@@ -36,7 +36,7 @@ checks={
 "visible on-device hierarchy test":'report.pass("NiNode/BSFadeNode"' in runner,
 "hierarchy warns on malformed":"report.warn(\"Иерархия NIF\"" in runner,
 "existing FPS caps retained":"fpsSequence.sample(" in jni,
-"ABI ARM64 signed upgrade":"versionCode 72" in gradle and "versionName '2.49.0'" in gradle,
+"ABI ARM64 signed upgrade":"versionCode 73" in gradle and "versionName '2.50.0'" in gradle,
 "JVM synthetic fixtures":"NifHierarchyTransforms" in suite,
 "CI source gate":"v217_nif_hierarchy_contract_test.py" in workflow,
 "no emulator":"android-emulator-ui:" not in workflow,
