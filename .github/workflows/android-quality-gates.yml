@@ -76,6 +76,7 @@ jobs:
           python3 mobile/tests/v249_shape_material_audit_contract_test.py
           python3 mobile/tests/v250_sse_vertex_rgba_contract_test.py
           python3 mobile/tests/v251_vertex_tint_lighting_contract_test.py
+          python3 mobile/tests/v252_uvless_tint_contract_test.py
           python3 mobile/tests/release_signing_contract_test.py
           python3 mobile/tests/ci_quality_contract_test.py
 
