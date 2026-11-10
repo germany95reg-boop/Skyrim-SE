@@ -50,7 +50,18 @@ jobs:
           echo "Source contracts failed: $failed" >> "$GITHUB_STEP_SUMMARY"
           test "$failed" -eq 0
       - name: Download project's pinned LZ4 dependency through Gradle
+        id: lz4
         run: gradle --no-daemon -p mobile :app:resolveRuntimeJars
+      - name: Record dependency and JVM stage diagnostics
+        if: always()
+        env:
+          CONTRACTS: ${{ steps.source-contracts.outcome }}
+          LZ4: ${{ steps.lz4.outcome }}
+        run: |
+          echo "### v2.51 CI checkpoint" >> "$GITHUB_STEP_SUMMARY"
+          echo "Python contracts: $CONTRACTS" >> "$GITHUB_STEP_SUMMARY"
+          echo "Gradle LZ4 resolution: $LZ4" >> "$GITHUB_STEP_SUMMARY"
+          echo "A skipped stage is not a pass." >> "$GITHUB_STEP_SUMMARY"
       - name: Run ALL pure-Java regression programs, fail fast
         run: bash mobile/ci/run_jvm_suite.sh
       # Explicit source-contract references are retained for legacy contract checks.
