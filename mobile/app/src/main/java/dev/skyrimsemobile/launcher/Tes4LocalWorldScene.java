@@ -215,8 +215,9 @@ public final class Tes4LocalWorldScene {
         public NifCompositeDdsAtlas.Result diffuseAtlas(
                 java.util.Map<String,java.util.Map<Integer,String>> byNif,
                 java.util.Map<String,DdsBcDecoder.Image> decoded)throws IOException{
-            if(selected.isEmpty()||byNif==null||decoded==null)
-                return null;
+            if(selected.isEmpty())return null;
+            if(byNif==null)byNif=java.util.Collections.emptyMap();
+            if(decoded==null)decoded=java.util.Collections.emptyMap();
             java.util.LinkedHashMap<String,Integer> slots=new java.util.LinkedHashMap<>();
             List<DdsBcDecoder.Image> tiles=new ArrayList<>();
             tiles.add(null); // neutral material tile 0
