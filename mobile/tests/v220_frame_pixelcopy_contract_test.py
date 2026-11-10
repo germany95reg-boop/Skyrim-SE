@@ -12,7 +12,8 @@ source=read("app/src/main/cpp/vulkan_scene_test.cpp")
 manifest=read("app/src/main/AndroidManifest.xml")
 checks={
  "Android PixelCopy SurfaceView API":'PixelCopy.request(frameSurface,pixels' in scene,
- "capture only once":'if(!deviceAutotest||visualRequested||destroyed' in scene,
+ "capture only once":'visualRequested||destroyed||!surfaceReady' in scene and
+      'if(!error&&matched&&!visualRequested)' in scene,
  "no Android UI controls captured":'PixelCopy copies the Vulkan surface' in scene,
  "small bounded image":"VulkanFrameSanity.CAPTURE_WIDTH" in scene,
  "copy results analyzed in memory":"VulkanFrameSanity.analyze(argb,w,h)" in scene,
