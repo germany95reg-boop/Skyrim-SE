@@ -110,10 +110,11 @@ jobs:
           TAG="skyrim-se-mobile-v2.43.0"
           ASSET="Skyrim-SE-Mobile-v2.43.0-ARM64.apk"
           test -s "$APK"
+          cp "$APK" "$ASSET" # GitHub CLI #suffix sets a label, not the asset filename.
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            gh release upload "$TAG" "$APK#$ASSET" --clobber --repo "$GITHUB_REPOSITORY"
+            gh release upload "$TAG" "$ASSET" --clobber --repo "$GITHUB_REPOSITORY"
           else
-            gh release create "$TAG" "$APK#$ASSET" \
+            gh release create "$TAG" "$ASSET" \
               --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
               --title "Skyrim SE Mobile v2.43.0 (ARM64 test APK)" \
               --notes "Signed test build of the diagnostic Skyrim SE Mobile Vulkan/NIF viewer. Not a playable SkyrimSE.exe port. APK package and testing certificate unchanged. PixelCopy only samples surface evidence; verify on a physical Android device." \
