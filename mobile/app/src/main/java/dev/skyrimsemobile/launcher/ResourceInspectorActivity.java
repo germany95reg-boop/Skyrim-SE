@@ -32,6 +32,7 @@ public final class ResourceInspectorActivity extends Activity {
     private TextView report,folderStatus;
     private Button previewButton;
     private Tes4PlacedNifScene.Preview lastPreview;
+    private NifCompositeDdsAtlas.Result lastSceneDiffuseAtlas;
     private String placedPreviewToken,placedPreviewExpected;
     private java.util.List<Tes4PlacementSubrecordReader.Placement> lastPlacements=java.util.Collections.emptyList();
     private volatile boolean closed=false;
@@ -129,6 +130,7 @@ public final class ResourceInspectorActivity extends Activity {
     }
     private void clearPlacedPreview(){
         lastPreview=null;
+        lastSceneDiffuseAtlas=null;
         if(previewButton!=null){
             previewButton.setVisibility(View.GONE);
             previewButton.setText("Просмотреть найденный объект в 3D");
@@ -140,8 +142,12 @@ public final class ResourceInspectorActivity extends Activity {
             update(text+"\n\n3D-предпросмотр пока не готов. Проверь Skyrim автоматически.");
             return;
         }
-        NifGeometryTransfer.offer(preview.lines,preview.triangles,
-            preview.label,preview.details);
+        if(lastSceneDiffuseAtlas!=null)
+            NifGeometryTransfer.offerAtlas(preview.lines,preview.triangles,
+                lastSceneDiffuseAtlas,preview.label,preview.details);
+        else
+            NifGeometryTransfer.offer(preview.lines,preview.triangles,
+                preview.label,preview.details);
         placedPreviewToken=Long.toHexString(System.nanoTime());
         placedPreviewExpected=preview.label;
         prefs.edit().remove(VulkanSceneActivity.PREF_PLACED_RESULT).apply();
@@ -445,6 +451,9 @@ public final class ResourceInspectorActivity extends Activity {
             Tes4PlacedNifScene.Link fallbackLink=null;
             NifGeometryDecoder.Parts fallbackParts=null;
             String previewNote="";
+            java.util.Map<String,java.util.Map<Integer,String>> materialByNif=
+                new java.util.LinkedHashMap<>();
+            NifCompositeDdsAtlas.Result preparedAtlas=null;
             for(ModelProbeCandidate candidate:candidates){
                 if(inspected>=Tes4MatchedNifVerifier.MAX_MODELS)break;
                 if(sequence!=multiArchiveScanSequence||
@@ -465,6 +474,30 @@ public final class ResourceInspectorActivity extends Activity {
                     sb.append(result.report()).append('\n');
                     valid++;
                     if(profile.staticParts!=null&&profile.staticParts.available>0){
+                        // Only actual BSTriShape -> shader -> texture-set links.
+                        // DDS is loaded separately after the scene centre wins.
+                        try(InputStream materials=getContentResolver().openInputStream(
+                                candidate.archiveUri)){
+                            NifMaterialLinkInspector.Result linksByShape=
+                                BsaEntryInspector.readPartMaterialLinks(
+                                    materials,candidate.entry,candidate.flags);
+                            java.util.Map<Integer,String> diffuse=
+                                new java.util.LinkedHashMap<>();
+                            for(NifMaterialLinkInspector.Link link:linksByShape.links){
+                                if(!link.resolved()||link.diffuse==null||
+                                   link.diffuse.isEmpty())continue;
+                                try{
+                                    diffuse.put(link.shape,
+                                        DdsArchiveFinder.normalizeDds(link.diffuse));
+                                }catch(java.io.IOException badTexture){}
+                            }
+                            materialByNif.put(
+                                Tes4BsaModelMatcher.canonicalNif(candidate.entry.path),
+                                diffuse);
+                        }catch(Exception noMaterial){
+                            sb.append("DDS-связи ").append(candidate.entry.path)
+                                .append(": недоступны; сохранён каркас и поверхность\n");
+                        }
                         java.util.List<Tes4PlacedNifScene.Link> links=
                             Tes4PlacedNifScene.findVisibleAll(
                                 linkedPoses,linkedBases,candidate.entry.path);
@@ -495,6 +528,7 @@ public final class ResourceInspectorActivity extends Activity {
             }catch(java.io.IOException error){
                 sb.append("Выбор локальной 3D-сцены: ").append(error.getMessage()).append('\n');
             }
+            Tes4LocalWorldScene.Builder textureOwner=localScene;
             if(localScene.instances()>0){
                 try{
                     preparedPreview=localScene.build();
@@ -507,11 +541,36 @@ public final class ResourceInspectorActivity extends Activity {
             if(preparedPreview==null&&fallbackLink!=null&&fallbackParts!=null){
                 try{
                     preparedPreview=Tes4PlacedNifScene.compose(fallbackParts,fallbackLink);
+                    textureOwner=new Tes4LocalWorldScene.Builder();
+                    textureOwner.add(fallbackParts,fallbackLink);
                     previewNote="3D-предпросмотр одного объекта: "+
                         fallbackLink.base.editorId+" · "+
                         preparedPreview.triangleCount+" треугольников.";
                 }catch(java.io.IOException error){
                     previewNote="3D-предпросмотр не готов: "+error.getMessage();
+                }
+            }
+            if(preparedPreview!=null){
+                // Bounded, read-only search of exact DDS paths in Data BSA
+                // archives. A corrupt/missing texture never hides the REFR scene.
+                try{
+                    java.util.List<String> requested=textureOwner.materialPaths(materialByNif);
+                    if(!requested.isEmpty()){
+                        LocalSceneDds found=loadLocalSceneDds(
+                            requested,sequence,verification);
+                        preparedAtlas=textureOwner.diffuseAtlas(materialByNif,found.decoded);
+                        previewNote+="\nDDS: "+found.decoded.size()+" / "+
+                            requested.size()+" найденных текстур; просмотр "+
+                            (preparedAtlas==null?"без DDS (геометрия сохранена)":
+                              "с диффузным атласом "+
+                              preparedAtlas.width+"×"+preparedAtlas.height+
+                              ", сетка "+preparedAtlas.grid+"×"+preparedAtlas.grid)+
+                            " · BSA проверено: "+found.archivesChecked+".";
+                    }else previewNote+="\nDDS: у отобранных NIF нет доступных "+
+                        "путей диффузных текстур и UV.";
+                }catch(Exception materialError){
+                    previewNote+="\nDDS пропущены: "+materialError.getMessage()+
+                        "; геометрия сохранена.";
                 }
             }
             sb.append("Проверено: ").append(inspected)
@@ -526,16 +585,20 @@ public final class ResourceInspectorActivity extends Activity {
                 "Содержимое NIF: следующий этап (до 3 моделей)",
                 "Содержимое NIF: распознано "+valid+" из "+inspected);
             final Tes4PlacedNifScene.Preview readyPreview=preparedPreview;
+            final NifCompositeDdsAtlas.Result readyAtlas=preparedAtlas;
             runOnUiThread(()->{
                 if(!closed&&sequence==multiArchiveScanSequence&&
                    verification==nifVerificationSequence){
                     lastPreview=readyPreview;
+                    lastSceneDiffuseAtlas=readyAtlas;
                     if(previewButton!=null){
                         previewButton.setVisibility(readyPreview==null?View.GONE:View.VISIBLE);
                         if(readyPreview!=null)
                             previewButton.setText(readyPreview.label.contains("локальная 3D-сцена")?
-                                "Просмотреть локальную сцену в 3D":
-                                "Просмотреть найденный объект в 3D");
+                                (readyAtlas==null?"Просмотреть локальную сцену в 3D":
+                                    "Просмотреть локальную сцену с DDS в 3D"):
+                                (readyAtlas==null?"Просмотреть найденный объект в 3D":
+                                    "Просмотреть найденный объект с DDS в 3D"));
                     }
                     update(finalReport);
                 }
