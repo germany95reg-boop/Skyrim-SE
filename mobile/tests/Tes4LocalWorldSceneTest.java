@@ -191,6 +191,17 @@ public final class Tes4LocalWorldSceneTest {
         var rgbaScene=new Tes4LocalWorldScene.Builder();
         assert rgbaScene.add(withUv,denseLinks.get(1));
         assert rgbaScene.add(rgbaParts,denseLinks.get(2));
+        // v2.52: an SSE vertex-color-only scene needs no unrelated DDS
+        // to construct the Vulkan neutral atlas and expose its tint.
+        var colorOnly=new Tes4LocalWorldScene.Builder();
+        assert colorOnly.add(rgbaParts,denseLinks.get(2));
+        var colorAtlas=colorOnly.diffuseAtlas(
+            java.util.Collections.emptyMap(),java.util.Collections.emptyMap());
+        assert colorAtlas!=null:"RGBA-only geometry lost without DDS";
+        assert colorAtlas.textureCount==0&&colorAtlas.vertexColorTriangles==1;
+        assert colorAtlas.vertexColors.length==12;
+        assert colorAtlas.uvAndSlot[2]==-1f;
+        assert colorAtlas.vertexColors[0]<.8f;
         var mixed=rgbaScene.diffuseAtlas(materialPaths,pixels);
         assert mixed!=null&&mixed.texturedTriangles==1:
             "UV+DDS remains correctly textured";
