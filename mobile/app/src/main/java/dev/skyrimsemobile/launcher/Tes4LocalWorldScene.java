@@ -215,7 +215,7 @@ public final class Tes4LocalWorldScene {
         public NifCompositeDdsAtlas.Result diffuseAtlas(
                 java.util.Map<String,java.util.Map<Integer,String>> byNif,
                 java.util.Map<String,DdsBcDecoder.Image> decoded)throws IOException{
-            if(selected.isEmpty()||byNif==null||decoded==null||decoded.isEmpty())
+            if(selected.isEmpty()||byNif==null||decoded==null)
                 return null;
             java.util.LinkedHashMap<String,Integer> slots=new java.util.LinkedHashMap<>();
             List<DdsBcDecoder.Image> tiles=new ArrayList<>();
@@ -277,7 +277,7 @@ public final class Tes4LocalWorldScene {
                 }
             }
             if(offset!=faces*3)throw new IOException("Не совпадает количество UV-вершин");
-            if(tiles.size()<2)return null;
+            if(tiles.size()<2&&vertexColorFaces==0)return null;
             int grid=1;while(grid*grid<tiles.size())grid++;
             if(grid>NifCompositeDdsAtlas.MAX_GRID)
                 throw new IOException("Слишком много DDS-плиток");
