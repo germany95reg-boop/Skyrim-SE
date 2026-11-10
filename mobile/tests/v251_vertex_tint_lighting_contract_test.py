@@ -21,7 +21,7 @@ assert "rawRgba.clone()" in tint
 assert "degenerateTriangles" in tint
 assert "почти белых вершин" in tint
 assert "NifVertexTintPreview.shade(" in world
-assert "build().surfaceTriangles" in world
+assert "build().triangles" in world
 assert "tint.note()" in world
 assert "vertexColorNote" in atlas
 assert "preparedAtlas.vertexColorNote" in ui

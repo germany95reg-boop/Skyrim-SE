@@ -301,7 +301,7 @@ public final class Tes4LocalWorldScene {
             // diagnostic illumination only for the explicit UV-less -1 slot.
             // Unmodified raw RGBA remains in each NIF Mesh for the audit.
             NifVertexTintPreview.Result tint=NifVertexTintPreview.shade(
-                build().surfaceTriangles,packed,vertexColors);
+                build().triangles,packed,vertexColors);
             if(tint.tintedTriangles!=vertexColorFaces)
                 throw new IOException("SSE tint: число граней не соответствует сцене");
             return new NifCompositeDdsAtlas.Result(
