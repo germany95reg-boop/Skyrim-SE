@@ -66,7 +66,11 @@ for test in "${tests[@]}"; do
     class="$name"
   fi
   echo "==> $class"
-  java -ea -cp "$OUT:$LZ4_JAR" "$class"
+  if ! java -ea -cp "$OUT:$LZ4_JAR" "$class"; then
+    echo "::error title=JVM regression failed::$class failed; inspect preceding assertion/exception" >&2
+    echo "FAIL JVM regression: $class" >&2
+    exit 1
+  fi
   ((passed+=1))
 done
 
