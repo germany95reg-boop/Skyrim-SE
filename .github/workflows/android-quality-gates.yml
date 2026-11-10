@@ -33,6 +33,13 @@ jobs:
           gradle-version: '8.9'
       - name: Download project's pinned LZ4 dependency through Gradle
         run: gradle --no-daemon -p mobile :app:resolveRuntimeJars
+      - name: Run v2.52 UV-less material contract independently
+        run: python3 mobile/tests/v252_uvless_tint_contract_test.py
+      - name: Record JVM gate diagnostic in job summary
+        if: always()
+        run: |
+          echo "### Skyrim SE v2.52 — JVM gate" >> "$GITHUB_STEP_SUMMARY"
+          echo "Check the individual step conclusions above. A skipped APK build means JVM gate did not pass." >> "$GITHUB_STEP_SUMMARY"
       - name: Run ALL pure-Java regression programs, fail fast
         run: bash mobile/ci/run_jvm_suite.sh
       - name: Validate current UI, Vulkan source, assets and upgrade identity
