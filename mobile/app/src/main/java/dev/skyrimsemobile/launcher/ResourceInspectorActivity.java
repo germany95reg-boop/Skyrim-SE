@@ -161,7 +161,8 @@ public final class ResourceInspectorActivity extends Activity {
         automaticPlacedPreviewActive=automatic;
         placedPreviewToken=Long.toHexString(System.nanoTime());
         placedPreviewExpected=preview.label;
-        prefs.edit().remove(VulkanSceneActivity.PREF_PLACED_RESULT).apply();
+        prefs.edit().remove(VulkanSceneActivity.PREF_PLACED_RESULT)
+            .remove(VulkanSceneActivity.PREF_AUTOMATIC_PLACED_RESULT).apply();
         Intent i=new Intent(this,VulkanSceneActivity.class);
         i.putExtra(VulkanSceneActivity.EXTRA_PLACED_PREVIEW_TOKEN,placedPreviewToken);
         i.putExtra(VulkanSceneActivity.EXTRA_PLACED_PREVIEW_LABEL,placedPreviewExpected);
@@ -221,10 +222,33 @@ public final class ResourceInspectorActivity extends Activity {
         try{
             String delivered=data==null?"":data.getStringExtra(
                 VulkanSceneActivity.EXTRA_AUTOMATIC_PLACED_TOKEN);
-            JSONObject stats=new JSONObject(data==null?"{}":data.getStringExtra(
-                VulkanSceneActivity.EXTRA_DEVICE_AUTOTEST_RESULT));
-            if(!token.equals(delivered))throw new java.io.IOException(
-                "Нет подписанного результатом токена текущей сцены");
+            String rawStats=data==null?null:data.getStringExtra(
+                VulkanSceneActivity.EXTRA_DEVICE_AUTOTEST_RESULT);
+            String sessionError=data==null?"Vulkan закрыт до завершения проверки":
+                data.getStringExtra(VulkanSceneActivity.EXTRA_DEVICE_AUTOTEST_ERROR);
+            boolean sessionCompleted=resultCode==RESULT_OK;
+            boolean recovered=false;
+            if(!token.equals(delivered)){
+                String saved=prefs.getString(
+                    VulkanSceneActivity.PREF_AUTOMATIC_PLACED_RESULT,"");
+                JSONObject backup=new JSONObject(saved.isEmpty()?"{}":saved);
+                if(token.equals(backup.optString("token",""))){
+                    delivered=token;
+                    rawStats=backup.optString("stats","{}");
+                    sessionError=backup.optString("error","");
+                    sessionCompleted=backup.optBoolean("success",false);
+                    recovered=true;
+                }
+            }
+            if(!token.equals(delivered)){
+                update(text+"\n\n[FAIL] Автоматический Vulkan-тест прерван: "+
+                    "нет результата текущего сеанса. Возможно, 3D-экран "+
+                    "закрыт до завершения всех трёх этапов FPS. "+
+                    "Дождись автоматического возврата; если это повторяется, "+
+                    "пришли отчёт.");
+                return;
+            }
+            JSONObject stats=new JSONObject(rawStats==null?"{}":rawStats);
             org.json.JSONArray stages=stats.optJSONArray("fpsStages");
             int count=stages==null?0:stages.length();
             int[] caps=new int[count];boolean[] passed=new boolean[count];
@@ -238,7 +262,7 @@ public final class ResourceInspectorActivity extends Activity {
             Tes4PlacedNifScene.Preview preview=lastPreview;
             Tes4AutomaticSceneReceipt.Result checked=Tes4AutomaticSceneReceipt.assess(
                 expected,stats.optString("geometry",""),
-                resultCode==RESULT_OK,stats.optBoolean("running",false),
+                sessionCompleted,stats.optBoolean("running",false),
                 stats.optBoolean("error",true),stats.optLong("frames",0),
                 stats.optInt("edges",0),stats.optInt("triangles",0),
                 preview==null?-1:preview.triangleCount,
@@ -249,8 +273,7 @@ public final class ResourceInspectorActivity extends Activity {
                 stats.optInt("frameNonBackground",0),
                 stats.optInt("frameSamplePixels",0),
                 caps,passed,stats.optString("frameCaptureNote",""),
-                data==null?"Vulkan был закрыт без отчёта":
-                    data.getStringExtra(VulkanSceneActivity.EXTRA_DEVICE_AUTOTEST_ERROR));
+                sessionError);
             checked=Tes4AutomaticSceneReceipt.withVisualQuality(
                 checked,lastSceneRefCount,lastSceneRequestedDds,
                 lastSceneDecodedDds,
@@ -258,7 +281,12 @@ public final class ResourceInspectorActivity extends Activity {
                 preview==null?0:preview.triangleCount,
                 stats.optInt("frameNonBackground",0),
                 stats.optInt("frameSamplePixels",0));
-            update(text+"\n\n"+checked.report);
+            update(text+"\n\n"+
+                (recovered?"[INFO] Отчёт восстановлен из локального "+
+                    "результата того же сеанса.\n":"")+
+                (sessionCompleted?"":"[FAIL] Автотест не завершён: "+
+                    String.valueOf(sessionError)+"\n")+
+                checked.report);
         }catch(Exception invalid){
             update(text+"\n\n[FAIL] Автоматический Vulkan-тест локальной сцены: "+
                 invalid.getMessage()+"\nПопробуй повторить проверку. "+
@@ -753,7 +781,9 @@ public final class ResourceInspectorActivity extends Activity {
     /**
      * v2.44: resolve exact NIF-declared diffuse DDS names in the same granted
      * Skyrim/Data tree. Index up to 24 BSA (texture archives first), decode at
-     * most 15 first mips and 4 MiPixels. No path guessing or file writes.
+     * most 15 first mips; each CPU-decoded mip is reduced to a max 512px
+     * retained preview before the 4 MiPixel aggregate safety check.
+     * No path guessing or file writes.
      * All failures are optional: callers retain their untextured scene.
      */
     private LocalSceneDds loadLocalSceneDds(
@@ -822,8 +852,10 @@ public final class ResourceInspectorActivity extends Activity {
                 throw new java.io.IOException("Загрузка DDS отменена");
             try(InputStream in=getContentResolver().openInputStream(match.getValue().uri)){
                 if(in==null)continue;
-                DdsBcDecoder.Image image=BsaDdsPixelReader.preview(
+                DdsBcDecoder.Image original=BsaDdsPixelReader.preview(
                     in,match.getValue().entry,match.getValue().flags);
+                DdsBcDecoder.Image image=DdsPreviewDownsampler.fit(
+                    original,DdsPreviewDownsampler.MAX_SIDE);
                 long pixels=(long)image.width*image.height;
                 if(pixels<=0||totalPixels+pixels>4L*1024*1024){
                     if(issues.length()<1500)issues.append("\n• DDS ограничение памяти: ")
@@ -833,6 +865,12 @@ public final class ResourceInspectorActivity extends Activity {
                 }
                 totalPixels+=pixels;
                 decoded.put(match.getKey(),image);
+                if(original.width!=image.width||original.height!=image.height)
+                    if(issues.length()<1800)issues.append("\n• DDS оптимизирована: ")
+                        .append(match.getKey()).append(" · ")
+                        .append(original.width).append("×").append(original.height)
+                        .append(" → ").append(image.width).append("×")
+                        .append(image.height);
             }catch(java.io.IOException corrupt){
                 if(issues.length()<1800)issues.append("\n• DDS не декодирована: ")
                     .append(match.getKey()).append(" · ")

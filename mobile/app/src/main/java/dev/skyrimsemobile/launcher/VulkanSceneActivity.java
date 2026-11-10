@@ -34,6 +34,8 @@ import org.json.JSONArray;
 public final class VulkanSceneActivity extends Activity implements SurfaceHolder.Callback {
     public static final String PREF_RESULT = "vulkan_scene_test_result";
     public static final String PREF_PLACED_RESULT="skyrim_placed_vulkan_result";
+    public static final String PREF_AUTOMATIC_PLACED_RESULT=
+        "skyrim_automatic_placed_device_result";
     public static final String EXTRA_PLACED_PREVIEW_TOKEN="skyrim_placed_preview_token";
     public static final String EXTRA_PLACED_PREVIEW_LABEL="skyrim_placed_preview_label";
     public static final String EXTRA_AUTOMATIC_PLACED_TEST="skyrim_auto_placed_gpu_test";
@@ -162,10 +164,25 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
             try{snapshot=nativeGetStats();}
             catch(Throwable ignored){snapshot="{}";}
         }
-        result.putExtra(EXTRA_DEVICE_AUTOTEST_RESULT,
-            attachFpsMeasurements(snapshot));
-        if(automaticPlacedTest)
+        String attached=attachFpsMeasurements(snapshot);
+        result.putExtra(EXTRA_DEVICE_AUTOTEST_RESULT,attached);
+        if(automaticPlacedTest){
             result.putExtra(EXTRA_AUTOMATIC_PLACED_TOKEN,placedPreviewToken);
+            // Activity result Intents are not guaranteed on an interrupted
+            // Android task. Store an exact-token backup BEFORE finish().
+            // A missing/partial test must never silently be marked PASS.
+            try{
+                JSONObject backup=new JSONObject();
+                backup.put("token",placedPreviewToken);
+                backup.put("stats",attached);
+                backup.put("error",error==null?"":error);
+                backup.put("success",success);
+                backup.put("completedStages",fpsSequence.results().size());
+                getSharedPreferences("launcher_state",MODE_PRIVATE).edit()
+                    .putString(PREF_AUTOMATIC_PLACED_RESULT,backup.toString())
+                    .commit();
+            }catch(Exception ignored){}
+        }
         if(!success)result.putExtra(EXTRA_DEVICE_AUTOTEST_ERROR,error);
         setResult(success?RESULT_OK:RESULT_CANCELED,result);
         finish();
@@ -486,7 +503,7 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
         back.setText("← Назад");
         back.setContentDescription("Вернуться на предыдущий экран без закрытия приложения");
         back.setAllCaps(false);
-        back.setOnClickListener(v -> finish());
+        back.setOnClickListener(v -> onBackPressed());
         Button fit=controlButton("Вписать");
         fit.setContentDescription("Поместить модель целиком между заголовком и панелью управления");
         fit.setOnClickListener(v -> { autoSpin=false; fitFollowsLayout=true; refreshFraming(); updateControls(); });
@@ -958,6 +975,16 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
         paused = false;
         restartPending = true;
         startIfReady();
+    }
+    @Override public void onBackPressed(){
+        if(automaticPlacedTest&&!deviceAutotestFinished){
+            completeDeviceAutotest(false,null,
+                "Автотест прерван кнопкой Назад на этапе "+
+                fpsSequence.stageNumber()+"/"+fpsSequence.stageCount()+
+                ". Дождись завершения трёх режимов FPS.");
+            return;
+        }
+        super.onBackPressed();
     }
     @Override protected void onPause() {
         paused = true;
