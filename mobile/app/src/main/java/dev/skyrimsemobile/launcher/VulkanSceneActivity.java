@@ -51,8 +51,8 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
     private VulkanFrameSanity.Result visualResult;
     private SurfaceView frameSurface;
 
-    /** One one-time SurfaceView copy. Only aggregate pixel counters are retained.
-     * Nothing is saved to storage, shared with any service or shown to the UI.
+    /** One bounded SurfaceView copy per diagnostic or placed NIF preview.
+     * Only pixel counters are saved to the report; the image is not persisted.
      * PixelCopy copies the Vulkan surface, not the Android controls layered on it.
      */
     private void requestVisualCapture(){

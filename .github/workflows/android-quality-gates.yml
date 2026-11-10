@@ -67,11 +67,14 @@ jobs:
           python3 mobile/tests/v240_gpu_receipt_contract_test.py
           python3 mobile/tests/v241_local_scene_contract_test.py
           python3 mobile/tests/v242_local_scene_selection_contract_test.py
+          python3 mobile/tests/v243_pixelcopy_release_contract_test.py
           python3 mobile/tests/release_signing_contract_test.py
           python3 mobile/tests/ci_quality_contract_test.py
 
   android-arm64-apk:
     name: Compile Vulkan / sign / inspect ARM64 APK
+    permissions:
+      contents: write # only this job may publish the private test release
     needs: jvm-regressions
     runs-on: ubuntu-24.04
     timeout-minutes: 35
@@ -94,11 +97,27 @@ jobs:
         run: gradle --no-daemon --stacktrace :app:assembleDebug
       - name: Validate APK version, Android package, ABI, shaders and signing
         run: bash mobile/ci/verify_apk.sh mobile/app/build/outputs/apk/debug/app-debug.apk
-      - name: Save tested APK for internal integration (not a user release)
-        uses: actions/upload-artifact@v4
-        with:
-          name: Skyrim-SE-v2.42-CI-ARM64-APK
-          path: mobile/app/build/outputs/apk/debug/app-debug.apk
-          retention-days: 7
-          if-no-files-found: error
+      # Actions Artifacts storage reached its quota in v2.42.
+      # Private repository prerelease assets use GitHub Releases instead;
+      # publishing is forbidden for pull_request events.
+      - name: Publish signed test APK to GitHub Releases (private prerelease)
+        if: github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          APK="mobile/app/build/outputs/apk/debug/app-debug.apk"
+          TAG="skyrim-se-mobile-v2.43.0"
+          ASSET="Skyrim-SE-Mobile-v2.43.0-ARM64.apk"
+          test -s "$APK"
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$TAG" "$APK#$ASSET" --clobber --repo "$GITHUB_REPOSITORY"
+          else
+            gh release create "$TAG" "$APK#$ASSET" \
+              --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+              --title "Skyrim SE Mobile v2.43.0 (ARM64 test APK)" \
+              --notes "Signed test build of the diagnostic Skyrim SE Mobile Vulkan/NIF viewer. Not a playable SkyrimSE.exe port. APK package and testing certificate unchanged. PixelCopy only samples surface evidence; verify on a physical Android device." \
+              --prerelease
+          fi
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' | grep -Fx "$ASSET"
 
