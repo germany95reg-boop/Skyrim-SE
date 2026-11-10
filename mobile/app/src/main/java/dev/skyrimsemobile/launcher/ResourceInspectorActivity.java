@@ -33,6 +33,8 @@ public final class ResourceInspectorActivity extends Activity {
     private Button previewButton;
     private Tes4PlacedNifScene.Preview lastPreview;
     private NifCompositeDdsAtlas.Result lastSceneDiffuseAtlas;
+    private int lastSceneRefCount,lastSceneRequestedDds,lastSceneDecodedDds,
+        lastSceneTexturedFaces;
     private String placedPreviewToken,placedPreviewExpected;
     private boolean automaticScenePending=false,automaticPlacedPreviewActive=false;
     private java.util.List<Tes4PlacementSubrecordReader.Placement> lastPlacements=java.util.Collections.emptyList();
@@ -134,6 +136,8 @@ public final class ResourceInspectorActivity extends Activity {
     private void clearPlacedPreview(){
         lastPreview=null;
         lastSceneDiffuseAtlas=null;
+        lastSceneRefCount=0;lastSceneRequestedDds=0;
+        lastSceneDecodedDds=0;lastSceneTexturedFaces=0;
         if(previewButton!=null){
             previewButton.setVisibility(View.GONE);
             previewButton.setText("Просмотреть найденный объект в 3D");
@@ -247,6 +251,13 @@ public final class ResourceInspectorActivity extends Activity {
                 caps,passed,stats.optString("frameCaptureNote",""),
                 data==null?"Vulkan был закрыт без отчёта":
                     data.getStringExtra(VulkanSceneActivity.EXTRA_DEVICE_AUTOTEST_ERROR));
+            checked=Tes4AutomaticSceneReceipt.withVisualQuality(
+                checked,lastSceneRefCount,lastSceneRequestedDds,
+                lastSceneDecodedDds,
+                lastSceneDiffuseAtlas==null?0:lastSceneTexturedFaces,
+                preview==null?0:preview.triangleCount,
+                stats.optInt("frameNonBackground",0),
+                stats.optInt("frameSamplePixels",0));
             update(text+"\n\n"+checked.report);
         }catch(Exception invalid){
             update(text+"\n\n[FAIL] Автоматический Vulkan-тест локальной сцены: "+
@@ -508,7 +519,8 @@ public final class ResourceInspectorActivity extends Activity {
         }
         final long sequence=multiArchiveScanSequence;
         final long verification=++nifVerificationSequence;
-        update(searchReport+"\n\nЧитаю первые найденные NIF (не более 3 записей)...");
+        update(searchReport+"\n\nЧитаю подходящие NIF (до "+
+            Tes4MatchedNifVerifier.MAX_MODELS+" записей)...");
         new Thread(()->{
             StringBuilder sb=new StringBuilder(searchReport);
             sb.append("\n\nПроверка содержимого найденных NIF · только чтение\n");
@@ -522,6 +534,7 @@ public final class ResourceInspectorActivity extends Activity {
             java.util.Map<String,java.util.Map<Integer,String>> materialByNif=
                 new java.util.LinkedHashMap<>();
             NifCompositeDdsAtlas.Result preparedAtlas=null;
+            int requestedDds=0,decodedDds=0;
             for(ModelProbeCandidate candidate:candidates){
                 if(inspected>=Tes4MatchedNifVerifier.MAX_MODELS)break;
                 if(sequence!=multiArchiveScanSequence||
@@ -623,17 +636,21 @@ public final class ResourceInspectorActivity extends Activity {
                 // archives. A corrupt/missing texture never hides the REFR scene.
                 try{
                     java.util.List<String> requested=textureOwner.materialPaths(materialByNif);
+                    requestedDds=requested.size();
                     if(!requested.isEmpty()){
                         LocalSceneDds found=loadLocalSceneDds(
                             requested,sequence,verification);
                         preparedAtlas=textureOwner.diffuseAtlas(materialByNif,found.decoded);
-                        previewNote+="\nDDS: "+found.decoded.size()+" / "+
-                            requested.size()+" найденных текстур; просмотр "+
+                        decodedDds=found.decoded.size();
+                        previewNote+="\nDDS: "+decodedDds+" / "+
+                            requested.size()+" декодировано, найдено по каталогам "+
+                            found.indexed+"; просмотр "+
                             (preparedAtlas==null?"без DDS (геометрия сохранена)":
                               "с диффузным атласом "+
                               preparedAtlas.width+"×"+preparedAtlas.height+
                               ", сетка "+preparedAtlas.grid+"×"+preparedAtlas.grid)+
-                            " · BSA проверено: "+found.archivesChecked+".";
+                            " · BSA проверено: "+found.archivesChecked+"."+
+                            found.issues;
                     }else previewNote+="\nDDS: у отобранных NIF нет доступных "+
                         "путей диффузных текстур и UV.";
                 }catch(Exception materialError){
@@ -655,11 +672,18 @@ public final class ResourceInspectorActivity extends Activity {
                 "Содержимое NIF: распознано "+valid+" из "+inspected);
             final Tes4PlacedNifScene.Preview readyPreview=preparedPreview;
             final NifCompositeDdsAtlas.Result readyAtlas=preparedAtlas;
+            final int readyRefCount=textureOwner.instances();
+            final int readyRequestedDds=requestedDds,readyDecodedDds=decodedDds;
             runOnUiThread(()->{
                 if(!closed&&sequence==multiArchiveScanSequence&&
                    verification==nifVerificationSequence){
                     lastPreview=readyPreview;
                     lastSceneDiffuseAtlas=readyAtlas;
+                    lastSceneRefCount=readyRefCount;
+                    lastSceneRequestedDds=readyRequestedDds;
+                    lastSceneDecodedDds=readyDecodedDds;
+                    lastSceneTexturedFaces=readyAtlas==null?0:
+                        readyAtlas.texturedTriangles;
                     if(previewButton!=null){
                         previewButton.setVisibility(readyPreview==null?View.GONE:View.VISIBLE);
                         if(readyPreview!=null)
@@ -686,9 +710,12 @@ public final class ResourceInspectorActivity extends Activity {
 
     private static final class LocalSceneDds {
         final java.util.Map<String,DdsBcDecoder.Image> decoded;
-        final int archivesChecked;
-        LocalSceneDds(java.util.Map<String,DdsBcDecoder.Image> decoded,int checked){
+        final int archivesChecked,indexed;
+        final String issues;
+        LocalSceneDds(java.util.Map<String,DdsBcDecoder.Image> decoded,
+                      int checked,int indexed,String issues){
             this.decoded=decoded;archivesChecked=checked;
+            this.indexed=indexed;this.issues=issues;
         }
     }
     private static final class SceneDdsFile {
@@ -712,7 +739,7 @@ public final class ResourceInspectorActivity extends Activity {
         java.util.Map<String,DdsBcDecoder.Image> decoded=
             new java.util.LinkedHashMap<>();
         if(requested==null||requested.isEmpty())
-            return new LocalSceneDds(decoded,0);
+            return new LocalSceneDds(decoded,0,0,"");
         Uri tree=persistedDataTree();
         if(tree==null)throw new java.io.IOException("нет доступа к папке Skyrim/Data");
         String rootId=DocumentsContract.getTreeDocumentId(tree);
@@ -761,6 +788,11 @@ public final class ResourceInspectorActivity extends Activity {
             }
         }
         long totalPixels=0;
+        StringBuilder issues=new StringBuilder();
+        for(String missing:wanted.keySet()){
+            if(issues.length()<1000)issues.append("\n• DDS отсутствует в BSA: ")
+                .append(missing);
+        }
         for(java.util.Map.Entry<String,SceneDdsFile> match:found.entrySet()){
             if(closed||sequence!=multiArchiveScanSequence||
                verification!=nifVerificationSequence)
@@ -770,14 +802,22 @@ public final class ResourceInspectorActivity extends Activity {
                 DdsBcDecoder.Image image=BsaDdsPixelReader.preview(
                     in,match.getValue().entry,match.getValue().flags);
                 long pixels=(long)image.width*image.height;
-                if(pixels<=0||totalPixels+pixels>4L*1024*1024)continue;
+                if(pixels<=0||totalPixels+pixels>4L*1024*1024){
+                    if(issues.length()<1500)issues.append("\n• DDS ограничение памяти: ")
+                        .append(match.getKey()).append(" · ")
+                        .append(image.width).append("×").append(image.height);
+                    continue;
+                }
                 totalPixels+=pixels;
                 decoded.put(match.getKey(),image);
             }catch(java.io.IOException corrupt){
-                // Neutral atlas material for this specific missing DDS.
+                if(issues.length()<1800)issues.append("\n• DDS не декодирована: ")
+                    .append(match.getKey()).append(" · ")
+                    .append(corrupt.getMessage());
+                // Neutral atlas for this specific unavailable or unsupported DDS.
             }
         }
-        return new LocalSceneDds(decoded,checked);
+        return new LocalSceneDds(decoded,checked,found.size(),issues.toString());
     }
 
     private void scanAllModelArchives(Uri tree){
