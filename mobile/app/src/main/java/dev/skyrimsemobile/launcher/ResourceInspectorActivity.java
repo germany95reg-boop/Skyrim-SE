@@ -651,7 +651,7 @@ public final class ResourceInspectorActivity extends Activity {
                 "автоматический Vulkan-тест запускается для найденной сцены, "+
                 "исходные файлы не изменены.");
             String finalReport=sb.toString().replace(
-                "Содержимое NIF: следующий этап (до 3 моделей)",
+                "Содержимое NIF: следующий этап (до 8 моделей)",
                 "Содержимое NIF: распознано "+valid+" из "+inspected);
             final Tes4PlacedNifScene.Preview readyPreview=preparedPreview;
             final NifCompositeDdsAtlas.Result readyAtlas=preparedAtlas;
@@ -843,7 +843,7 @@ public final class ResourceInspectorActivity extends Activity {
                     "Skyrim.esm: найден · WRLD и базовые FormID: прочитаны\n"+
                     "BSA: "+search.archivesChecked()+" из "+archives.size()+
                     " · пути NIF: "+search.foundPaths()+" из "+search.neededPaths()+
-                    "\nСодержимое NIF: следующий этап (до 3 моделей)\n\n");
+                    "\nСодержимое NIF: следующий этап (до 8 моделей)\n\n");
                 String full=autoSummary+baseReport+"\n\n"+
                     "Папка: "+nameDocument(tree,targetId)+"\n"+
                     search.report(archives.size())+

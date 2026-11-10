@@ -127,6 +127,16 @@ public final class SceneFramingTest {
             1.2f,1440,2915,240,104);
         ok(minimal.visibleFraction>0.80f,
             "small HUD gives over 80% viewport on representative tall device");
+        float[] elongated={
+            0.01f,-1,-1, 0.01f,1,1,
+            -0.01f,-1,-1, -0.01f,1,1
+        };
+        float angle=SceneFraming.bestYaw(elongated,0.42f);
+        ok(Float.isFinite(angle)&&Math.abs(Math.sin(angle))>0.7,
+            "automatic view rotates long Z-shape away from edge-on yaw 0");
+        try{SceneFraming.bestYaw(new float[]{0,Float.NaN,0,1,1,1},0.4f);
+            throw new AssertionError("invalid auto-camera accepted");
+        }catch(IllegalArgumentException expected){checks++;}
         System.out.println("PASS v2.24 compact GPU diagnostic viewport: "+checks+" checks");
     }
 }

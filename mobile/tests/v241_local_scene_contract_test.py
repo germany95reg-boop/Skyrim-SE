@@ -18,10 +18,10 @@ assert "Tes4PlacedNifScene.findVisibleAll(" in ui
 assert "localScene.build()" in ui
 assert "Найти MODL во всех BSA" in ui
 assert "previewButton.setVisibility(View.GONE)" in ui
-assert "MAX_PLACEMENTS=20" in sampler
+assert "MAX_PLACEMENTS=32" in sampler
 assert "MAX_TARGET_IDS=32" in resolver
 assert "MAX_BASES=32" in matcher
 assert "Tes4LocalWorldScene" in jvm
 assert "v241_local_scene_contract_test.py" in wf
-assert "versionCode 68" in gradle and "versionName '2.45.0'" in gradle
+assert "versionCode 69" in gradle and "versionName '2.46.0'" in gradle
 print("PASS v2.41 multiple real REFR local scene, capped distances and one-click pipeline")

@@ -31,6 +31,40 @@ public final class SceneFraming {
     /** Maximum XZ radius across every yaw; narrower than the 3D sphere for tall shapes.
      * The Vulkan shader rotates around Y, then pitches around X, so camera-facing
      * horizontal X is always bounded by hypot(original X,original Z). */
+    /**
+     * Stable automatic camera for an elongated NIF: choose a yaw with a large
+     * projected bounding rectangle, not an arbitrary edge-on startup view.
+     * Uses the same Y-axis yaw and X-axis pitch as the Vulkan vertex shader.
+     * It cannot guarantee game-authentic framing or surface visibility.
+     */
+    public static float bestYaw(float[] segments,float pitch){
+        if(segments==null||segments.length<6||segments.length%6!=0||
+           !Float.isFinite(pitch))
+            throw new IllegalArgumentException("Неверные вершины для выбора ракурса");
+        double best=-1;
+        float result=0;
+        double cp=Math.cos(pitch),sp=Math.sin(pitch);
+        for(int step=0;step<24;step++){
+            double angle=step*Math.PI/12.0;
+            double cy=Math.cos(angle),sy=Math.sin(angle);
+            double xLo=Double.POSITIVE_INFINITY,xHi=Double.NEGATIVE_INFINITY;
+            double yLo=Double.POSITIVE_INFINITY,yHi=Double.NEGATIVE_INFINITY;
+            for(int i=0;i<segments.length;i+=3){
+                double x=segments[i],y=segments[i+1],z=segments[i+2];
+                if(!Double.isFinite(x)||!Double.isFinite(y)||!Double.isFinite(z))
+                    throw new IllegalArgumentException("Некорректная геометрия камеры");
+                double rx=cy*x+sy*z;
+                double rz=-sy*x+cy*z;
+                double vy=cp*y-sp*rz;
+                xLo=Math.min(xLo,rx);xHi=Math.max(xHi,rx);
+                yLo=Math.min(yLo,vy);yHi=Math.max(yHi,vy);
+            }
+            double score=(xHi-xLo)*(yHi-yLo);
+            if(score>best+1e-8){best=score;result=(float)angle;}
+        }
+        return result;
+    }
+
     public static float horizontalRadius(float[] segments) {
         if(segments==null || segments.length<6 || segments.length%6!=0)
             throw new IllegalArgumentException("Неверная геометрия");

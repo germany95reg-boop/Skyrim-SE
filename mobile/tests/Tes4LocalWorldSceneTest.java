@@ -114,6 +114,7 @@ public final class Tes4LocalWorldSceneTest {
         var diffuse=sceneDds.diffuseAtlas(materialPaths,pixels);
         assert diffuse!=null;
         assert diffuse.textureCount==1 && diffuse.neutralParts==1;
+        assert diffuse.texturedTriangles==2:"two textured instances, third neutral";
         assert diffuse.grid==2 && diffuse.width==1024;
         assert diffuse.uvAndSlot.length==sceneDds.build().triangles.length;
         for(int v=0;v<6;v++)assert diffuse.uvAndSlot[v*3+2]==1f;

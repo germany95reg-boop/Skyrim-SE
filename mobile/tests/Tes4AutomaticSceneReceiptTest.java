@@ -33,6 +33,20 @@ public final class Tes4AutomaticSceneReceiptTest {
         assert !fpsBroken.passed && fpsBroken.failedChecks==1:fpsBroken.report;
         var pixelSmall=inspect(model,true,6,true,"atlas-safe","small",caps,good);
         assert pixelSmall.passed && pixelSmall.warnings==1:pixelSmall.report;
+        var screenshot=Tes4AutomaticSceneReceipt.withVisualQuality(all,
+            1,5,1,200,5879,3064,49152);
+        assert screenshot.passed && screenshot.failedChecks==0:
+            "Valid Vulkan is not a broken GPU";
+        assert screenshot.warnings==4:screenshot.report;
+        assert screenshot.report.contains("PASS 7 · WARN 4 · FAIL 0");
+        assert screenshot.report.contains("только 1 размещение REFR");
+        assert screenshot.report.contains("декодировано 1 из 5");
+        assert screenshot.report.contains("200 из 5879");
+        assert screenshot.report.contains("6.2%");
+        var complete=Tes4AutomaticSceneReceipt.withVisualQuality(all,
+            4,5,5,5879,5879,7000,49152);
+        assert complete.warnings==0 && complete.passed:
+            "Real complete scene should not invent warnings";
         System.out.println("PASS automated REAL REFR/NIF Vulkan + PixelCopy + 30/60/unlimited result honesty");
     }
 }

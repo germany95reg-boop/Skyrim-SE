@@ -18,7 +18,7 @@ assert "new Tes4LocalWorldScene.Builder()" in ui
 assert "var isolated=pose(200" in test
 assert "plannerReverse.best().build()" in test
 assert "v242_local_scene_selection_contract_test.py" in wf
-assert "versionCode 68" in gradle and "versionName '2.45.0'" in gradle
+assert "versionCode 69" in gradle and "versionName '2.46.0'" in gradle
 assert "applicationId 'dev.skyrimsemobile.launcher'" in gradle
 assert "signingConfig signingConfigs.stableDebug" in gradle
 print("PASS v2.42 dense real REFR scene selection and unchanged upgrade identity")

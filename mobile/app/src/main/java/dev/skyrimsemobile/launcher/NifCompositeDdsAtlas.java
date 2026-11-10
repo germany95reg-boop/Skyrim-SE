@@ -22,10 +22,17 @@ public final class NifCompositeDdsAtlas {
         public final float[] uvAndSlot; // expanded [U,V,slot], three floats per vertex
         public final int[] argb;
         public final int width,height,grid,textureCount,neutralParts;
+        /** Actual diffuse-textured triangle count; -1 in legacy callers. */
+        public final int texturedTriangles;
         Result(float[] uvAndSlot,int[] argb,int side,int grid,int textures,int neutrals){
+            this(uvAndSlot,argb,side,grid,textures,neutrals,-1);
+        }
+        Result(float[] uvAndSlot,int[] argb,int side,int grid,int textures,
+               int neutrals,int coloredTriangles){
             this.uvAndSlot=uvAndSlot;this.argb=argb;
             width=side;height=side;this.grid=grid;
             textureCount=textures;neutralParts=neutrals;
+            texturedTriangles=coloredTriangles;
         }
     }
 

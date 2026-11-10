@@ -18,12 +18,12 @@ import java.util.Map;
 public final class Tes4NestedRecordSampler {
     private static final int HEADER=24;
     private static final int MAX_TOP_GROUPS=512;
-    private static final int MAX_HEADERS=1000;
+    private static final int MAX_HEADERS=2400;
     private static final int MAX_DEPTH=24;
     private static final long MAX_SECTION_BYTES=16L*1024*1024;
     private static final int MAX_SAMPLES=16;
-    private static final int MAX_PLACEMENTS=20;
-    private static final int MAX_PLACEMENT_PROBES=60;
+    private static final int MAX_PLACEMENTS=32;
+    private static final int MAX_PLACEMENT_PROBES=96;
     private Tes4NestedRecordSampler(){}
 
     public static final class Record {

@@ -27,7 +27,7 @@ fi
 # suite. This explicit list prevents Android imports accidentally entering JVM CI.
 sources=(
   BsaCatalogReader BsaDdsInspector BsaDdsPixelReader BsaEntryInspector
-  DdsArchiveFinder DdsBcDecoder DdsHeaderInspector DdsNormalResampler DdsAlphaCoverage
+  DdsArchiveFinder DdsBcDecoder Bc7SubsetDecoder DdsHeaderInspector DdsNormalResampler DdsAlphaCoverage
   NifBlockInspector NifCatalogSelection NifCompositeDdsAtlas NifCompositeNormalAtlas
   NifHierarchyTransforms
   NifGeometryDecoder NifGeometryTransfer NifMaterialInspector

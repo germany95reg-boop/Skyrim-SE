@@ -62,6 +62,10 @@ public final class DdsBcDecoder {
         if(h.width>2048||h.height>2048||(long)h.width*h.height>MAX_PIXELS)
             throw new IOException("DDS: изображение больше безопасного предела 2048×2048");
         if(h.depth>1||h.arraySize!=1)throw new IOException("DDS: только одна плоская 2D-текстура");
+        // BC7 is common in SSE DX10 diffuse textures. Decode only the
+        // fully verified 5/6 single-subset modes; reject all other BC7 modes.
+        if(h.isDx10&&(h.dxgiFormat==98||h.dxgiFormat==99))
+            return Bc7SubsetDecoder.firstMip(dds,h.headerBytes,h.width,h.height);
         String f=h.fourCC;int dg=h.dxgiFormat;
         if("BC4S".equals(f)||"BC5S".equals(f)||
            (h.isDx10&&(dg==81||dg==84)))

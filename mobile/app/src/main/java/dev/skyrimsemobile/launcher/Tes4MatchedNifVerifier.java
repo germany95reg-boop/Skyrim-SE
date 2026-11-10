@@ -10,7 +10,7 @@ import java.util.Locale;
  * LZ4-frame handling. No extracted data is written to device storage.
  */
 public final class Tes4MatchedNifVerifier {
-    public static final int MAX_MODELS=3;
+    public static final int MAX_MODELS=8;
     private Tes4MatchedNifVerifier(){}
 
     public static final class Verification {

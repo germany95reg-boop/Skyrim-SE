@@ -191,7 +191,7 @@ public final class Tes4LocalWorldScene {
             List<DdsBcDecoder.Image> tiles=new ArrayList<>();
             tiles.add(null); // neutral material tile 0
             float[] packed=new float[faces*9]; // [U,V,materialSlot] per vertex
-            int offset=0,neutralParts=0;
+            int offset=0,neutralParts=0,texturedFaces=0;
             for(Instance instance:selected){
                 java.util.Map<Integer,String> perPart=byNif.get(instance.link.canonicalPath);
                 for(NifGeometryDecoder.Part part:instance.parts.items){
@@ -223,6 +223,7 @@ public final class Tes4LocalWorldScene {
                         }
                     }
                     if(slot==0)neutralParts++;
+                    else texturedFaces+=mesh.triangles;
                     for(int v=0;v<verts;v++){
                         int pos=(offset+v)*3;
                         if(goodUv){
@@ -256,7 +257,7 @@ public final class Tes4LocalWorldScene {
                 }
             }
             return new NifCompositeDdsAtlas.Result(
-                packed,pixels,side,grid,tiles.size()-1,neutralParts);
+                packed,pixels,side,grid,tiles.size()-1,neutralParts,texturedFaces);
         }
 
         public Tes4PlacedNifScene.Preview build()throws IOException {

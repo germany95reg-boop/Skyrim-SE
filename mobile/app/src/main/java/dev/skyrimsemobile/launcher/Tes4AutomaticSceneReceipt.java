@@ -20,6 +20,60 @@ public final class Tes4AutomaticSceneReceipt {
             this.report=report;
         }
     }
+    /**
+     * Visual completeness is NOT an FPS/GPU property. A screenshot with one
+     * grey object, few decoded DDS, and only 6% occupied pixels must never
+     * appear as a flawless 7/7 diagnostic result.
+     */
+    public static Result withVisualQuality(Result gpu,int placedRefs,
+            int declaredDds,int decodedDds,int texturedTriangles,
+            int totalTriangles,int nonBackground,int samplePixels){
+        if(gpu==null)throw new IllegalArgumentException("Нет базового отчёта GPU");
+        String raw=gpu.report;
+        int cut=raw.indexOf("Итог: PASS ");
+        String base=cut<0?raw:raw.substring(0,cut);
+        StringBuilder out=new StringBuilder(base);
+        int warnings=gpu.warnings;
+        if(placedRefs<2){
+            warnings++;
+            out.append("[WARN] Полнота сцены: выбрано только ")
+                .append(placedRefs)
+                .append(" размещение REFR — это отдельный объект, не локация Skyrim.\n");
+        }
+        if(declaredDds>0&&decodedDds<declaredDds){
+            warnings++;
+            out.append("[WARN] Загрузка DDS: декодировано ")
+                .append(decodedDds).append(" из ").append(declaredDds)
+                .append("; остальные поверхности могут быть серыми.\n");
+        }
+        if(totalTriangles>0&&texturedTriangles>=0&&
+           (long)texturedTriangles*100<70L*totalTriangles){
+            warnings++;
+            out.append("[WARN] Покрытие материалов: реальные diffuse DDS имеют ")
+                .append(texturedTriangles).append(" из ")
+                .append(totalTriangles).append(" треугольников (")
+                .append(String.format(Locale.ROOT,"%.1f",
+                    texturedTriangles*100.0/totalTriangles))
+                .append("%); остальные используют нейтральный цвет.\n");
+        }
+        if(samplePixels>0&&nonBackground>=0&&
+           (long)nonBackground*100<8L*samplePixels){
+            warnings++;
+            out.append("[WARN] Крупность сцены: только ")
+                .append(String.format(Locale.ROOT,"%.1f",
+                    nonBackground*100.0/samplePixels))
+                .append("% PixelCopy отличается от фона; проверь ракурс и масштаб.\n");
+        }
+        out.append(String.format(Locale.ROOT,
+            "Итог: PASS %d · WARN %d · FAIL %d\n",
+            gpu.passedChecks,warnings,gpu.failedChecks));
+        out.append("Vulkan/FPS PASS — только техническая работоспособность. ")
+           .append("Полная геометрия мира, качество освещения и соответствие ")
+           .append("текстур оригиналу автоматически не подтверждены.");
+        return new Result(gpu.passedChecks,warnings,gpu.failedChecks,
+            out.toString());
+    }
+
     private static final class Checks {
         final StringBuilder lines=new StringBuilder();
         int passed,warnings,failed;

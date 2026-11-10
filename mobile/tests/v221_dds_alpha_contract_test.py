@@ -43,8 +43,8 @@ checks={
  "new pure Java coverage included":'DdsAlphaCoverage' in jvm,
  "alpha JVM test included":(r/"tests/DdsAlphaCoverageTest.java").exists(),
  "new source checks included":'v221_dds_alpha_contract_test.py' in ci,
- "signing identity v2.21":"versionCode 68" in gradle and
-     "versionName '2.45.0'" in gradle,
+ "signing identity v2.21":"versionCode 69" in gradle and
+     "versionName '2.46.0'" in gradle,
  "read-only SAF retained":'openOutputStream' not in runner,
  "no internet permission":'android.permission.INTERNET' not in manifest,
  "manual mask includes only diffuse source":'DdsAlphaCoverage.inspect(perShape)' in runner,

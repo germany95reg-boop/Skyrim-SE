@@ -688,6 +688,10 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
             ui.post(poll);
             NifGeometryTransfer.Selected nif=NifGeometryTransfer.take();
             if(nif != null){
+                if(automaticPlacedTest){
+                    autoSpin=false;
+                    yaw=SceneFraming.bestYaw(nif.model.segments,pitch);
+                }
                 if(automaticPlacedTest&&(placedPreviewExpectedLabel==null||
                     placedPreviewToken==null||
                     !nif.label.equals(placedPreviewExpectedLabel)))

@@ -22,5 +22,5 @@ assert "Math.cos(p.rz)" in geo
 assert '"XSCL".equals(key)' in pose
 assert "Tes4PlacedNifScene" in jvm
 assert "v239_placed_preview_contract_test.py" in wf
-assert "versionCode 68" in gradle and "versionName '2.45.0'" in gradle
+assert "versionCode 69" in gradle and "versionName '2.46.0'" in gradle
 print("PASS v2.39 linked placed NIF Vulkan preview, one-folder UX and upgrade identity")
