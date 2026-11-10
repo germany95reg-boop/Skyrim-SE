@@ -34,29 +34,6 @@ jobs:
       - name: Run v2.52 UV-less material contract independently
         id: v252-contract
         run: python3 mobile/tests/v252_uvless_tint_contract_test.py
-      - name: Download project's pinned LZ4 dependency through Gradle
-        id: dependency
-        run: gradle --no-daemon -p mobile :app:resolveRuntimeJars
-      - name: Run ALL pure-Java regression programs, fail fast
-        id: jvm-suite
-        if: success()
-        run: bash mobile/ci/run_jvm_suite.sh
-      - name: Record JVM gate diagnostic in job summary
-        if: always()
-        env:
-          CONTRACT: ${{ steps.v252-contract.outcome }}
-          DEPENDENCY: ${{ steps.dependency.outcome }}
-          JVM_SUITE: ${{ steps.jvm-suite.outcome }}
-        run: |
-          {
-            echo "### Skyrim SE v2.52 — JVM gate"
-            echo "| Stage | Outcome |"
-            echo "|---|---|"
-            echo "| v2.52 contract | $CONTRACT |"
-            echo "| Gradle dependency | $DEPENDENCY |"
-            echo "| JVM suite | $JVM_SUITE |"
-            echo "Skipped stages are not passes. APK requires full JVM success."
-          } >> "$GITHUB_STEP_SUMMARY"
       - name: Validate current UI, Vulkan source, assets and upgrade identity
         run: |
           python3 mobile/tests/v213_contract_test.py
@@ -101,6 +78,30 @@ jobs:
           python3 mobile/tests/v252_uvless_tint_contract_test.py
           python3 mobile/tests/release_signing_contract_test.py
           python3 mobile/tests/ci_quality_contract_test.py
+      - name: Download project's pinned LZ4 dependency through Gradle
+        id: dependency
+        run: gradle --no-daemon -p mobile :app:resolveRuntimeJars
+      - name: Run ALL pure-Java regression programs, fail fast
+        id: jvm-suite
+        if: success()
+        run: bash mobile/ci/run_jvm_suite.sh
+      - name: Record JVM gate diagnostic in job summary
+        if: always()
+        env:
+          CONTRACT: ${{ steps.v252-contract.outcome }}
+          DEPENDENCY: ${{ steps.dependency.outcome }}
+          JVM_SUITE: ${{ steps.jvm-suite.outcome }}
+        run: |
+          {
+            echo "### Skyrim SE v2.52 — JVM gate"
+            echo "| Stage | Outcome |"
+            echo "|---|---|"
+            echo "| v2.52 contract | $CONTRACT |"
+            echo "| Gradle dependency | $DEPENDENCY |"
+            echo "| JVM suite | $JVM_SUITE |"
+            echo "Skipped stages are not passes. APK requires full JVM success."
+          } >> "$GITHUB_STEP_SUMMARY"
+
 
   android-arm64-apk:
     name: Compile Vulkan / sign / inspect ARM64 APK
