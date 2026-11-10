@@ -22,6 +22,25 @@ public final class NifVertexTintPreviewTest {
         assert out.note().contains("множитель нейтрального материала");
         assert NifVertexTintPreview.shade(tris,slots,raw).rgba[0]==out.rgba[0]:
             "deterministic shader-safe preview";
+        // v2.52: missing DDS on UV-capable geometry uses neutral slot 0.
+        // Neither neutral nor valid DDS geometry may be recolored by tint.
+        float[] neutralSlots=slots.clone();
+        neutralSlots[11]=0f;neutralSlots[14]=0f;neutralSlots[17]=0f;
+        var neutral=NifVertexTintPreview.shade(tris,neutralSlots,raw);
+        assert neutral.tintedTriangles==1;
+        for(int i=12;i<24;i++)
+            assert neutral.rgba[i]==raw[i]:
+                "neutral missing-DDS geometry must retain its original RGBA";
+        float[] invalidSlot=slots.clone();
+        invalidSlot[2]=Float.NaN;
+        try{NifVertexTintPreview.shade(tris,invalidSlot,raw);
+            throw new AssertionError("NaN material slot accepted");}
+        catch(IOException expected){}
+        float[] invalidPosition=tris.clone();
+        invalidPosition[0]=Float.POSITIVE_INFINITY;
+        try{NifVertexTintPreview.shade(invalidPosition,slots,raw);
+            throw new AssertionError("non-finite position accepted");}
+        catch(IOException expected){}
         float[] broken=slots.clone();broken[5]=1;
         try{NifVertexTintPreview.shade(tris,broken,raw);
             throw new AssertionError("mixed per-face slots accepted");}
