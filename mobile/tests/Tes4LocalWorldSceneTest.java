@@ -90,6 +90,49 @@ public final class Tes4LocalWorldSceneTest {
         assert same.triangleCount==3;
         assert !same.details.contains("REFR 0x000000C8");
         for(float v:same.triangles)assert Float.isFinite(v)&&Math.abs(v)<=1.001f;
+        // v2.44: real surface UV ordering must survive multiple REFR copies
+        // and a mixed no-UV part. One DDS image is reused for the same NIF.
+        var withUv=NifGeometryDecoder.scan(NifGeometryDecoderTest.validUv());
+        var sceneDds=new Tes4LocalWorldScene.Builder();
+        assert sceneDds.add(withUv,denseLinks.get(1));
+        assert sceneDds.add(withUv,denseLinks.get(2));
+        assert sceneDds.add(parts,denseLinks.get(3)); // third shape has no UV
+        String nifPath=denseLinks.get(1).canonicalPath;
+        Map<String,Map<Integer,String>> materialPaths=new LinkedHashMap<>();
+        Map<Integer,String> partPaths=new LinkedHashMap<>();
+        partPaths.put(0,"textures\\clutter\\rock.dds");
+        materialPaths.put(nifPath,partPaths);
+        var requested=sceneDds.materialPaths(materialPaths);
+        assert requested.size()==1 && "textures/clutter/rock.dds".equals(requested.get(0)):
+            requested.toString();
+        assert sceneDds.diffuseAtlas(materialPaths,
+            java.util.Collections.emptyMap())==null;
+        Map<String,DdsBcDecoder.Image> pixels=new LinkedHashMap<>();
+        pixels.put(requested.get(0),
+            new DdsBcDecoder.Image(2,2,new int[]{
+                0xffff0000,0xff00ff00,0xff0000ff,0xffffffff},"synthetic RGBA"));
+        var diffuse=sceneDds.diffuseAtlas(materialPaths,pixels);
+        assert diffuse!=null;
+        assert diffuse.textureCount==1 && diffuse.neutralParts==1;
+        assert diffuse.grid==2 && diffuse.width==1024;
+        assert diffuse.uvAndSlot.length==sceneDds.build().triangles.length;
+        for(int v=0;v<6;v++)assert diffuse.uvAndSlot[v*3+2]==1f;
+        for(int v=6;v<9;v++)assert diffuse.uvAndSlot[v*3+2]==0f;
+        near(diffuse.uvAndSlot[0],0);
+        near(diffuse.uvAndSlot[3],1);
+        near(diffuse.uvAndSlot[8],1);
+        near(diffuse.uvAndSlot[9],0); // UV repeated from original mesh
+        assert diffuse.argb[0]==0xff73777e:"Neutral tile 0";
+        assert diffuse.argb[diffuse.width/2]==0xffff0000:"Real DDS tile 1";
+        assert sceneDds.build().triangleCount==3:
+            "DDS fallback must not drop world-space geometry";
+        var invalidPixels=new LinkedHashMap<String,DdsBcDecoder.Image>();
+        invalidPixels.put(requested.get(0),
+            new DdsBcDecoder.Image(2,2,new int[]{0xff000000},"bad"));
+        try{
+            sceneDds.diffuseAtlas(materialPaths,invalidPixels);
+            throw new AssertionError("Accepted invalid DDS pixel count");
+        }catch(java.io.IOException expected){}
         System.out.println("PASS bounded nearby Skyrim REFR multi-mesh local scene and safe distant exclusion");
     }
 }
