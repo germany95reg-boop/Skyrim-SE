@@ -150,6 +150,115 @@ public final class Tes4LocalWorldScene {
             return true;
         }
 
+        /**
+         * v2.44: collect only material paths genuinely linked to SELECTED
+         * UV-capable BSTriShape blocks. Repeat REFR copies reuse the same DDS.
+         * A strict cap prevents automatic Data scans from becoming unbounded.
+         */
+        public List<String> materialPaths(
+                java.util.Map<String,java.util.Map<Integer,String>> byNif){
+            java.util.LinkedHashSet<String> wanted=new java.util.LinkedHashSet<>();
+            if(byNif==null)return java.util.Collections.emptyList();
+            for(Instance instance:selected){
+                java.util.Map<Integer,String> perPart=byNif.get(instance.link.canonicalPath);
+                if(perPart==null)continue;
+                for(NifGeometryDecoder.Part part:instance.parts.items){
+                    if(part.mesh==null ||
+                       part.mesh.surfaceUVs.length!=(long)part.mesh.triangles*6)continue;
+                    try{
+                        String path=DdsArchiveFinder.normalizeDds(perPart.get(part.blockIndex));
+                        wanted.add(path);
+                    }catch(IOException invalid){continue;}
+                    if(wanted.size()>=NifCompositeDdsAtlas.MAX_TEXTURES)
+                        return new ArrayList<>(wanted);
+                }
+            }
+            return new ArrayList<>(wanted);
+        }
+
+        /**
+         * Preserve exactly the same selected instance/part/vertex order as
+         * build(). The output UV+material array is parallel to its triangle
+         * buffer, despite different world transforms and repeated NIFs.
+         * Missing/unsupported DDS stays neutral without hiding geometry.
+         */
+        public NifCompositeDdsAtlas.Result diffuseAtlas(
+                java.util.Map<String,java.util.Map<Integer,String>> byNif,
+                java.util.Map<String,DdsBcDecoder.Image> decoded)throws IOException{
+            if(selected.isEmpty()||byNif==null||decoded==null||decoded.isEmpty())
+                return null;
+            java.util.LinkedHashMap<String,Integer> slots=new java.util.LinkedHashMap<>();
+            List<DdsBcDecoder.Image> tiles=new ArrayList<>();
+            tiles.add(null); // neutral material tile 0
+            float[] packed=new float[faces*9]; // [U,V,materialSlot] per vertex
+            int offset=0,neutralParts=0;
+            for(Instance instance:selected){
+                java.util.Map<Integer,String> perPart=byNif.get(instance.link.canonicalPath);
+                for(NifGeometryDecoder.Part part:instance.parts.items){
+                    if(part.mesh==null)continue;
+                    NifGeometryDecoder.Mesh mesh=part.mesh;
+                    int verts=mesh.triangles*3;
+                    if(offset+verts>faces*3)
+                        throw new IOException("UV не соответствуют мировой геометрии");
+                    boolean goodUv=mesh.surfaceUVs.length==(long)verts*2;
+                    if(goodUv)for(float u:mesh.surfaceUVs){
+                        if(!Float.isFinite(u)||Math.abs(u)>8192f){goodUv=false;break;}
+                    }
+                    String key=null;
+                    if(goodUv&&perPart!=null){
+                        try{key=DdsArchiveFinder.normalizeDds(perPart.get(part.blockIndex));}
+                        catch(IOException invalid){key=null;}
+                    }
+                    DdsBcDecoder.Image image=key==null?null:decoded.get(key);
+                    int slot=0;
+                    if(image!=null){
+                        if(image.width<1||image.height<1||image.width>2048||
+                           image.height>2048||image.argb==null||
+                           image.argb.length!=(long)image.width*image.height)
+                            throw new IOException("Повреждённые пиксели DDS: "+key);
+                        Integer existing=slots.get(key);
+                        if(existing!=null)slot=existing;
+                        else if(tiles.size()<=NifCompositeDdsAtlas.MAX_TEXTURES){
+                            slot=tiles.size();slots.put(key,slot);tiles.add(image);
+                        }
+                    }
+                    if(slot==0)neutralParts++;
+                    for(int v=0;v<verts;v++){
+                        int pos=(offset+v)*3;
+                        if(goodUv){
+                            packed[pos]=mesh.surfaceUVs[v*2];
+                            packed[pos+1]=mesh.surfaceUVs[v*2+1];
+                        }
+                        packed[pos+2]=slot;
+                    }
+                    offset+=verts;
+                }
+            }
+            if(offset!=faces*3)throw new IOException("Не совпадает количество UV-вершин");
+            if(tiles.size()<2)return null;
+            int grid=1;while(grid*grid<tiles.size())grid++;
+            if(grid>NifCompositeDdsAtlas.MAX_GRID)
+                throw new IOException("Слишком много DDS-плиток");
+            int tileSide=Math.min(512,2048/grid);
+            int side=grid*tileSide;
+            int[] pixels=new int[side*side];
+            for(int cell=0;cell<grid*grid;cell++){
+                DdsBcDecoder.Image image=cell<tiles.size()?tiles.get(cell):null;
+                int x0=(cell%grid)*tileSide,y0=(cell/grid)*tileSide;
+                for(int y=0;y<tileSide;y++){
+                    int yy=image==null?0:(int)((long)y*image.height/tileSide);
+                    int row=(y0+y)*side+x0;
+                    for(int x=0;x<tileSide;x++){
+                        int xx=image==null?0:(int)((long)x*image.width/tileSide);
+                        pixels[row+x]=image==null?0xff73777e:
+                            image.argb[yy*image.width+xx];
+                    }
+                }
+            }
+            return new NifCompositeDdsAtlas.Result(
+                packed,pixels,side,grid,tiles.size()-1,neutralParts);
+        }
+
         public Tes4PlacedNifScene.Preview build()throws IOException {
             if(selected.isEmpty())throw new IOException("Нет подходящих соседних REFR/NIF");
             double[] lo={Double.POSITIVE_INFINITY,Double.POSITIVE_INFINITY,Double.POSITIVE_INFINITY};
