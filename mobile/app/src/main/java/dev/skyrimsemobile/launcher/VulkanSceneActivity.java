@@ -392,8 +392,9 @@ public final class VulkanSceneActivity extends Activity implements SurfaceHolder
         super.onCreate(savedInstanceState);
         automaticPlacedTest=getIntent().getBooleanExtra(
             EXTRA_AUTOMATIC_PLACED_TEST,false);
-        deviceAutotest=automaticPlacedTest||
-            getIntent().getBooleanExtra(EXTRA_DEVICE_AUTOTEST,false);
+        deviceAutotest=getIntent().getBooleanExtra(
+            EXTRA_DEVICE_AUTOTEST,false);
+        if(automaticPlacedTest)deviceAutotest=true;
         placedPreviewToken=getIntent().getStringExtra(EXTRA_PLACED_PREVIEW_TOKEN);
         placedPreviewExpectedLabel=getIntent().getStringExtra(EXTRA_PLACED_PREVIEW_LABEL);
         // Process-global JNI state can survive a previous manual preview.

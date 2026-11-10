@@ -20,7 +20,7 @@ assert "stats.optJSONArray(\"fpsStages\")" in ui
 assert "lastSceneDiffuseAtlas!=null" in ui
 assert "EXTRA_AUTOMATIC_PLACED_TEST" in gpu
 assert "automaticPlacedTest=getIntent().getBooleanExtra(" in gpu
-assert "deviceAutotest=automaticPlacedTest||" in gpu
+assert "if(automaticPlacedTest)deviceAutotest=true" in gpu
 assert "EXTRA_AUTOMATIC_PLACED_TOKEN,placedPreviewToken" in gpu
 assert "Не передана выбранная NIF/REFR-сцена" in gpu
 assert "if(deviceAutotest&&hasSurface)" in gpu
