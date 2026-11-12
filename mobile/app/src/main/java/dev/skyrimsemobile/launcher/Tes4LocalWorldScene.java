@@ -215,8 +215,9 @@ public final class Tes4LocalWorldScene {
         public NifCompositeDdsAtlas.Result diffuseAtlas(
                 java.util.Map<String,java.util.Map<Integer,String>> byNif,
                 java.util.Map<String,DdsBcDecoder.Image> decoded)throws IOException{
-            if(selected.isEmpty()||byNif==null||decoded==null||decoded.isEmpty())
-                return null;
+            if(selected.isEmpty())return null;
+            if(byNif==null)byNif=java.util.Collections.emptyMap();
+            if(decoded==null)decoded=java.util.Collections.emptyMap();
             java.util.LinkedHashMap<String,Integer> slots=new java.util.LinkedHashMap<>();
             List<DdsBcDecoder.Image> tiles=new ArrayList<>();
             tiles.add(null); // neutral material tile 0
@@ -257,7 +258,7 @@ public final class Tes4LocalWorldScene {
                     boolean hasColor=mesh.surfaceColors.length==(long)verts*4;
                     // SSE VF_COLORS=0x20 permits true per-vertex RGBA even when
                     // VF_UV=0. Preserve real colors; NEVER invent UV coordinates.
-                    if(slot==0&&hasColor){
+                    if(slot==0&&!goodUv&&hasColor){
                         slot=-1;vertexColorFaces+=mesh.triangles;
                     }
                     if(slot==0)neutralParts++;
@@ -276,7 +277,7 @@ public final class Tes4LocalWorldScene {
                 }
             }
             if(offset!=faces*3)throw new IOException("Не совпадает количество UV-вершин");
-            if(tiles.size()<2)return null;
+            if(tiles.size()<2&&vertexColorFaces==0)return null;
             int grid=1;while(grid*grid<tiles.size())grid++;
             if(grid>NifCompositeDdsAtlas.MAX_GRID)
                 throw new IOException("Слишком много DDS-плиток");
