@@ -20,6 +20,7 @@ assert "applicationId 'dev.skyrimsemobile.launcher'" in gradle
 assert "versionCode 74" in gradle and "versionName '2.51.0'" in gradle
 assert "android:exported=\"false\"" in manifest
 assert "pull_request:" in workflow and "branches: [main]" in workflow
+assert "branches: [main, dev/v2.51-stabilization]" in workflow
 assert "needs: [jvm-regressions, source-contracts]" in workflow
 assert "  source-contracts:" in workflow
 assert "  android-compile-check:" in workflow
@@ -32,7 +33,7 @@ assert "v215_device_autotest_contract_test.py" in {p.name for p in (root/"tests"
 assert "Skyrim-SE-Mobile-v2.51.0-ARM64.apk" in workflow
 assert "gh release create" in workflow and "gh release upload" in workflow
 assert "actions/upload-artifact@v4" not in workflow
-assert "if: github.event_name != 'pull_request'" in workflow
+assert "if: github.ref == 'refs/heads/main' && github.event_name == 'push'" in workflow
 assert "*Test.java" in jvm and "java -ea" in jvm
 assert "DeviceSelfTestReport" in jvm
 assert "FpsAutotestSequence" in jvm
