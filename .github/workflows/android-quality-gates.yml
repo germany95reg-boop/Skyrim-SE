@@ -1,7 +1,7 @@
 name: Skyrim SE — automatic JVM/Vulkan/APK checks + on-phone self-test
 on:
   push:
-    branches: [main] # feature changes are validated once, through pull_request
+    branches: [main, dev/v2.51-stabilization] # run stabilization checks on direct branch pushes
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -166,7 +166,7 @@ jobs:
       # Private repository prerelease assets use GitHub Releases instead;
       # publishing is forbidden for pull_request events.
       - name: Publish signed test APK to GitHub Releases (private prerelease)
-        if: github.event_name != 'pull_request'
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
