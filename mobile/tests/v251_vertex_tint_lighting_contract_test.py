@@ -27,6 +27,10 @@ assert "vertexColorNote" in atlas
 assert "preparedAtlas.vertexColorNote" in ui
 assert "NifVertexTintPreview" in jvm
 assert "mixed.vertexColors[12]<.8f" in read("tests/Tes4LocalWorldSceneTest.java")
+assert "if(slot==0&&!goodUv&&hasColor)" in world
+assert "if(tiles.size()<2&&vertexColorFaces==0)return null;" in world
+assert "colorOnly.diffuseAtlas(null,null)" in read("tests/Tes4LocalWorldSceneTest.java")
+assert "uvOnly.diffuseAtlas(null,null)==null" in read("tests/Tes4LocalWorldSceneTest.java")
 assert "raw[0]==1f" in test
 assert "out.rgba[12]==1f" in test
 assert "versionCode 74" in gradle
