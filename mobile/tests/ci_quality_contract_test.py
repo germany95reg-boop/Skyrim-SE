@@ -22,6 +22,8 @@ assert "android:exported=\"false\"" in manifest
 assert "pull_request:" in workflow and "branches: [main]" in workflow
 assert "needs: [jvm-regressions, source-contracts]" in workflow
 assert "  source-contracts:" in workflow
+assert "  android-compile-check:" in workflow
+assert "Compile Android ARM64 independently of contract gates" in workflow
 assert "for test in mobile/tests/v2[0-9]*_contract_test.py" in workflow
 assert "android-emulator-ui:" not in workflow, "Use the real device's in-app tests"
 assert "bash mobile/ci/run_jvm_suite.sh" in workflow
