@@ -113,6 +113,8 @@ jobs:
         run: bash mobile/ci/run_jvm_suite.sh
 
   android-compile-check:
+    permissions:
+      contents: write # isolated v2.51 test prerelease only
     name: Independent Android ARM64 compile diagnostic
     runs-on: ubuntu-24.04
     timeout-minutes: 35
@@ -135,6 +137,24 @@ jobs:
         run: gradle --no-daemon --stacktrace :app:assembleDebug
       - name: Verify signed ARM64 APK structure
         run: bash mobile/ci/verify_apk.sh mobile/app/build/outputs/apk/debug/app-debug.apk
+      - name: Publish verified v2.51 stabilization APK for Android testing
+        if: github.ref == 'refs/heads/dev/v2.51-stabilization' && github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          APK="mobile/app/build/outputs/apk/debug/app-debug.apk"
+          TAG="skyrim-se-mobile-v2.51-stabilization"
+          ASSET="Skyrim-SE-Mobile-v2.51.0-stabilization-ARM64.apk"
+          test -s "$APK"
+          cp "$APK" "$ASSET"
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$TAG" "$ASSET" --clobber --repo "$GITHUB_REPOSITORY"
+          else
+            gh release create "$TAG" "$ASSET" --repo "$GITHUB_REPOSITORY" \
+              --target "$GITHUB_SHA" --title "Skyrim SE Mobile v2.51 stabilization APK" \
+              --notes "Diagnostic ARM64 Vulkan/NIF viewer test APK. Not a playable Skyrim port. Install and verify on Android." --prerelease
+          fi
 
   android-arm64-apk:
     name: Compile Vulkan / sign / inspect ARM64 APK
