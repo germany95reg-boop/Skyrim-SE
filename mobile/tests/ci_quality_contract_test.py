@@ -24,6 +24,8 @@ assert "branches: [main, dev/v2.51-stabilization]" in workflow
 assert "needs: [jvm-regressions, source-contracts]" in workflow
 assert "  source-contracts:" in workflow
 assert "  android-compile-check:" in workflow
+assert "skyrim-se-mobile-v2.51-stabilization" in workflow
+assert "Skyrim-SE-Mobile-v2.51.0-stabilization-ARM64.apk" in workflow
 assert "Compile Android ARM64 independently of contract gates" in workflow
 assert "for test in mobile/tests/v2[0-9]*_contract_test.py" in workflow
 assert "android-emulator-ui:" not in workflow, "Use the real device's in-app tests"
