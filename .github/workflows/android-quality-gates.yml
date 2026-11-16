@@ -10,8 +10,8 @@ permissions:
   contents: read
 
 concurrency:
-  # Push and PR checks for the same branch share one job group: no duplicate builds.
-  group: skyrim-quality-${{ github.workflow }}-${{ github.head_ref || github.ref_name }}
+  # Cancel stale runs of the same event; PR checks must not cancel APK publishing on push.
+  group: skyrim-quality-${{ github.workflow }}-${{ github.event_name }}-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
 
 jobs:

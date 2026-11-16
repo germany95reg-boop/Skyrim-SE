@@ -36,6 +36,30 @@ assert "Skyrim-SE-Mobile-v2.51.0-ARM64.apk" in workflow
 assert "gh release create" in workflow and "gh release upload" in workflow
 assert "actions/upload-artifact@v4" not in workflow
 assert "if: github.ref == 'refs/heads/main' && github.event_name == 'push'" in workflow
+
+# Evaluate the actual concurrency template so a PR cannot cancel its branch's APK push.
+concurrency=re.search(r"(?ms)^concurrency:\n(.*?)(?=^\S|\Z)",workflow)
+assert concurrency, "Missing workflow concurrency policy"
+group=re.search(r"(?m)^  group:\s*(.+)$",concurrency.group(1))
+assert group, "Missing workflow concurrency group"
+assert re.search(r"(?m)^  cancel-in-progress: true\s*$",concurrency.group(1))
+def concurrency_group(event,branch,run_id):
+    fields={
+        "github.workflow":"Skyrim quality", "github.event_name":event,
+        "github.head_ref":branch if event=="pull_request" else "",
+        "github.ref_name":"35/merge" if event=="pull_request" else branch,
+        "github.run_id":str(run_id),
+    }
+    def resolve(match):
+        return next((fields[name.strip()] for name in match.group(1).split("||")
+                     if fields[name.strip()]),"")
+    return re.sub(r"\$\{\{\s*(.*?)\s*\}\}",resolve,group.group(1))
+branch="dev/v2.51-stabilization"
+push_group=concurrency_group("push",branch,1)
+assert push_group!=concurrency_group("pull_request",branch,2), "PR would cancel APK push"
+assert push_group==concurrency_group("push",branch,3), "Repeated pushes must cancel stale runs"
+assert push_group!=concurrency_group("push","dev/other-branch",4), "Branches must run independently"
+
 assert "*Test.java" in jvm and "java -ea" in jvm
 assert "DeviceSelfTestReport" in jvm
 assert "FpsAutotestSequence" in jvm
