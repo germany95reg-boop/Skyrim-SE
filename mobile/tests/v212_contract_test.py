@@ -1,4 +1,5 @@
 from pathlib import Path
+import re
 
 root=Path(__file__).resolve().parents[1]
 read=lambda p:(root/p).read_text(encoding="utf-8")
@@ -7,11 +8,12 @@ resolver=read("app/src/main/java/dev/skyrimsemobile/launcher/NifPartTextureSelec
 transfer=read("app/src/main/java/dev/skyrimsemobile/launcher/NifGeometryTransfer.java")
 gradle=read("app/build.gradle")
 checks={
-    "versionCode 35":"versionCode 35" in gradle,
-    "versionName 2.12":"versionName '2.12.0'" in gradle,
+    # This historical v2.12 contract must also pass for later releases.
+    "versionCode >= 35": any(int(v) >= 35 for v in re.findall(r"\bversionCode\s+(\d+)\b", gradle)),
+    "versionName >= 2.12": any(tuple(map(int, v.split("."))) >= (2, 12, 0) for v in re.findall(r"""\bversionName\s+['"](\d+\.\d+\.\d+)['"]""", gradle)),
     "same Android appId":"applicationId 'dev.skyrimsemobile.launcher'" in gradle,
     "persisted signing config":"signingConfigs.stableDebug" in gradle,
-    "new picker control":"Показать выбранную часть NIF с её DDS · v2.12" in activity,
+    "part preview control":'button(root,"Диагностика ОДНОЙ части с DDS",this::previewTexturedPart);' in activity,
     "part chooser":"this::previewTexturedPart" in activity and ".setItems(choices" in activity,
     "exact shape indexing":"link.shape!=shapeIndex" in resolver,
     "validated link only":"!link.resolved()" in resolver,
