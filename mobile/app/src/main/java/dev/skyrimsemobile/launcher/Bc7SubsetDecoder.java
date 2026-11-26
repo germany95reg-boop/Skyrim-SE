@@ -14,11 +14,12 @@ public final class Bc7SubsetDecoder {
 
     private static final class Bits {
         private final byte[] data;
-        private final int start;
+        private int start;
         private int at;
         Bits(byte[] data,int start){
             this.data=data;this.start=start;
         }
+        void reset(int offset){start=offset;at=0;}
         int read(int count)throws IOException{
             if(count<0||count>8||at+count>128)
                 throw new IOException("BC7: выход за пределы 128-битного блока");
@@ -38,7 +39,11 @@ public final class Bc7SubsetDecoder {
     public static int[] decodeBlock(byte[] data,int offset)throws IOException{
         if(data==null||offset<0||offset>data.length-16)
             throw new IOException("BC7: обрезан сжатый блок");
-        Bits bits=new Bits(data,offset);
+        int[] pixels=new int[16];
+        decodeInto(new Bits(data,offset),new int[4][2],new int[16],new int[16],pixels);
+        return pixels;
+    }
+    private static void decodeInto(Bits bits,int[][] ends,int[] colorIndex,int[] alphaIndex,int[] pixels)throws IOException{
         int mode=-1;
         for(int i=0;i<8;i++){
             if(bits.read(1)==1){mode=i;break;}
@@ -47,7 +52,6 @@ public final class Bc7SubsetDecoder {
             throw new IOException("BC7: режим "+mode+
                 " ещё не поддерживается CPU (доступны 5 и 6)");
         int rotation=mode==5?bits.read(2):0;
-        int[][] ends=new int[4][2];
         for(int channel=0;channel<4;channel++){
             for(int endpoint=0;endpoint<2;endpoint++){
                 ends[channel][endpoint]=bits.read(
@@ -64,14 +68,12 @@ public final class Bc7SubsetDecoder {
             ends[channel][0]=expand7(ends[channel][0]);
             ends[channel][1]=expand7(ends[channel][1]);
         }
-        int[] colorIndex=new int[16],alphaIndex=new int[16];
         int indexBits=mode==6?4:2;
         for(int p=0;p<16;p++)
             colorIndex[p]=bits.read(p==0?indexBits-1:indexBits);
         if(mode==5)for(int p=0;p<16;p++)
             alphaIndex[p]=bits.read(p==0?1:2);
         if(bits.at!=128)throw new IOException("BC7: неверная длина режима");
-        int[] pixels=new int[16];
         for(int p=0;p<16;p++){
             int wc=mode==6?W4[colorIndex[p]]:W2[colorIndex[p]];
             int wa=mode==6?wc:W2[alphaIndex[p]];
@@ -84,7 +86,6 @@ public final class Bc7SubsetDecoder {
             else if(rotation==3){int temp=blue;blue=alpha;alpha=temp;}
             pixels[p]=(alpha<<24)|(red<<16)|(green<<8)|blue;
         }
-        return pixels;
     }
     public static DdsBcDecoder.Image firstMip(byte[] dds,int offset,
             int width,int height)throws IOException{
@@ -95,8 +96,12 @@ public final class Bc7SubsetDecoder {
         if(offset<0||(long)offset+bx*by*16>dds.length)
             throw new IOException("BC7: отсутствуют блоки первого mip");
         int[] pixels=new int[width*height];
+        Bits bits=new Bits(dds,offset);
+        int[][] ends=new int[4][2];
+        int[] colorIndex=new int[16],alphaIndex=new int[16],tile=new int[16];
         for(int row=0;row<by;row++)for(int col=0;col<bx;col++){
-            int[] tile=decodeBlock(dds,offset+(int)((row*bx+col)*16));
+            bits.reset(offset+(int)((row*bx+col)*16));
+            decodeInto(bits,ends,colorIndex,alphaIndex,tile);
             for(int y=0;y<4;y++)for(int x=0;x<4;x++){
                 int xx=col*4+x,yy=row*4+y;
                 if(xx<width&&yy<height)pixels[yy*width+xx]=tile[y*4+x];
