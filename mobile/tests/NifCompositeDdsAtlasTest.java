@@ -46,6 +46,16 @@ public final class NifCompositeDdsAtlasTest {
         NifCompositeDdsAtlas.Result shared=NifCompositeDdsAtlas.build(parts,combined,perPart);
         ok(shared.textureCount==1,"reused texture decoded only once");
         ok(shared.uvAndSlot[secondStart+2]==1f,"shared material uses same slot");
+        NifGeometryDecoder.Mesh invalidMesh=NifGeometryDecoder.decode(NifGeometryDecoderTest.validUv());
+        invalidMesh.surfaceUVs[0]=Float.NaN;
+        NifGeometryDecoder.Parts mixed=new NifGeometryDecoder.Parts(Arrays.asList(
+            new NifGeometryDecoder.Part(5,parts.items.get(0).mesh,null),
+            new NifGeometryDecoder.Part(8,invalidMesh,null)),2);
+        NifCompositeDdsAtlas.Result isolated=NifCompositeDdsAtlas.build(
+            mixed,NifSceneComposer.combine(mixed),perPart);
+        ok(isolated.textureCount==1&&isolated.neutralParts==1,"invalid UV isolated");
+        ok(isolated.uvAndSlot[2]==1f&&isolated.uvAndSlot[secondStart+2]==0f,"valid DDS retained");
+        ok(Float.isFinite(isolated.uvAndSlot[secondStart]),"NaN never reaches GPU");
         perPart.clear();
         try{
             NifCompositeDdsAtlas.build(parts,combined,perPart);
