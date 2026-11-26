@@ -6,7 +6,7 @@ public final class DdsBcDecoderTest {
     private static void check(boolean ok,String msg){count++;if(!ok)throw new AssertionError(msg);}
     private static void u32(byte[] d,int p,long v){for(int i=0;i<4;i++)d[p+i]=(byte)(v>>(i*8));}
     private static byte[] make(int width,int height,String fourCC, int mip){
-        int blockBytes=fourCC.equals("DXT1")?8:16;int total=128;int w=width,h=height;
+        int blockBytes=(fourCC.equals("DXT1")||fourCC.equals("ATI1")||fourCC.equals("BC4S"))?8:16;int total=128;int w=width,h=height;
         for(int i=0;i<mip;i++){total+=((w+3)/4)*((h+3)/4)*blockBytes;w=Math.max(1,w/2);h=Math.max(1,h/2);}
         byte[] d=new byte[total];d[0]='D';d[1]='D';d[2]='S';d[3]=' ';
         u32(d,4,124);u32(d,12,height);u32(d,16,width);u32(d,28,mip);u32(d,76,32);u32(d,80,4);
@@ -55,9 +55,17 @@ public final class DdsBcDecoderTest {
         bc5[128]=(byte)255;
         img=DdsBcDecoder.decode(bc5);
         check(img.argb[0]==0xffff00ff,"BC5 raw RG");
-        byte[] bad=make(4,4,"BC5S",1);
-        try{DdsBcDecoder.decode(bad);throw new AssertionError("accepted BC5 signed");}
-        catch(IOException ok){count++;}
+        byte[] signed4=make(4,4,"BC4S",1);
+        signed4[128]=(byte)-128;signed4[129]=127;
+        signed4[130]=(byte)(1<<3);
+        img=DdsBcDecoder.decode(signed4);
+        check(img.argb[0]==0xff000000&&img.argb[1]==0xffffffff,"BC4 SNORM endpoints");
+        signed4[128]=0;signed4[130]=0;
+        check(DdsBcDecoder.decode(signed4).argb[0]==0xff808080,"BC4 SNORM zero");
+        byte[] signed5=make(4,4,"BC5S",1);
+        signed5[128]=127;signed5[136]=(byte)-127;
+        img=DdsBcDecoder.decode(signed5);
+        check(img.argb[0]==0xffff00ff&&img.format.contains("SNORM"),"BC5 signed RG");
         byte[] cutBc2=Arrays.copyOf(make(4,4,"DXT3",1),143);
         try{DdsBcDecoder.decode(cutBc2);throw new AssertionError("accepted truncated BC2");}
         catch(IOException ok){count++;}
@@ -71,7 +79,7 @@ public final class DdsBcDecoderTest {
         u32(dx10,128,87);dx10[148]=56;dx10[150]=12;
         check(DdsBcDecoder.decode(dx10).argb[0]==0xff0c2238,"DX10 BGRA8 preview");
         u32(dx10,128,84);
-        try{DdsBcDecoder.decode(dx10);throw new AssertionError("accepted signed BC5");}
+        try{DdsBcDecoder.decode(dx10);throw new AssertionError("accepted truncated signed BC5");}
         catch(IOException ok){count++;}
         System.out.println("PASS DdsBcDecoderTest v2.0: "+count+" assertions");
     }
