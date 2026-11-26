@@ -19,23 +19,19 @@ assert "abiFilters 'arm64-v8a'" in gradle
 assert "applicationId 'dev.skyrimsemobile.launcher'" in gradle
 assert "versionCode 74" in gradle and "versionName '2.51.0'" in gradle
 assert "android:exported=\"false\"" in manifest
-assert "pull_request:" in workflow and "branches: [main]" in workflow
-assert "branches: [main, dev/v2.51-stabilization]" in workflow
+assert re.search(r"(?m)^on:\n  workflow_dispatch:\s*\n",workflow)
+assert not re.search(r"(?m)^  (push|pull_request):",workflow)
 assert "needs: [jvm-regressions, source-contracts]" in workflow
 assert "  source-contracts:" in workflow
 assert "  android-compile-check:" in workflow
-assert "skyrim-se-mobile-v2.51-stabilization" in workflow
-assert "Skyrim-SE-Mobile-v2.51.0-stabilization-ARM64.apk" in workflow
 assert "Compile Android ARM64 independently of contract gates" in workflow
 assert "for test in mobile/tests/v2[0-9]*_contract_test.py" in workflow
 assert "android-emulator-ui:" not in workflow, "Use the real device's in-app tests"
 assert "bash mobile/ci/run_jvm_suite.sh" in workflow
 assert "bash mobile/ci/verify_apk.sh" in workflow
 assert "v215_device_autotest_contract_test.py" in {p.name for p in (root/"tests").glob("*contract_test.py")}
-assert "Skyrim-SE-Mobile-v2.51.0-ARM64.apk" in workflow
-assert "gh release create" in workflow and "gh release upload" in workflow
+assert "gh release create" not in workflow and "gh release upload" not in workflow
 assert "actions/upload-artifact@v4" not in workflow
-assert "if: github.ref == 'refs/heads/main' && github.event_name == 'push'" in workflow
 
 # Evaluate the actual concurrency template so a PR cannot cancel its branch's APK push.
 concurrency=re.search(r"(?ms)^concurrency:\n(.*?)(?=^\S|\Z)",workflow)
