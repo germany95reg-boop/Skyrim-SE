@@ -100,6 +100,18 @@ public final class DdsBcDecoderTest {
         u32(rgb,96,0xff00);u32(rgb,20,3);
         try{DdsBcDecoder.decode(rgb);throw new AssertionError("short pitch accepted");}
         catch(IOException ok){count++;}
+        byte[] cube=make(4,4,"DXT1",1);
+        u32(cube,112,0x200);
+        try{DdsBcDecoder.decode(cube);throw new AssertionError("legacy cubemap accepted");}
+        catch(IOException ok){count++;}
+        u32(dx10,128,28);u32(dx10,132,3);u32(dx10,136,4);
+        try{DdsBcDecoder.decode(dx10);throw new AssertionError("DX10 cubemap accepted");}
+        catch(IOException ok){count++;}
+        u32(dx10,136,0);u32(dx10,132,4);
+        try{DdsBcDecoder.decode(dx10);throw new AssertionError("DX10 volume accepted");}
+        catch(IOException ok){count++;}
+        u32(dx10,132,3);
+        check(DdsBcDecoder.decode(dx10).argb.length==1,"ordinary DX10 2D remains supported");
         System.out.println("PASS DdsBcDecoderTest v2.0: "+count+" assertions");
     }
 }
