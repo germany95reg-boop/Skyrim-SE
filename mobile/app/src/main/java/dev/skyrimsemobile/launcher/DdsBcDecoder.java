@@ -58,6 +58,42 @@ public final class DdsBcDecoder {
         for(int i=0;i<6;i++)selector|=((long)src[off+2+i]&255)<<(8*i);
         for(int i=0;i<16;i++)pixels[i]=codes[(int)((selector>>>(3*i))&7)];
     }
+    private static int component(long pixel,long mask,int fallback){
+        if(mask==0)return fallback;
+        int shift=Long.numberOfTrailingZeros(mask);
+        long max=mask>>>shift;
+        return (int)((((pixel&mask)>>>shift)*255L+max/2)/max);
+    }
+    private static boolean contiguous(long mask){
+        if(mask==0)return false;
+        long v=mask>>>Long.numberOfTrailingZeros(mask);
+        return (v&(v+1))==0;
+    }
+    private static Image decodeLegacyRgb(byte[] dds,DdsHeaderInspector.Result h)throws IOException{
+        long flags=u32(dds,80),bits=u32(dds,88);
+        if((flags&0x40)==0||(bits!=16&&bits!=24&&bits!=32))
+            throw new IOException("DDS: неподдерживаемый несжатый RGB");
+        long r=u32(dds,92),g=u32(dds,96),b=u32(dds,100),a=(flags&1)!=0?u32(dds,104):0;
+        long allowed=(1L<<bits)-1;
+        if(!contiguous(r)||!contiguous(g)||!contiguous(b)||(a!=0&&!contiguous(a))||
+           ((r|g|b|a)&~allowed)!=0||(r&g)!=0||(r&b)!=0||(g&b)!=0||((r|g|b)&a)!=0)
+            throw new IOException("DDS: некорректные RGB-маски");
+        int bytes=(int)bits/8;
+        long row=(long)h.width*bytes;
+        long pitch=(u32(dds,8)&8)!=0?u32(dds,20):row;
+        if(pitch<row||pitch>(dds.length-h.headerBytes)||
+           pitch*(h.height-1L)+row>dds.length-h.headerBytes)
+            throw new IOException("DDS RGB: обрезанные строки или неверный pitch");
+        int[] pixels=new int[h.width*h.height];
+        for(int y=0;y<h.height;y++)for(int x=0;x<h.width;x++){
+            int at=(int)(h.headerBytes+y*pitch+x*bytes);
+            long p=0;
+            for(int i=0;i<bytes;i++)p|=((long)dds[at+i]&255)<<(8*i);
+            pixels[y*h.width+x]=(component(p,a,255)<<24)|(component(p,r,0)<<16)|
+                (component(p,g,0)<<8)|component(p,b,0);
+        }
+        return new Image(h.width,h.height,pixels,"Legacy RGB"+bits);
+    }
     /** Safe CPU preview of one first mip. Signed channels are mapped to unsigned preview pixels. */
     public static Image decode(byte[] dds) throws IOException {
         if(dds==null||dds.length<128)throw new IOException("DDS: недостаточно данных");
@@ -71,6 +107,7 @@ public final class DdsBcDecoder {
             return Bc7SubsetDecoder.firstMip(dds,h.headerBytes,h.width,h.height);
         String f=h.fourCC;int dg=h.dxgiFormat;
         boolean signed="BC4S".equals(f)||"BC5S".equals(f)||(h.isDx10&&(dg==81||dg==84));
+        if(!h.isDx10&&"RGB".equals(f))return decodeLegacyRgb(dds,h);
         int kind=0;
         if("DXT1".equals(f)||(h.isDx10&&(dg==71||dg==72)))kind=1;
         else if("DXT3".equals(f)||(h.isDx10&&(dg==74||dg==75)))kind=2;
