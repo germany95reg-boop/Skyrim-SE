@@ -21,6 +21,15 @@ public final class DdsPreviewCacheTest {
         check(c.stats().hits==2&&c.stats().entries==0);
         DdsPreviewCache zero=new DdsPreviewCache(0);
         zero.put("a",a);check(zero.size()==0);
+        DdsPreviewCache adaptive=new DdsPreviewCache(32);
+        adaptive.put("a",a);adaptive.put("b",b);
+        adaptive.get("a");adaptive.resize(16);
+        check(adaptive.size()==1&&adaptive.get("a")==a&&adaptive.get("b")==null);
+        check(adaptive.stats().budget==16&&adaptive.stats().evictions==1);
+        adaptive.resize(0);check(adaptive.size()==0&&adaptive.pixelBytes()==0);
+        adaptive.resize(32);adaptive.put("b",b);check(adaptive.get("b")==b);
+        try{adaptive.resize(-1);throw new AssertionError("negative budget accepted");}
+        catch(IllegalArgumentException expected){check(adaptive.stats().budget==32);}
         System.out.println("PASS DdsPreviewCacheTest");
     }
 }
