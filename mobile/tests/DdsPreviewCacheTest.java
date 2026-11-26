@@ -14,7 +14,11 @@ public final class DdsPreviewCacheTest {
         check(c.pixelBytes()==24);
         c.put("large",image(9));
         check(c.get("large")==null&&c.pixelBytes()==24);
+        DdsPreviewCache.Stats stats=c.stats();
+        check(stats.hits==2&&stats.misses==2&&stats.evictions==1&&stats.rejected==1);
+        check(stats.budget==32&&stats.pixelBytes==24&&stats.entries==2);
         c.clear();check(c.size()==0&&c.pixelBytes()==0);
+        check(c.stats().hits==2&&c.stats().entries==0);
         DdsPreviewCache zero=new DdsPreviewCache(0);
         zero.put("a",a);check(zero.size()==0);
         System.out.println("PASS DdsPreviewCacheTest");
