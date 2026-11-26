@@ -117,10 +117,10 @@ public final class DdsBcDecoder {
         else if(h.isDx10&&(dg==28||dg==29))kind=6;
         else if(h.isDx10&&(dg==87||dg==91))kind=7;
         if(kind==0)throw new IOException("Для формата "+h.format+" CPU-предпросмотр пока недоступен");
-        int[] pixels=new int[h.width*h.height];
         if(kind>=6){
             long length=(long)h.width*h.height*4;
             if(h.headerBytes+length>dds.length)throw new IOException("DDS RGBA: первый mip обрезан");
+            int[] pixels=new int[h.width*h.height];
             for(int i=0;i<pixels.length;i++){
                 int at=h.headerBytes+4*i;
                 int red=dds[at+(kind==7?2:0)]&255,green=dds[at+1]&255;
@@ -134,6 +134,7 @@ public final class DdsBcDecoder {
         long need=bxCount*byCount*bytesPerBlock;
         if(h.headerBytes+need>dds.length)
             throw new IOException("DDS: данные первого mip-уровня обрезаны");
+        int[] pixels=new int[h.width*h.height];
         // Reuse block scratch arrays: avoid hundreds of thousands of allocations per mip.
         int[] colors=new int[4],first=new int[16],second=new int[16],codes=new int[8];
         for(int by=0;by<(int)byCount;by++)for(int bx=0;bx<(int)bxCount;bx++){
