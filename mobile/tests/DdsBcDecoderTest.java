@@ -81,6 +81,25 @@ public final class DdsBcDecoderTest {
         u32(dx10,128,84);
         try{DdsBcDecoder.decode(dx10);throw new AssertionError("accepted truncated signed BC5");}
         catch(IOException ok){count++;}
+        byte[] rgb=new byte[136];
+        System.arraycopy(make(1,2,"DXT1",1),0,rgb,0,128);
+        u32(rgb,8,8);u32(rgb,20,4);u32(rgb,80,0x40);u32(rgb,84,0);
+        u32(rgb,88,24);u32(rgb,92,0xff0000);u32(rgb,96,0xff00);u32(rgb,100,0xff);
+        rgb[130]=(byte)255;rgb[132]=(byte)255;
+        img=DdsBcDecoder.decode(rgb);
+        check(img.argb[0]==0xffff0000&&img.argb[1]==0xff0000ff,"legacy BGR24 padded rows");
+        u32(rgb,88,16);u32(rgb,92,0xf800);u32(rgb,96,0x7e0);u32(rgb,100,0x1f);
+        rgb[128]=0;rgb[129]=(byte)0xf8;
+        check(DdsBcDecoder.decode(rgb).argb[0]==0xffff0000,"legacy RGB565");
+        u32(rgb,88,32);u32(rgb,80,0x41);u32(rgb,92,0xff0000);u32(rgb,96,0xff00);u32(rgb,100,0xff);u32(rgb,104,0xff000000L);
+        rgb[128]=0;rgb[129]=0;rgb[130]=(byte)255;rgb[131]=64;
+        check(DdsBcDecoder.decode(rgb).argb[0]==0x40ff0000,"legacy BGRA alpha");
+        u32(rgb,96,0xff0000);
+        try{DdsBcDecoder.decode(rgb);throw new AssertionError("overlapping masks accepted");}
+        catch(IOException ok){count++;}
+        u32(rgb,96,0xff00);u32(rgb,20,3);
+        try{DdsBcDecoder.decode(rgb);throw new AssertionError("short pitch accepted");}
+        catch(IOException ok){count++;}
         System.out.println("PASS DdsBcDecoderTest v2.0: "+count+" assertions");
     }
 }
