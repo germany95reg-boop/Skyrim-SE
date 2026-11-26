@@ -100,7 +100,9 @@ public final class DdsBcDecoder {
         DdsHeaderInspector.Result h=DdsHeaderInspector.inspect(dds,dds.length);
         if(h.width>2048||h.height>2048||(long)h.width*h.height>MAX_PIXELS)
             throw new IOException("DDS: изображение больше безопасного предела 2048×2048");
-        if(h.depth>1||h.arraySize!=1)throw new IOException("DDS: только одна плоская 2D-текстура");
+        if(h.depth>1||h.arraySize!=1||(u32(dds,112)&0x00fe00L)!=0||
+           (h.isDx10&&(u32(dds,132)!=3||(u32(dds,136)&4)!=0)))
+            throw new IOException("DDS: только одна плоская 2D-текстура");
         // BC7 is common in SSE DX10 diffuse textures. Decode only the
         // implemented 4/5/6 single-subset modes; reject all other BC7 modes.
         if(h.isDx10&&(h.dxgiFormat==98||h.dxgiFormat==99))
