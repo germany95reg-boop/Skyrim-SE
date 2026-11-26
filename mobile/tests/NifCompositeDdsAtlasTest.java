@@ -56,6 +56,16 @@ public final class NifCompositeDdsAtlasTest {
         ok(isolated.textureCount==1&&isolated.neutralParts==1,"invalid UV isolated");
         ok(isolated.uvAndSlot[2]==1f&&isolated.uvAndSlot[secondStart+2]==0f,"valid DDS retained");
         ok(Float.isFinite(isolated.uvAndSlot[secondStart]),"NaN never reaches GPU");
+        DdsBcDecoder.Image malformed=new DdsBcDecoder.Image(4,4,new int[1],"invalid");
+        perPart.put(8,malformed);
+        var recovered=NifCompositeDdsAtlas.build(parts,combined,perPart);
+        ok(recovered.textureCount==1&&recovered.neutralParts==1,"malformed DDS isolated");
+        ok(recovered.uvAndSlot[2]==1f&&recovered.uvAndSlot[secondStart+2]==0f,"valid neighbor retained");
+        perPart.put(8,red);
+        Map<Integer,DdsBcDecoder.Image> normals=new HashMap<>();
+        normals.put(8,malformed);
+        var paired=NifCompositeDdsAtlas.buildPaired(parts,combined,perPart,normals);
+        ok(paired.textureCount==1&&paired.neutralParts==0,"invalid normal retains diffuse and shares absent-normal slot");
         perPart.clear();
         try{
             NifCompositeDdsAtlas.build(parts,combined,perPart);
