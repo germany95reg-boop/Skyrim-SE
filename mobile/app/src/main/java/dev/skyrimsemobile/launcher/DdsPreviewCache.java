@@ -6,7 +6,7 @@ import java.util.Map;
 
 /** Session-local cache. Keys must identify both archive and resource. */
 public final class DdsPreviewCache {
-    private final long budget;
+    private long budget;
     private long bytes,hits,misses,evictions,rejected;
     private final LinkedHashMap<String,DdsBcDecoder.Image> entries =
         new LinkedHashMap<>(16,0.75f,true);
@@ -33,6 +33,15 @@ public final class DdsPreviewCache {
             bytes-=weight(it.next().getValue());it.remove();evictions++;
         }
         entries.put(key,image);bytes+=size;
+    }
+    /** Adjust the pixel budget under memory pressure, retaining most recent entries. */
+    public synchronized void resize(long newBudget){
+        if(newBudget<0)throw new IllegalArgumentException("negative budget");
+        budget=newBudget;
+        Iterator<Map.Entry<String,DdsBcDecoder.Image>> it=entries.entrySet().iterator();
+        while(bytes>budget&&it.hasNext()){
+            bytes-=weight(it.next().getValue());it.remove();evictions++;
+        }
     }
     public synchronized void clear(){entries.clear();bytes=0;}
     public synchronized long pixelBytes(){return bytes;}
