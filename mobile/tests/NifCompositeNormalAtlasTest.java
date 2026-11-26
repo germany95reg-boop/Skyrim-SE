@@ -118,7 +118,12 @@ public final class NifCompositeNormalAtlasTest {
         ok(reused.normalParts==2&&reused.uniqueNormals==1,
             "shared diffuse and normal DDS decoded once, correctly reused");
         normals.put(8,new DdsBcDecoder.Image(4,4,new int[2],"broken"));
-        reject(parts,atlas,normals,"normal DDS pixel dimensions mismatch");
+        NifCompositeNormalAtlas.Result isolated=NifCompositeNormalAtlas.build(parts,atlas,normals);
+        ok(isolated.normalParts==1&&isolated.neutralNormalParts==1,"broken normal isolated");
+        ok(isolated.stackedArgb[1536*2048]==0xff8080ff,"broken normal neutral tile");
+        NifCompositeDdsAtlas.Result safePair=NifCompositeDdsAtlas.buildPaired(parts,scene,diffuse,normals);
+        NifCompositeNormalAtlas.Result safeStack=NifCompositeNormalAtlas.build(parts,safePair,normals);
+        ok(safeStack.normalParts==1&&safeStack.neutralNormalParts==1,"paired invalid normal agrees with diffuse slot assignment");
         System.out.println("PASS v2.19 composite NIF paired normal atlas: "+checks+" checks");
     }
 }
