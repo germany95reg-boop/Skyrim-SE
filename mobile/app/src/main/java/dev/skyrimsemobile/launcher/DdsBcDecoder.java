@@ -26,9 +26,9 @@ public final class DdsBcDecoder {
         int br=(b>>16)&255,bg=(b>>8)&255,bb=b&255;
         return 0xff000000|(((wA*ar+wB*br)/divisor)<<16)|(((wA*ag+wB*bg)/divisor)<<8)|((wA*ab+wB*bb)/divisor);
     }
-    private static int[] palette(byte[] src,int off,boolean bc3) {
+    private static void palette(byte[] src,int off,boolean bc3,int[] p) {
         int c0=u16(src,off),c1=u16(src,off+2);
-        int[] p=new int[4];p[0]=rgb565(c0);p[1]=rgb565(c1);
+        p[0]=rgb565(c0);p[1]=rgb565(c1);
         if(c0>c1||bc3) {
             p[2]=lerp(p[0],p[1],2,1,3);
             p[3]=lerp(p[0],p[1],1,2,3);
@@ -36,24 +36,21 @@ public final class DdsBcDecoder {
             p[2]=lerp(p[0],p[1],1,1,2);
             p[3]=0x00000000;
         }
-        return p;
     }
-    private static int[] alphaPalette(int a0,int a1){
-        int[] a=new int[8];a[0]=a0;a[1]=a1;
+    private static void alphaPalette(int a0,int a1,int[] a){
+        a[0]=a0;a[1]=a1;
         if(a0>a1) {
             for(int i=1;i<=6;i++)a[i+1]=((7-i)*a0+i*a1)/7;
         }else {
             for(int i=1;i<=4;i++)a[i+1]=((5-i)*a0+i*a1)/5;
             a[6]=0;a[7]=255;
         }
-        return a;
     }
-    private static int[] channelBlock(byte[] src,int off) {
-        int[] codes=alphaPalette(src[off]&255,src[off+1]&255),pixels=new int[16];
+    private static void channelBlock(byte[] src,int off,int[] codes,int[] pixels) {
+        alphaPalette(src[off]&255,src[off+1]&255,codes);
         long selector=0;
         for(int i=0;i<6;i++)selector|=((long)src[off+2+i]&255)<<(8*i);
         for(int i=0;i<16;i++)pixels[i]=codes[(int)((selector>>>(3*i))&7)];
-        return pixels;
     }
     /** Safe CPU preview of one first mip. BC4/5 signed and BC7 need separate decoders. */
     public static Image decode(byte[] dds) throws IOException {
@@ -96,17 +93,19 @@ public final class DdsBcDecoder {
         long need=bxCount*byCount*bytesPerBlock;
         if(h.headerBytes+need>dds.length)
             throw new IOException("DDS: данные первого mip-уровня обрезаны");
+        // Reuse block scratch arrays: avoid hundreds of thousands of allocations per mip.
+        int[] colors=new int[4],first=new int[16],second=new int[16],codes=new int[8];
         for(int by=0;by<(int)byCount;by++)for(int bx=0;bx<(int)bxCount;bx++){
             int off=h.headerBytes+(int)(((long)by*bxCount+bx)*bytesPerBlock);
-            int[] colors=null,first=null,second=null;long selectors=0;
+            long selectors=0;
             if(kind<=3){
                 int colorOff=off+(kind==1?0:8);
-                colors=palette(dds,colorOff,kind!=1);
+                palette(dds,colorOff,kind!=1,colors);
                 selectors=u32(dds,colorOff+4);
-                if(kind==3)first=channelBlock(dds,off);
+                if(kind==3)channelBlock(dds,off,codes,first);
             }else{
-                first=channelBlock(dds,off);
-                if(kind==5)second=channelBlock(dds,off+8);
+                channelBlock(dds,off,codes,first);
+                if(kind==5)channelBlock(dds,off+8,codes,second);
             }
             for(int i=0;i<16;i++){
                 int x=bx*4+i%4,y=by*4+i/4;
