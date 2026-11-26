@@ -77,6 +77,12 @@ public final class NifCompositeDdsAtlas {
         return buildInternal(parts,scene,perDiffuse,perNormal);
     }
 
+    private static boolean validImage(DdsBcDecoder.Image image){
+        return image!=null&&image.width>0&&image.height>0&&
+            image.width<=2048&&image.height<=2048&&image.argb!=null&&
+            image.argb.length==(long)image.width*image.height;
+    }
+
     private static Result buildInternal(NifGeometryDecoder.Parts parts,
                                NifSceneComposer.Combined scene,
                                Map<Integer,DdsBcDecoder.Image> perShape,
@@ -111,19 +117,13 @@ public final class NifCompositeDdsAtlas {
             }
             DdsBcDecoder.Image image=hasUV?perShape.get(part.blockIndex):null;
             int slot=0;
+            if(!validImage(image))image=null;
             if(image!=null){
-                if(image.width<1||image.height<1||image.width>2048||image.height>2048||
-                   image.argb==null||image.argb.length!=(long)image.width*image.height)
-                    throw new IOException("Повреждённый первый mip DDS у части #"+part.blockIndex);
                 // Pair identity matters only in paired mode: otherwise
                 // retain the old exact diffuse-only material slot behavior.
                 DdsBcDecoder.Image normal=perNormal==null?null:
                     perNormal.get(part.blockIndex);
-                if(perNormal!=null&&normal!=null &&
-                   (normal.width<1||normal.height<1||
-                    normal.width>2048||normal.height>2048||normal.argb==null||
-                    normal.argb.length!=(long)normal.width*normal.height))
-                    throw new IOException("Повреждённая normal DDS у #"+part.blockIndex);
+                if(!validImage(normal))normal=null;
                 IdentityHashMap<DdsBcDecoder.Image,Integer> normalSlots=
                     perNormal==null?null:pairs.get(image);
                 if(perNormal!=null&&normalSlots==null){
