@@ -103,7 +103,12 @@ public final class NifCompositeDdsAtlas {
             int vertices=mesh.triangles*3;
             if(vertexOffset+vertices>scene.triangleCount*3)
                 throw new IOException("Число частей не совпадает с составной геометрией");
-            boolean hasUV=mesh.surfaceUVs.length==vertices*2;
+            boolean hasUV=mesh.surfaceUVs!=null&&mesh.surfaceUVs.length==vertices*2;
+            if(hasUV){
+                for(float uv:mesh.surfaceUVs){
+                    if(!Float.isFinite(uv)||Math.abs(uv)>8192f){hasUV=false;break;}
+                }
+            }
             DdsBcDecoder.Image image=hasUV?perShape.get(part.blockIndex):null;
             int slot=0;
             if(image!=null){
@@ -139,9 +144,6 @@ public final class NifCompositeDdsAtlas {
                 int p=(vertexOffset+v)*3;
                 if(hasUV){
                     float u=mesh.surfaceUVs[v*2], vv=mesh.surfaceUVs[v*2+1];
-                    if(!Float.isFinite(u)||!Float.isFinite(vv)||
-                       Math.abs(u)>8192f||Math.abs(vv)>8192f)
-                        throw new IOException("Неверные UV координаты части #"+part.blockIndex);
                     packed[p]=u;packed[p+1]=vv;
                 }
                 packed[p+2]=slot;
