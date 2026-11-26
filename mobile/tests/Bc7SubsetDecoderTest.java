@@ -24,6 +24,19 @@ public final class Bc7SubsetDecoderTest {
         check(b.at==128,"mode6 totals exactly 128 bits");
         return b.bytes;
     }
+    private static byte[] mode4(int selection,int rotation){
+        Writer b=new Writer();
+        b.bits(1<<4,5);b.bits(rotation,2);b.bits(selection,1);
+        int[] start={31,0,0,63},end={0,0,31,0};
+        for(int ch=0;ch<4;ch++){
+            int n=ch==3?6:5;
+            b.bits(start[ch],n);b.bits(end[ch],n);
+        }
+        b.bits(0,1);for(int i=1;i<16;i++)b.bits(3,2);
+        b.bits(0,2);for(int i=1;i<16;i++)b.bits(0,3);
+        check(b.at==128,"mode4 totals exactly 128 bits");
+        return b.bytes;
+    }
     private static byte[] mode5(){
         Writer b=new Writer();
         b.bits(1<<5,6);b.bits(0,2);
@@ -64,6 +77,17 @@ public final class Bc7SubsetDecoderTest {
         var clipped=DdsBcDecoder.decode(dds(second,5,3,99));
         check(clipped.argb.length==15 && clipped.argb[0]==colors[0],
             "mode5 DXGI 99 uneven dimensions");
+        int[] m4=Bc7SubsetDecoder.decodeBlock(mode4(0,0),0);
+        check(m4[0]==0xffff0000&&m4[15]==0xff0000ff,"mode4 primary color");
+        int[] swapped=Bc7SubsetDecoder.decodeBlock(mode4(1,0),0);
+        check(swapped[15]==0x00ff0000,"mode4 index selection");
+        int[] rotated=Bc7SubsetDecoder.decodeBlock(mode4(1,1),0);
+        check(rotated[15]==0xff000000,"mode4 red alpha rotation");
+        byte[] mixed=new byte[32];
+        System.arraycopy(mode4(1,0),0,mixed,0,16);
+        System.arraycopy(first,0,mixed,16,16);
+        var mixedImage=Bc7SubsetDecoder.firstMip(mixed,0,8,4);
+        check(mixedImage.argb[3]==swapped[3]&&mixedImage.argb[4]==redBlue[0],"mixed modes reuse scratch safely");
         byte[] invalid=new byte[16];
         try{Bc7SubsetDecoder.decodeBlock(invalid,0);
             throw new AssertionError("zero BC7 block accepted");}
@@ -75,6 +99,6 @@ public final class Bc7SubsetDecoderTest {
         try{Bc7SubsetDecoder.decodeBlock(first,1);
             throw new AssertionError("truncated block accepted");}
         catch(IOException ok){count++;}
-        System.out.println("PASS BC7 CPU mode5/6 first mip RGB alpha fixtures: "+count);
+        System.out.println("PASS BC7 CPU mode4/5/6 first mip RGB alpha fixtures: "+count);
     }
 }
