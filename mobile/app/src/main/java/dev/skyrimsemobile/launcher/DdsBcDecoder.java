@@ -46,13 +46,19 @@ public final class DdsBcDecoder {
             a[6]=0;a[7]=255;
         }
     }
-    private static void channelBlock(byte[] src,int off,int[] codes,int[] pixels) {
-        alphaPalette(src[off]&255,src[off+1]&255,codes);
+    private static void channelBlock(byte[] src,int off,int[] codes,int[] pixels,boolean signed) {
+        if(signed){
+            int a0=Math.max(-127,src[off]),a1=Math.max(-127,src[off+1]);
+            codes[0]=a0;codes[1]=a1;
+            if(a0>a1){for(int i=1;i<=6;i++)codes[i+1]=((7-i)*a0+i*a1)/7;}
+            else{for(int i=1;i<=4;i++)codes[i+1]=((5-i)*a0+i*a1)/5;codes[6]=-127;codes[7]=127;}
+            for(int i=0;i<8;i++)codes[i]=Math.round((codes[i]+127)*255f/254f);
+        }else alphaPalette(src[off]&255,src[off+1]&255,codes);
         long selector=0;
         for(int i=0;i<6;i++)selector|=((long)src[off+2+i]&255)<<(8*i);
         for(int i=0;i<16;i++)pixels[i]=codes[(int)((selector>>>(3*i))&7)];
     }
-    /** Safe CPU preview of one first mip. BC4/5 signed and BC7 need separate decoders. */
+    /** Safe CPU preview of one first mip. Signed channels are mapped to unsigned preview pixels. */
     public static Image decode(byte[] dds) throws IOException {
         if(dds==null||dds.length<128)throw new IOException("DDS: недостаточно данных");
         DdsHeaderInspector.Result h=DdsHeaderInspector.inspect(dds,dds.length);
@@ -60,19 +66,17 @@ public final class DdsBcDecoder {
             throw new IOException("DDS: изображение больше безопасного предела 2048×2048");
         if(h.depth>1||h.arraySize!=1)throw new IOException("DDS: только одна плоская 2D-текстура");
         // BC7 is common in SSE DX10 diffuse textures. Decode only the
-        // fully verified 5/6 single-subset modes; reject all other BC7 modes.
+        // implemented 4/5/6 single-subset modes; reject all other BC7 modes.
         if(h.isDx10&&(h.dxgiFormat==98||h.dxgiFormat==99))
             return Bc7SubsetDecoder.firstMip(dds,h.headerBytes,h.width,h.height);
         String f=h.fourCC;int dg=h.dxgiFormat;
-        if("BC4S".equals(f)||"BC5S".equals(f)||
-           (h.isDx10&&(dg==81||dg==84)))
-            throw new IOException("Signed BC4/BC5 SNORM требует отдельного декодера");
+        boolean signed="BC4S".equals(f)||"BC5S".equals(f)||(h.isDx10&&(dg==81||dg==84));
         int kind=0;
         if("DXT1".equals(f)||(h.isDx10&&(dg==71||dg==72)))kind=1;
         else if("DXT3".equals(f)||(h.isDx10&&(dg==74||dg==75)))kind=2;
         else if("DXT5".equals(f)||(h.isDx10&&(dg==77||dg==78)))kind=3;
-        else if("ATI1".equals(f)||"BC4U".equals(f)||(h.isDx10&&dg==80))kind=4;
-        else if("ATI2".equals(f)||"BC5U".equals(f)||(h.isDx10&&dg==83))kind=5;
+        else if("ATI1".equals(f)||"BC4U".equals(f)||"BC4S".equals(f)||(h.isDx10&&(dg==80||dg==81)))kind=4;
+        else if("ATI2".equals(f)||"BC5U".equals(f)||"BC5S".equals(f)||(h.isDx10&&(dg==83||dg==84)))kind=5;
         else if(h.isDx10&&(dg==28||dg==29))kind=6;
         else if(h.isDx10&&(dg==87||dg==91))kind=7;
         if(kind==0)throw new IOException("Для формата "+h.format+" CPU-предпросмотр пока недоступен");
@@ -102,10 +106,10 @@ public final class DdsBcDecoder {
                 int colorOff=off+(kind==1?0:8);
                 palette(dds,colorOff,kind!=1,colors);
                 selectors=u32(dds,colorOff+4);
-                if(kind==3)channelBlock(dds,off,codes,first);
+                if(kind==3)channelBlock(dds,off,codes,first,signed);
             }else{
-                channelBlock(dds,off,codes,first);
-                if(kind==5)channelBlock(dds,off+8,codes,second);
+                channelBlock(dds,off,codes,first,signed);
+                if(kind==5)channelBlock(dds,off+8,codes,second,signed);
             }
             for(int i=0;i<16;i++){
                 int x=bx*4+i%4,y=by*4+i/4;
@@ -128,6 +132,6 @@ public final class DdsBcDecoder {
         }
         String label=kind==1?"BC1/DXT1":kind==2?"BC2/DXT3":
           kind==3?"BC3/DXT5":kind==4?"BC4 grayscale":"BC5 RG channels";
-        return new Image(h.width,h.height,pixels,label);
+        return new Image(h.width,h.height,pixels,label+(signed?" SNORM":""));
     }
 }
