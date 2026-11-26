@@ -20,19 +20,19 @@ layout(push_constant) uniform NormalOptions {
 void main(){
     vec2 tiled=fract(uv);
     vec2 diffuseUV=uv;
-    vec2 normalUV=vec2(tiled.x,mix(0.502,0.998,tiled.y));
+    vec2 inset=0.5/vec2(textureSize(diffuseSampler,0));
+    vec2 normalUV=vec2(tiled.x,mix(0.5+inset.y,1.0-inset.y,tiled.y));
     if(options.atlasMode==1){
-        diffuseUV=vec2(tiled.x,mix(0.002,0.498,tiled.y));
+        diffuseUV=vec2(tiled.x,mix(inset.y,0.5-inset.y,tiled.y));
     } else if(options.atlasMode==2||options.atlasMode==3){
         float grid=float(clamp(options.diffuseAtlasGrid,1,4));
         float slot=clamp(floor(materialSlot+0.5),0.0,grid*grid-1.0);
         float row=floor(slot/grid),col=slot-row*grid;
-        vec2 localUv=mix(vec2(0.002),vec2(0.998),tiled);
-        diffuseUV=(vec2(col,row)+localUv)/grid;
-        if(options.atlasMode==3){
-            diffuseUV.y*=0.5;
-            normalUV=vec2(diffuseUV.x,diffuseUV.y+0.5);
-        }
+        vec2 lo=vec2(col,row)/grid;
+        vec2 hi=(vec2(col,row)+1.0)/grid;
+        if(options.atlasMode==3){lo.y*=0.5;hi.y*=0.5;}
+        diffuseUV=mix(lo+inset,hi-inset,tiled);
+        if(options.atlasMode==3)normalUV=diffuseUV+vec2(0.0,0.5);
     }
     vec4 base=materialSlot< -0.5 ? vec4(vertexColor.rgb,1.0) :
         texture(diffuseSampler,diffuseUV);
@@ -53,7 +53,7 @@ void main(){
             tangent-=n*dot(tangent,n);
             float tl=length(tangent);
             if(tl>1e-7){
-                vec3 t=tangent/tl;
+                vec3 t=(tangent/tl)*sign(det);
                 vec3 b=normalize(cross(n,t))*(det<0.0?-1.0:1.0);
                 n=normalize(t*enc.x+b*enc.y+n*z);
             }
