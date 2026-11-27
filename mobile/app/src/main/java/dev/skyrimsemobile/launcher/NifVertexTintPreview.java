@@ -81,15 +81,17 @@ public final class NifVertexTintPreview {
             double vx=worldTriangles[base+6]-ax,
                 vy=worldTriangles[base+7]-ay,vz=worldTriangles[base+8]-az;
             double nx=uy*vz-uz*vy,ny=uz*vx-ux*vz,nz=ux*vy-uy*vx;
-            double length=Math.sqrt(nx*nx+ny*ny+nz*nz);
+            double length=Math.hypot(Math.hypot(nx,ny),nz);
+            double edgeScale=Math.hypot(Math.hypot(ux,uy),uz)*
+                Math.hypot(Math.hypot(vx,vy),vz);
             double light;
-            if(!Double.isFinite(length)||length<1e-10){
+            if(!Double.isFinite(length)||edgeScale==0.0||length<=edgeScale*1e-10){
                 light=0.50;degenerate++;
             }else{
                 // Direction is normalized. abs gives safe two-sided light
                 // while culling and original Skyrim normals are unresolved.
                 light=AMBIENT+DIFFUSE*Math.abs(
-                    (nx*0.38+ny*0.64+nz*0.67)/length);
+                    (nx*0.38+ny*0.64+nz*0.67)/(length*Math.sqrt(0.38*0.38+0.64*0.64+0.67*0.67)));
             }
             float factor=(float)Math.max(0.0,Math.min(0.78,BASE*light));
             for(int v=0;v<3;v++){

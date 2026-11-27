@@ -2,6 +2,7 @@ package dev.skyrimsemobile.launcher;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
@@ -77,11 +78,17 @@ public final class NifCompositeDdsAtlas {
         return buildInternal(parts,scene,perDiffuse,perNormal);
     }
 
+    private static boolean validImage(DdsBcDecoder.Image image){
+        return image!=null&&image.width>0&&image.height>0&&
+            image.width<=2048&&image.height<=2048&&image.argb!=null&&
+            image.argb.length==(long)image.width*image.height;
+    }
+
     private static Result buildInternal(NifGeometryDecoder.Parts parts,
                                NifSceneComposer.Combined scene,
                                Map<Integer,DdsBcDecoder.Image> perShape,
                                Map<Integer,DdsBcDecoder.Image> perNormal)throws IOException{
-        if(parts==null||scene==null||scene.triangles==null||perShape==null)
+        if(parts==null||parts.items==null||scene==null||scene.triangles==null||perShape==null)
             throw new IOException("Нет составной геометрии или материалов NIF");
         if(scene.triangleCount<1||scene.triangleCount>NifSceneComposer.MAX_TRIANGLES||
            scene.triangles.length!=(long)scene.triangleCount*9)
@@ -100,25 +107,26 @@ public final class NifCompositeDdsAtlas {
         for(NifGeometryDecoder.Part part:parts.items){
             if(part.mesh==null)continue; // same ordering as NifSceneComposer.combine
             NifGeometryDecoder.Mesh mesh=part.mesh;
+            if(mesh.triangles<1||mesh.triangles>scene.triangleCount)
+                throw new IOException("Некорректное число треугольников NIF-части");
             int vertices=mesh.triangles*3;
             if(vertexOffset+vertices>scene.triangleCount*3)
                 throw new IOException("Число частей не совпадает с составной геометрией");
-            boolean hasUV=mesh.surfaceUVs.length==vertices*2;
+            boolean hasUV=mesh.surfaceUVs!=null&&mesh.surfaceUVs.length==vertices*2;
+            if(hasUV){
+                for(float uv:mesh.surfaceUVs){
+                    if(!Float.isFinite(uv)||Math.abs(uv)>8192f){hasUV=false;break;}
+                }
+            }
             DdsBcDecoder.Image image=hasUV?perShape.get(part.blockIndex):null;
             int slot=0;
+            if(!validImage(image))image=null;
             if(image!=null){
-                if(image.width<1||image.height<1||image.width>2048||image.height>2048||
-                   image.argb==null||image.argb.length!=(long)image.width*image.height)
-                    throw new IOException("Повреждённый первый mip DDS у части #"+part.blockIndex);
                 // Pair identity matters only in paired mode: otherwise
                 // retain the old exact diffuse-only material slot behavior.
                 DdsBcDecoder.Image normal=perNormal==null?null:
                     perNormal.get(part.blockIndex);
-                if(perNormal!=null&&normal!=null &&
-                   (normal.width<1||normal.height<1||
-                    normal.width>2048||normal.height>2048||normal.argb==null||
-                    normal.argb.length!=(long)normal.width*normal.height))
-                    throw new IOException("Повреждённая normal DDS у #"+part.blockIndex);
+                if(!validImage(normal))normal=null;
                 IdentityHashMap<DdsBcDecoder.Image,Integer> normalSlots=
                     perNormal==null?null:pairs.get(image);
                 if(perNormal!=null&&normalSlots==null){
@@ -139,9 +147,6 @@ public final class NifCompositeDdsAtlas {
                 int p=(vertexOffset+v)*3;
                 if(hasUV){
                     float u=mesh.surfaceUVs[v*2], vv=mesh.surfaceUVs[v*2+1];
-                    if(!Float.isFinite(u)||!Float.isFinite(vv)||
-                       Math.abs(u)>8192f||Math.abs(vv)>8192f)
-                        throw new IOException("Неверные UV координаты части #"+part.blockIndex);
                     packed[p]=u;packed[p+1]=vv;
                 }
                 packed[p+2]=slot;
@@ -162,11 +167,13 @@ public final class NifCompositeDdsAtlas {
             DdsBcDecoder.Image d=cell<tiles.size()?tiles.get(cell):null;
             int x0=(cell%grid)*tileSide,y0=(cell/grid)*tileSide;
             for(int y=0;y<tileSide;y++){
-                int sy=d==null?0:(int)((long)y*d.height/tileSide);
                 int row=(y0+y)*side+x0;
+                if(d==null){Arrays.fill(output,row,row+tileSide,NEUTRAL);continue;}
+                int sy=(int)((long)y*d.height/tileSide);
+                if(d.width==tileSide){System.arraycopy(d.argb,sy*d.width,output,row,tileSide);continue;}
                 for(int x=0;x<tileSide;x++){
-                    int sx=d==null?0:(int)((long)x*d.width/tileSide);
-                    output[row+x]=d==null?NEUTRAL:d.argb[sy*d.width+sx];
+                    int sx=(int)((long)x*d.width/tileSide);
+                    output[row+x]=d.argb[sy*d.width+sx];
                 }
             }
         }

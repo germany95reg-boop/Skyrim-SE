@@ -46,6 +46,26 @@ public final class NifCompositeDdsAtlasTest {
         NifCompositeDdsAtlas.Result shared=NifCompositeDdsAtlas.build(parts,combined,perPart);
         ok(shared.textureCount==1,"reused texture decoded only once");
         ok(shared.uvAndSlot[secondStart+2]==1f,"shared material uses same slot");
+        NifGeometryDecoder.Mesh invalidMesh=NifGeometryDecoder.decode(NifGeometryDecoderTest.validUv());
+        invalidMesh.surfaceUVs[0]=Float.NaN;
+        NifGeometryDecoder.Parts mixed=new NifGeometryDecoder.Parts(Arrays.asList(
+            new NifGeometryDecoder.Part(5,parts.items.get(0).mesh,null),
+            new NifGeometryDecoder.Part(8,invalidMesh,null)),2);
+        NifCompositeDdsAtlas.Result isolated=NifCompositeDdsAtlas.build(
+            mixed,NifSceneComposer.combine(mixed),perPart);
+        ok(isolated.textureCount==1&&isolated.neutralParts==1,"invalid UV isolated");
+        ok(isolated.uvAndSlot[2]==1f&&isolated.uvAndSlot[secondStart+2]==0f,"valid DDS retained");
+        ok(Float.isFinite(isolated.uvAndSlot[secondStart]),"NaN never reaches GPU");
+        DdsBcDecoder.Image malformed=new DdsBcDecoder.Image(4,4,new int[1],"invalid");
+        perPart.put(8,malformed);
+        var recovered=NifCompositeDdsAtlas.build(parts,combined,perPart);
+        ok(recovered.textureCount==1&&recovered.neutralParts==1,"malformed DDS isolated");
+        ok(recovered.uvAndSlot[2]==1f&&recovered.uvAndSlot[secondStart+2]==0f,"valid neighbor retained");
+        perPart.put(8,red);
+        Map<Integer,DdsBcDecoder.Image> normals=new HashMap<>();
+        normals.put(8,malformed);
+        var paired=NifCompositeDdsAtlas.buildPaired(parts,combined,perPart,normals);
+        ok(paired.textureCount==1&&paired.neutralParts==0,"invalid normal retains diffuse and shares absent-normal slot");
         perPart.clear();
         try{
             NifCompositeDdsAtlas.build(parts,combined,perPart);

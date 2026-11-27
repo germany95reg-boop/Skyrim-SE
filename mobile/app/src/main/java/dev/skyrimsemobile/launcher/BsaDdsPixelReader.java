@@ -16,6 +16,21 @@ public final class BsaDdsPixelReader {
     public static DdsBcDecoder.Image preview(InputStream archive,BsaCatalogReader.Entry entry,long flags)
             throws IOException { return DdsBcDecoder.decode(read(archive,entry,flags)); }
 
+    /** Caller owns archive stream and session cache; archiveId must change when archive changes. */
+    public static DdsBcDecoder.Image previewCached(InputStream archive,BsaCatalogReader.Entry entry,
+            long flags,String archiveId,DdsPreviewCache cache)throws IOException{
+        if(cache==null)return preview(archive,entry,flags);
+        if(archive==null||entry==null||archiveId==null||archiveId.isEmpty())
+            throw new IOException("BSA: отсутствует идентификатор ресурса");
+        String key=archiveId.length()+":"+archiveId+":"+entry.offset+":"+entry.storedBytes+
+            ":"+entry.compressed+":"+flags+":"+entry.path;
+        DdsBcDecoder.Image hit=cache.get(key);
+        if(hit!=null)return hit;
+        DdsBcDecoder.Image decoded=preview(archive,entry,flags);
+        cache.put(key,decoded);
+        return decoded;
+    }
+
     public static byte[] read(InputStream archive,BsaCatalogReader.Entry entry,long flags) throws IOException {
         if(archive==null||entry==null)throw new IOException("BSA/DDS недоступен");
         DdsArchiveFinder.normalizeDds(entry.path);

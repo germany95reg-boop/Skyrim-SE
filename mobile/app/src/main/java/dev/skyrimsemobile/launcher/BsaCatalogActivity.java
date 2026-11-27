@@ -41,6 +41,17 @@ import java.util.Locale;
 
 /** Read-only BSA metadata and bounded single NIF header probe; never modifies files. */
 public final class BsaCatalogActivity extends Activity {
+    private final long ddsBudget=Math.min(64L*1024*1024,Runtime.getRuntime().maxMemory()/16);
+    private final DdsPreviewCache ddsCache=new DdsPreviewCache(ddsBudget);
+    @Override public void onTrimMemory(int level){
+        super.onTrimMemory(level);
+        if(level>=80||level==15)ddsCache.resize(0);
+        else if(level>=10)ddsCache.resize(ddsBudget/4);
+    }
+    @Override protected void onResume(){
+        super.onResume();
+        ddsCache.resize(ddsBudget);
+    }
     private static final int PICK_BSA=801;
     private static final int PICK_DATA=802;
     private static final int MAX_BSA_ARCHIVES=48, MAX_DATA_CHILDREN=4096;
@@ -673,7 +684,7 @@ public final class BsaCatalogActivity extends Activity {
             if(in==null)throw new IOException("Нет доступа к DDS BSA: "+hit.archive);
             BsaCatalogReader.Entry entry=new BsaCatalogReader.Entry(
                 hit.hit.entryPath,hit.hit.storedBytes,hit.hit.offset,hit.hit.compressed);
-            return BsaDdsPixelReader.preview(in,entry,hit.flags);
+            return BsaDdsPixelReader.previewCached(in,entry,hit.flags,hit.uri.toString(),ddsCache);
         }
     }
 
@@ -1246,7 +1257,7 @@ public final class BsaCatalogActivity extends Activity {
                     if(in==null)throw new IOException("Нет доступа к BSA");
                     BsaCatalogReader.Entry entry=new BsaCatalogReader.Entry(item.hit.entryPath,
                         item.hit.storedBytes,item.hit.offset,item.hit.compressed);
-                    DdsBcDecoder.Image d=BsaDdsPixelReader.preview(in,entry,item.flags);
+                    DdsBcDecoder.Image d=BsaDdsPixelReader.previewCached(in,entry,item.flags,item.uri.toString(),ddsCache);
                     images.add(d);names.add(item.hit.entryPath);
                     report.append("• ").append(item.hit.entryPath).append("\n  ")
                         .append(d.width).append(" × ").append(d.height).append(" · ")
@@ -1343,7 +1354,7 @@ public final class BsaCatalogActivity extends Activity {
                     if(input==null)throw new IOException("Архив DDS больше недоступен");
                     BsaCatalogReader.Entry asset=new BsaCatalogReader.Entry(chosen.hit.entryPath,
                             chosen.hit.storedBytes,chosen.hit.offset,chosen.hit.compressed);
-                    pixels=BsaDdsPixelReader.preview(input,asset,chosen.flags);
+                    pixels=BsaDdsPixelReader.previewCached(input,asset,chosen.flags,chosen.uri.toString(),ddsCache);
                 }
                 // The second map is optional. Never fail the working diffuse renderer
                 // merely because a normal DDS is absent, unsupported or malformed.
@@ -1364,8 +1375,8 @@ public final class BsaCatalogActivity extends Activity {
                                 BsaCatalogReader.Entry normalEntry=new BsaCatalogReader.Entry(
                                     normalHit.hit.entryPath,normalHit.hit.storedBytes,
                                     normalHit.hit.offset,normalHit.hit.compressed);
-                                DdsBcDecoder.Image candidate=BsaDdsPixelReader.preview(
-                                    normalInput,normalEntry,normalHit.flags);
+                                DdsBcDecoder.Image candidate=BsaDdsPixelReader.previewCached(
+                                    normalInput,normalEntry,normalHit.flags,normalHit.uri.toString(),ddsCache);
                                 if(!candidate.format.startsWith("BC3")&&
                                    !candidate.format.startsWith("BC5")&&
                                    !"RGBA8".equals(candidate.format)&&
@@ -1408,5 +1419,5 @@ public final class BsaCatalogActivity extends Activity {
         ClipboardManager cb=(ClipboardManager)getSystemService(Context.CLIPBOARD_SERVICE);
         if(cb!=null)cb.setPrimaryClip(ClipData.newPlainText("Skyrim SE BSA v2.11",summary.getText()+"\n\n"+results.getText()+"\n\n"+inspectionOutput.getText()));
     }
-    @Override protected void onDestroy(){destroyed=true;super.onDestroy();}
+    @Override protected void onDestroy(){destroyed=true;ddsCache.resize(0);super.onDestroy();}
 }

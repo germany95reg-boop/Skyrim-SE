@@ -191,6 +191,19 @@ public final class Tes4LocalWorldSceneTest {
         var rgbaScene=new Tes4LocalWorldScene.Builder();
         assert rgbaScene.add(withUv,denseLinks.get(1));
         assert rgbaScene.add(rgbaParts,denseLinks.get(2));
+        // v2.51 stabilization: RGBA-only NIF must render even with no DDS map.
+        var colorOnly=new Tes4LocalWorldScene.Builder();
+        assert colorOnly.add(rgbaParts,denseLinks.get(2));
+        var colorAtlas=colorOnly.diffuseAtlas(null,null);
+        assert colorAtlas!=null && colorAtlas.textureCount==0;
+        assert colorAtlas.vertexColorTriangles==1;
+        assert colorAtlas.uvAndSlot[2]==-1f;
+        assert colorAtlas.vertexColors.length==12;
+        // A UV-bearing mesh with missing DDS stays neutral, never becomes
+        // a fabricated UV-less vertex-color material.
+        var uvOnly=new Tes4LocalWorldScene.Builder();
+        assert uvOnly.add(withUv,denseLinks.get(1));
+        assert uvOnly.diffuseAtlas(null,null)==null;
         var mixed=rgbaScene.diffuseAtlas(materialPaths,pixels);
         assert mixed!=null&&mixed.texturedTriangles==1:
             "UV+DDS remains correctly textured";

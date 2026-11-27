@@ -19,7 +19,7 @@ assert "var blank=VulkanPlacedPreviewReceipt.assessWithPixelCopy(" in tests
 assert "var picture=VulkanPlacedPreviewReceipt.assessWithPixelCopy(" in tests
 assert "gh release create" in wf and "gh release upload" in wf
 assert "actions/upload-artifact@v4" not in wf
-assert "if: github.event_name != 'pull_request'" in wf
+assert "if: github.ref == 'refs/heads/main' && github.event_name == 'push'" in wf
 assert "versionCode 74" in gradle and "versionName '2.51.0'" in gradle
 assert "versionCode='74'" in verify
 assert "v243_pixelcopy_release_contract_test.py" in wf

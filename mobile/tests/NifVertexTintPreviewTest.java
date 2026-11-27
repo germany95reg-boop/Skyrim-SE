@@ -37,6 +37,12 @@ public final class NifVertexTintPreviewTest {
         assert degenerate.degenerateTriangles==1;
         assert degenerate.nearWhiteVertices==3;
         assert degenerate.rgba[0]>.1f&&degenerate.rgba[0]<.8f;
+        for(float scale:new float[]{1e-12f,1e-6f,1f,1e12f}){
+            var scaled=NifVertexTintPreview.shade(new float[]{0,0,0,scale,0,0,0,scale,0},
+                new float[]{0,0,-1,0,0,-1,0,0,-1},allWhite);
+            assert scaled.degenerateTriangles==0:scale;
+            assert Math.abs(scaled.rgba[0]-out.rgba[0])<1e-6f:scale;
+        }
         System.out.println("PASS v2.51 bounded neutral SSE RGBA shading, shader-safe fidelity stats");
     }
 }

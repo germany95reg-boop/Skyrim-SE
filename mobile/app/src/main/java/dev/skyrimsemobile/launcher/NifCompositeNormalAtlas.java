@@ -51,19 +51,21 @@ public final class NifCompositeNormalAtlas {
             if(vertices<3||vertexOffset+vertices>diffuse.uvAndSlot.length/3)
                 throw new IOException("Части NIF не совпадают с атласом");
             int slot=Math.round(diffuse.uvAndSlot[vertexOffset*3+2]);
-            if(slot<0||slot>=slotNormals.length)
+            if(slot< -1||slot>=slotNormals.length)
                 throw new IOException("Неверный номер слота материала");
             for(int v=1;v<vertices;v++)
                 if(Math.round(diffuse.uvAndSlot[(vertexOffset+v)*3+2])!=slot)
                     throw new IOException("Материал меняется посреди одной части NIF");
+            if(slot==-1){neutralParts++;vertexOffset+=vertices;continue;}
             DdsBcDecoder.Image normal=slot==0?null:perShapeNormals.get(part.blockIndex);
             if(normal!=null){
                 if(normal.argb==null||normal.width<1||normal.height<1||
                    normal.width>2048||normal.height>2048||
                    normal.argb.length!=(long)normal.width*normal.height)
-                    throw new IOException("Повреждённая normal DDS у #"+part.blockIndex);
-                normalParts++;unique.put(normal,Boolean.TRUE);
-            } else neutralParts++;
+                    normal=null;
+            }
+            if(normal!=null){normalParts++;unique.put(normal,Boolean.TRUE);}
+            else neutralParts++;
             if(usedSlot[slot]&&slotNormals[slot]!=normal)
                 throw new IOException("Один diffuse slot "+slot+
                     " содержит несовместимые normal DDS; нужна отдельная пара материалов");
@@ -76,8 +78,7 @@ public final class NifCompositeNormalAtlas {
         int[] stacked=new int[width*height];
         for(int y=0;y<halfHeight;y++){
             int sy=(int)((long)y*height/halfHeight);
-            for(int x=0;x<width;x++)
-                stacked[y*width+x]=diffuse.argb[sy*width+x];
+            System.arraycopy(diffuse.argb,sy*width,stacked,y*width,width);
         }
         Arrays.fill(stacked,halfHeight*width,stacked.length,NEUTRAL_NORMAL);
         int cellWidth=width/grid,cellHeight=halfHeight/grid;

@@ -27,7 +27,7 @@ fi
 # suite. This explicit list prevents Android imports accidentally entering JVM CI.
 sources=(
   BsaCatalogReader BsaDdsInspector BsaDdsPixelReader BsaEntryInspector
-  DdsArchiveFinder DdsBcDecoder DdsPreviewDownsampler Bc7SubsetDecoder DdsHeaderInspector DdsNormalResampler DdsAlphaCoverage
+  DdsArchiveFinder DdsBcDecoder DdsPreviewCache DdsPreviewDownsampler Bc7SubsetDecoder DdsHeaderInspector DdsNormalResampler DdsAlphaCoverage
   NifBlockInspector NifCatalogSelection NifCompositeDdsAtlas NifCompositeNormalAtlas NifVertexTintPreview
   NifHierarchyTransforms
   NifGeometryDecoder NifGeometryTransfer NifMaterialInspector
@@ -54,7 +54,10 @@ if (( ${#tests[@]} < 20 )); then
   exit 2
 fi
 echo "Compiling ${#sources[@]} pure-Java modules + ${#tests[@]} regression tests"
-javac -encoding UTF-8 -cp "$LZ4_JAR" -d "$OUT" "${args[@]}" "${tests[@]}"
+if ! javac -encoding UTF-8 -cp "$LZ4_JAR" -d "$OUT" "${args[@]}" "${tests[@]}"; then
+  echo "::error title=JVM compilation failed::javac failed; inspect compiler diagnostics above" >&2
+  exit 1
+fi
 
 passed=0
 for test in "${tests[@]}"; do
@@ -66,8 +69,12 @@ for test in "${tests[@]}"; do
     class="$name"
   fi
   echo "==> $class"
-  java -ea -cp "$OUT:$LZ4_JAR" "$class"
-  ((passed+=1))
+  if ! java -ea -cp "$OUT:$LZ4_JAR" "$class"; then
+    echo "::error title=JVM regression failed::$class exited nonzero" >&2
+    echo "FAILED TEST CLASS: $class" >&2
+    exit 1
+  fi
+  passed=$((passed+1))
 done
 
 echo "PASS all $passed JVM regression programs (synthetic fixtures; no game assets)"

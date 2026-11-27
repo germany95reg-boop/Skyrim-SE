@@ -73,7 +73,7 @@ void main(){
             tangent-=n*dot(n,tangent);
             float tLength=length(tangent);
             if(tLength>1e-7){
-                vec3 t=tangent/tLength;
+                vec3 t=(tangent/tLength)*sign(det);
                 vec3 b=normalize(cross(n,t))*(det<0.0?-1.0:1.0);
                 n=normalize(t*xy.x+b*xy.y+n*z);
             }
